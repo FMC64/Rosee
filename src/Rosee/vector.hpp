@@ -162,6 +162,8 @@ public:
 	}
 
 	size_t size(void) const { return m_size; }
+	const T* data(void) const { return m_buf; }
+	T* data(void) { return m_buf; }
 	void reserve(size_t size)
 	{
 		if (m_allocated < size) {

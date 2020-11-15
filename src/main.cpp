@@ -1,15 +1,13 @@
-#include <stdio.h>
+#include <iostream>
+#include "Rosee/Brush.hpp"
+#include <array>
 
-// stuff this in a header somewhere
-inline int type_id_seq = 0;
-template< typename T > inline const int type_id = type_id_seq++;
+using namespace Rosee;
 
 int main() {
-        printf( "%d\n", type_id< int > );
-        printf( "%d\n", type_id< float > );
-        printf( "%d\n", type_id< int > );
-        printf( "%d\n", type_id< int > );
-        printf( "%d\n", type_id< int > );
-        printf( "%d\n", type_id< size_t > );
+        auto b = Brush(std::array{Rosee::Id::id, Rosee::Transform::id});
+        auto ent = b.add();
+        auto ids = b.get<Id>();
+        std::cout << "ent id: " << ent << ", id storage: " << ids << std::endl;
         return 0;
 }
