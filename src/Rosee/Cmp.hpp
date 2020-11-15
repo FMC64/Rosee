@@ -1,10 +1,7 @@
+#include <glm/vec3.hpp>
+
 namespace Rosee {
 
-enum class Cmp {
-
-Position,
-Max = Position + 1
-
-};
+static inline size_t cmp_max = 0;
 
 }
