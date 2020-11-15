@@ -1,24 +1,15 @@
-#include <iostream>
-#include <algorithm>
-#include "Rosee/vector.hpp"
+#include <stdio.h>
 
-int main(void)
-{
-	/*Rosee::vector<size_t> vec {1, 2, 3};
+// stuff this in a header somewhere
+inline int type_id_seq = 0;
+template< typename T > inline const int type_id = type_id_seq++;
 
-	vec.emplace(5);
-	vec.emplace(8);
-	vec.emplace(1);
-	vec.emplace(2);
-	vec.emplace(3);*/
-	/*vec.erase(std::remove_if(vec.begin(), vec.end(), [](auto &v){
-		return v >= 3;
-	}), vec.end());*/
-	//vec.erase(vec.begin());
-	//vec.insert(vec.begin() + 1, 5ULL);
-
-	auto vec = Rosee::vector<size_t>(4, 58);
-	for (auto &v : vec)
-		std::cout << v << std::endl;
-	return 0;
+int main() {
+        printf( "%d\n", type_id< int > );
+        printf( "%d\n", type_id< float > );
+        printf( "%d\n", type_id< int > );
+        printf( "%d\n", type_id< int > );
+        printf( "%d\n", type_id< int > );
+        printf( "%d\n", type_id< size_t > );
+        return 0;
 }
