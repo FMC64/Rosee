@@ -1,5 +1,8 @@
+#pragma once
+
 #include <cstdint>
 #include <glm/mat4x4.hpp>
+#include "array.hpp"
 
 namespace Rosee {
 
@@ -33,6 +36,24 @@ using init_t = void (void *ptr, size_t size);
 using destr_t = void (void *ptr, size_t size);
 extern init_t *init[max];
 extern destr_t *destr[max];
+
+template <typename First, typename ...Rest>
+void __make_id_array(cmp_id *to_write)
+{
+	*to_write = First::id;
+	if constexpr (sizeof...(Rest) > 0)
+		__make_id_array<Rest...>(to_write + 1);
+};
+
+template <typename ...Components>
+static auto make_id_array(void)
+{
+	auto res = sarray<cmp_id, sizeof...(Components)>();
+
+	if constexpr (sizeof...(Components) > 0)
+		__make_id_array<Components...>(res.data());
+	return res;
+}
 
 }
 }

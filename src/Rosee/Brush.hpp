@@ -1,4 +1,5 @@
-#include <optional>
+#pragma once
+
 #include "Cmp.hpp"
 #include "vector.hpp"
 #include "array.hpp"
