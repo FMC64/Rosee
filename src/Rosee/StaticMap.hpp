@@ -20,7 +20,7 @@ inline void map<Key, Value>::init(void *data)
 template <typename Key, typename Value>
 inline void map<Key, Value>::destr(void *data)
 {
-	using T = map<Key, Value>;
+	using T = std::map<Key, Value>;
 	reinterpret_cast<T*>(data)->~T();
 }
 
