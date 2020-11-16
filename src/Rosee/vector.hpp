@@ -2,7 +2,9 @@
 
 #include <utility>
 #include <new>
+#ifdef ROSEE_STANDARD_ITERATOR
 #include <iterator>
+#endif
 #include <type_traits>
 #include <cstdlib>
 #include <cstring>
@@ -83,7 +85,9 @@ public:
 		size_t m_p;
 
 	public:
+#ifdef ROSEE_STANDARD_ITERATOR
 		using iterator_category = std::random_access_iterator_tag;
+#endif
 		using value_type = T;
 		using difference_type = int64_t;
 		using pointer = T*;
