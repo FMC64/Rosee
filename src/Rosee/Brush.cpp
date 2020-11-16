@@ -24,11 +24,10 @@ size_t Brush::add(size_t count)
 	m_size += count;
 
 	if (m_size > m_allocated) {
-		while (m_size > m_allocated) {
-			if (m_allocated == 0)
-				m_allocated = 1;
+		if (m_allocated == 0)
+			m_allocated = 1;
+		while (m_size > m_allocated)
 			m_allocated <<= 1;
-		}
 		for (auto &c : m_cmp_ids)
 			m_comps[c] = std::realloc(m_comps[c], m_allocated * Cmp::size[c]);
 	}
