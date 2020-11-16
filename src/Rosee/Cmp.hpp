@@ -39,7 +39,7 @@ extern init_t *init[max];
 extern destr_t *destr[max];
 
 template <typename First, typename ...Rest>
-void __make_id_array(cmp_id *to_write)
+constexpr void __make_id_array(cmp_id *to_write)
 {
 	*to_write = First::id;
 	if constexpr (sizeof...(Rest) > 0)
@@ -47,12 +47,13 @@ void __make_id_array(cmp_id *to_write)
 };
 
 template <typename ...Components>
-static auto make_id_array(void)
+static constexpr auto make_id_array(void)
 {
 	auto res = sarray<cmp_id, sizeof...(Components)>();
 
 	if constexpr (sizeof...(Components) > 0)
-		__make_id_array<Components...>(res.data());
+		__make_id_array<Components...>(res.cdata());
+	res.sort();
 	return res;
 }
 

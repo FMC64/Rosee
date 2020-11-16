@@ -7,6 +7,9 @@ Brush::Brush(array<cmp_id> cmps)
 	m_cmp_ids.resize(cmps.size);
 	std::memcpy(m_cmp_ids.data(), cmps.data, cmps.size * sizeof(cmp_id));
 	std::memset(m_comps, 0, sizeof(m_comps));
+	std::memset(m_cmp_pres, 0, Cmp::max);
+	for (auto &c : m_cmp_ids)
+		m_cmp_pres[c] = true;
 }
 
 Brush::~Brush(void)

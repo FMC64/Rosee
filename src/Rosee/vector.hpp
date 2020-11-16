@@ -40,9 +40,7 @@ public:
 	{
 		m_size = init.size();
 		resolve_alloc();
-		size_t ndx = 0;
-		for (auto &v : init)
-			m_buf[ndx++] = v;
+		std::memcpy(m_buf, &*init.begin(), m_size * sizeof(T));
 	}
 	~vector(void)
 	{
@@ -66,6 +64,12 @@ public:
 		m_buf = other.m_buf;
 
 		other.m_buf = nullptr;
+	}
+	vector(const vector &other)
+	{
+		m_size = other.m_size;
+		resolve_alloc();
+		std::memcpy(m_buf, other.m_buf, m_size * sizeof(T));
 	}
 
 	template <typename ...Args>
@@ -186,6 +190,16 @@ public:
 		resolve_alloc();
 		for (size_t i = was_size; i < size; i++)
 			new (&m_buf[i]) T(std::forward<Args>(args)...);
+	}
+
+	bool operator<(const vector &other) const
+	{
+		for (size_t i = 0; i < m_size && i < other.m_size; i++) {
+			if (m_buf[i] == other.m_buf[i])
+				continue;
+			return m_buf[i] < other.m_buf[i];
+		}
+		return (m_size == 0) && (other.m_size > 0);
 	}
 };
 
