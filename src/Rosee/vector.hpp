@@ -22,10 +22,10 @@ class vector
 	{
 		if (m_size > m_allocated) {
 			if (m_allocated == 0)
-				m_allocated = sizeof(T);
-			else
+				m_allocated = 1;
+			while (m_size > m_allocated)
 				m_allocated <<= 1;
-			m_buf = reinterpret_cast<T*>(std::realloc(m_buf, m_allocated));
+			m_buf = reinterpret_cast<T*>(std::realloc(m_buf, m_allocated * sizeof(T)));
 		}
 	}
 
@@ -174,7 +174,7 @@ public:
 	{
 		if (m_allocated < size) {
 			m_allocated = size;
-			m_buf = reinterpret_cast<T*>(std::realloc(m_buf, m_allocated));
+			m_buf = reinterpret_cast<T*>(std::realloc(m_buf, m_allocated * sizeof(T)));
 		}
 	}
 
