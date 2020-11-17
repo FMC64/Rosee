@@ -1,8 +1,12 @@
+#include <stdexcept>
 #include "Brush.hpp"
+#include "Map.hpp"
+#include "StaticMap.hpp"
 
 namespace Rosee {
 
-Brush::Brush(array<cmp_id> cmps)
+Brush::Brush(Map &map, array<cmp_id> cmps) :
+	m_map(map)
 {
 	m_cmp_ids.resize(cmps.size);
 	std::memcpy(m_cmp_ids.data(), cmps.data, cmps.size * sizeof(cmp_id));
@@ -36,6 +40,18 @@ size_t Brush::add(size_t count)
 	}
 	for (auto &c : m_cmp_ids)
 		Cmp::init[c](reinterpret_cast<char*>(m_comps[c]) + res * Cmp::size[c], count);
+	if (cmpIsPres<Id>()) {
+		auto ids = get<Id>() + res;
+		size_t base_id = m_map.m_id;
+		size_t acc_id = base_id;
+		m_map.m_id += count;
+		for (size_t i = 0; i < count; i++)
+			ids[i] = acc_id++;
+		auto &ranges = Static::get(m_map.m_ids);
+		auto [it, suc] = ranges.emplace(std::piecewise_construct, std::forward_as_tuple(Map::Range{base_id, base_id + count}), std::forward_as_tuple(*this, res));
+		if (!suc)
+			throw std::runtime_error("Can't emplace in brush");
+	}
 	return res;
 }
 

@@ -11,10 +11,18 @@ class Map
 	{
 		size_t begin;
 		size_t end;
+
+		bool operator<(const Range &other) const
+		{
+			return end <= other.begin;
+		}
 	};
 
 	Static::map<vector<cmp_id>, Brush> m_brushes;
 	Static::map<Range, std::pair<Brush&, size_t>> m_ids;
+	size_t m_id = 0;
+
+	friend class Brush;
 
 public:
 	Map(void);
@@ -39,6 +47,22 @@ public:
 		auto res = b.add(count);
 		return std::pair<Brush&, size_t>(b, res);
 	}
+
+	template <typename ...Components>
+	size_t addId(size_t count)
+	{
+		{
+			constexpr auto sign = Cmp::make_id_array<Components...>();
+			static_assert(sign.size() > 0, "Id requested but components size is 0");
+			static_assert(sign.cdata()[0] == Id::id, "Id not present in components list");
+		}
+		auto &b = brush<Components...>();
+		auto b_ndx = b.add(count);
+		auto res = b.template get<Id>()[b_ndx];
+		return res;
+	}
+
+	std::pair<Brush*, size_t> find(size_t id);
 };
 
 }

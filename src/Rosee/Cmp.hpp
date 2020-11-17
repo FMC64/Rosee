@@ -15,7 +15,20 @@ struct Id
 	static void init(void *ptr, size_t size);
 	static void destr(void *ptr, size_t size);
 
-	uint32_t value;
+	using type = uint32_t;
+
+	type value;
+
+	Id& operator=(type val)
+	{
+		value = val;
+		return *this;
+	}
+
+	operator type(void) const
+	{
+		return value;
+	}
 };
 
 struct Transform

@@ -6,8 +6,11 @@
 
 namespace Rosee {
 
+class Map;
+
 class Brush
 {
+	Map &m_map;
 	vector<cmp_id> m_cmp_ids;
 	bool m_cmp_pres[Cmp::max];
 	void *m_comps[Cmp::max];
@@ -15,7 +18,7 @@ class Brush
 	size_t m_allocated = 0;
 
 public:
-	Brush(array<cmp_id> cmps);
+	Brush(Map &map, array<cmp_id> cmps);
 	~Brush(void);
 
 	size_t size(void) const
@@ -34,7 +37,13 @@ public:
 		return m_cmp_pres[cmp];
 	}
 
-	const vector<cmp_id>& cmpGet(void) const
+	template <typename Component>
+	bool cmpIsPres(void) const
+	{
+		return m_cmp_pres[Component::id];
+	}
+
+	const vector<cmp_id>& cmpsGet(void) const
 	{
 		return m_cmp_ids;
 	}

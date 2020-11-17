@@ -44,6 +44,10 @@ public:
 	{
 		return m_data;
 	}
+	constexpr const T* cdata(void) const
+	{
+		return m_data;
+	}
 
 private:
 	constexpr void swap(T& l, T& r)
