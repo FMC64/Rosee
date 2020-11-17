@@ -11,6 +11,8 @@ class Map;
 class Brush
 {
 	Map &m_map;
+	friend class Map;
+
 	vector<cmp_id> m_cmp_ids;
 	bool m_cmp_pres[Cmp::max];
 	void *m_comps[Cmp::max];
@@ -49,6 +51,11 @@ public:
 	}
 
 	size_t add(size_t count);
+
+private:
+	void remove_imp(size_t offset, size_t count);
+
+public:
 	void remove(size_t offset, size_t count);
 };
 

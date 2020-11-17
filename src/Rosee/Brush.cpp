@@ -52,7 +52,7 @@ size_t Brush::add(size_t count)
 	return res;
 }
 
-void Brush::remove(size_t offset, size_t count)
+void Brush::remove_imp(size_t offset, size_t count)
 {
 	size_t end = offset + count;
 	size_t rest = m_size - end;
@@ -63,6 +63,35 @@ void Brush::remove(size_t offset, size_t count)
 		std::memmove(cptr + offset * csize, cptr + end * csize, rest * csize);
 	}
 	m_size -= count;
+	if (cmpIsPres<Id>()) {
+		auto ids = get<Id>();
+		auto &m = Static::get(m_map.m_ids);
+		size_t cur = offset;
+		while (cur < m_size) {
+			auto got = m.find(Map::Range{ids[cur], ids[cur] + 1});
+			if (got == m.end())
+				throw std::runtime_error("Can't find range to offset");
+			got->second.second -= count;
+			cur += got->first.end - got->first.begin;
+		}
+	}
+}
+
+void Brush::remove(size_t offset, size_t count)
+{
+	if (cmpIsPres<Id>()) {
+		auto ids = get<Id>();
+		auto &m = Static::get(m_map.m_ids);
+		while (count > 0) {
+			auto got = m.find(Map::Range{ids[offset], ids[offset] + 1});
+			if (got == m.end())
+				throw std::runtime_error("Can't find id range to remove");
+			size_t len = got->first.end - got->first.begin;
+			m_map.remove(got->first.begin, len);
+			count -= len;
+		}
+	} else
+		remove_imp(offset, count);
 }
 
 }

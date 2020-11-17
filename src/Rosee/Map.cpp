@@ -65,7 +65,7 @@ void Map::remove(size_t id, size_t count)
 			add_range(g_range.begin, cur_range.begin, g_pos.first, g_pos.second);
 		if (room_r)
 			add_range(cur_range.end, g_range.end, g_pos.first, g_pos.second + off + size);
-		g_pos.first.remove(g_pos.second + off, size);
+		g_pos.first.remove_imp(g_pos.second + off, size);
 	}
 }
 
