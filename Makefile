@@ -1,6 +1,7 @@
 CXX = clang++
 CXXFLAGS = -Wall -Wextra -std=c++20
 
+RELEASE = true
 #DEBUG = true
 #SANITIZE = true
 
@@ -11,6 +12,9 @@ LD_LIBS += -lasan -lunsan
 endif
 ifdef DEBUG
 CXXFLAGS += -g
+endif
+ifdef RELEASE
+CXXFLAGS += -O3
 endif
 
 SRC = $(wildcard src/*.cpp) $(wildcard src/*/*.cpp)

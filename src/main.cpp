@@ -1,5 +1,6 @@
 #include <iostream>
 #include "Rosee/Map.hpp"
+#include <chrono>
 
 using namespace Rosee;
 
@@ -15,9 +16,23 @@ int main() {
 	//for (size_t i = 0; i < 100; i++) {
 	m.add<Id, Transform>(73);
 	auto ent = m.add<Id, Transform>(64000);
-	//m.add<Id, Transform>(129);
+	m.add<Id, Transform>(129);
 	std::cout << "ent id: " << ent << std::endl;
+
+	{
+		auto [b, n] = m.find(ent);
+		auto trans = b->get<Transform>();
+		auto bef = std::chrono::high_resolution_clock::now();
+		std::memset(trans, 0, 64000 * sizeof(glm::mat4));
+		auto now = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> dif = now - bef;
+		std::cout << "set: " << dif.count() << std::endl;
+	}
+	auto bef = std::chrono::high_resolution_clock::now();
 	m.remove(ent + 2, 100);
+	auto now = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> dif = now - bef;
+	std::cout << "remove: " << dif.count() << std::endl;
 	{
 		auto [b, n] = m.find(ent + 1);
 		std::cout << "got b: " << b << ", n: " << n << std::endl;
