@@ -24,6 +24,8 @@ class Map
 
 	friend class Brush;
 
+	void add_range(size_t begin, size_t end, Brush &b, size_t b_ndx);
+
 public:
 	Map(void);
 	~Map(void);
@@ -41,7 +43,7 @@ public:
 	}
 
 	template <typename ...Components>
-	std::pair<Brush&, size_t> add(size_t count)
+	std::pair<Brush&, size_t> addBrush(size_t count)
 	{
 		auto &b = brush<Components...>();
 		auto res = b.add(count);
@@ -49,7 +51,7 @@ public:
 	}
 
 	template <typename ...Components>
-	size_t addId(size_t count)
+	size_t add(size_t count)
 	{
 		{
 			constexpr auto sign = Cmp::make_id_array<Components...>();
@@ -63,6 +65,8 @@ public:
 	}
 
 	std::pair<Brush*, size_t> find(size_t id);
+
+	void remove(size_t id, size_t count);
 };
 
 }

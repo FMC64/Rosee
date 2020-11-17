@@ -47,10 +47,7 @@ size_t Brush::add(size_t count)
 		m_map.m_id += count;
 		for (size_t i = 0; i < count; i++)
 			ids[i] = acc_id++;
-		auto &ranges = Static::get(m_map.m_ids);
-		auto [it, suc] = ranges.emplace(std::piecewise_construct, std::forward_as_tuple(Map::Range{base_id, base_id + count}), std::forward_as_tuple(*this, res));
-		if (!suc)
-			throw std::runtime_error("Can't emplace in brush");
+		m_map.add_range(base_id, base_id + count, *this, res);
 	}
 	return res;
 }
