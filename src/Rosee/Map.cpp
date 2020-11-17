@@ -59,8 +59,9 @@ void Map::remove(size_t id, size_t count)
 		bool room_r = cur_range.end < g_range.end;
 		size_t off = cur_range.begin - g_range.begin;
 		size_t end = min(cur_range.end, g_range.end);
-		size_t size = end - off;
+		size_t size = end - cur_range.begin;
 		count -= size;
+		id += size;
 		if (room_l)
 			add_range(g_range.begin, cur_range.begin, g_pos.first, g_pos.second);
 		if (room_r)
