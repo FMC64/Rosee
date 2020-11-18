@@ -38,9 +38,9 @@ Vk::Instance Renderer::createInstance(void)
 	VkApplicationInfo ai{};
 	ai.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	ai.pApplicationName = "SUNREN";
-	ai.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
+	ai.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
 	ai.pEngineName = "Rosee";
-	ai.engineVersion = VK_MAKE_VERSION(0, 0, 0);
+	ai.engineVersion = VK_MAKE_VERSION(0, 1, 0);
 	ai.apiVersion = VK_API_VERSION_1_0;
 	ci.pApplicationInfo = &ai;
 
@@ -169,7 +169,7 @@ Vk::Device Renderer::createDevice(void)
 	uint32_t chosen = ~0U;
 	size_t chosen_score = 0;
 
-	for (size_t i = 0; i < physical_device_count; i++) {
+	for (uint32_t i = 0; i < physical_device_count; i++) {
 		auto &dev = physical_devices[i];
 		auto &properties = physical_devices_properties[i];
 		auto &features = physical_devices_features[i];
@@ -177,9 +177,12 @@ Vk::Device Renderer::createDevice(void)
 		constexpr size_t f_b_count = sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
 		auto req_f_set = reinterpret_cast<VkBool32*>(&required_features);
 		auto got_f_set = reinterpret_cast<VkBool32*>(&features);
-		for (size_t i = 0; i < f_b_count; i++)
-			if (req_f_set[i] && !got_f_set[i])
-				continue;
+		bool has_all_req_features = true;
+		for (size_t j = 0; j < f_b_count; j++)
+			if (req_f_set[j] && !got_f_set[j])
+				has_all_req_features = false;
+		if (!has_all_req_features)
+			continue;
 
 		uint32_t queue_family_count;
 		vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_family_count, nullptr);

@@ -6,7 +6,7 @@ LINUX = true
 
 #RELEASE = true
 DEBUG = true
-#SANITIZE = true
+SANITIZE = true
 
 ifdef SANITIZE
 DEBUG = true
