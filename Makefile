@@ -1,5 +1,6 @@
 CXX = clang++
 CXXFLAGS = -Wall -Wextra -std=c++20
+LD_LIBS += "$(shell cygpath --unix $(VULKAN_SDK))/Lib/vulkan-1.lib" -lglfw3
 
 #RELEASE = true
 #DEBUG = true
@@ -25,7 +26,7 @@ TARGET = rosee
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) $(OBJ) -o $(TARGET)
+	$(CXX) $(CXXFLAGS) $(OBJ) -o $(TARGET) $(LD_LIBS)
 
 clean:
 	rm -f $(OBJ) $(TARGET)
