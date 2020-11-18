@@ -16,7 +16,7 @@ Vk::Instance Renderer::createInstance(void)
 	ai.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
 	ai.pEngineName = "Rosee";
 	ai.engineVersion = VK_MAKE_VERSION(0, 0, 0);
-	ai.apiVersion = VK_VERSION_1_0;
+	ai.apiVersion = VK_API_VERSION_1_0;
 	ci.pApplicationInfo = &ai;
 
 	size_t layer_count = 0;
@@ -117,7 +117,7 @@ Vk::Device Renderer::createDevice(void)
 	static auto required_features = VkPhysicalDeviceFeatures {
 	};
 
-	uint32_t chosen = ~0UL;
+	uint32_t chosen = ~0U;
 	size_t chosen_score = ~0ULL;
 
 	for (size_t i = 0; i < physical_device_count; i++) {
@@ -135,7 +135,7 @@ Vk::Device Renderer::createDevice(void)
 		size_t score = 1;
 		if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 			score++;
-		if (chosen == ~0UL || score > chosen_score) {
+		if (chosen == ~0U || score > chosen_score) {
 			chosen = i;
 			chosen_score = score;
 		}
@@ -143,7 +143,7 @@ Vk::Device Renderer::createDevice(void)
 		//vkEnumerateDeviceExtensionProperties
 	};
 
-	if (chosen == ~0UL)
+	if (chosen == ~0U)
 		throw std::runtime_error("No compatible GPU found on your system.");
 	m_properties = physical_devices_properties[chosen];
 	m_limits = m_properties.limits;
@@ -182,6 +182,7 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 
 Renderer::~Renderer(void)
 {
+	vkDestroyDevice(m_device, nullptr);
 	if (m_debug_messenger)
 		m_instance.getProcAddr<PFN_vkDestroyDebugUtilsMessengerEXT>("vkDestroyDebugUtilsMessengerEXT")(m_instance, m_debug_messenger, nullptr);
 	vkDestroyInstance(m_instance, nullptr);

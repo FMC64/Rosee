@@ -1,6 +1,8 @@
 CXX = clang++
 CXXFLAGS = -Wall -Wextra -std=c++20
-LD_LIBS += "$(shell cygpath --unix $(VULKAN_SDK))/Lib/vulkan-1.lib" -lglfw3
+
+#WINDOWS = true
+LINUX = true
 
 #RELEASE = true
 #DEBUG = true
@@ -9,13 +11,20 @@ LD_LIBS += "$(shell cygpath --unix $(VULKAN_SDK))/Lib/vulkan-1.lib" -lglfw3
 ifdef SANITIZE
 DEBUG = true
 CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined
-LD_LIBS += -lasan -lunsan
+#LD_LIBS += -shared-libsan
 endif
 ifdef DEBUG
 CXXFLAGS += -g
 endif
 ifdef RELEASE
 CXXFLAGS += -O3
+endif
+
+ifdef WINDOWS
+LD_LIBS += "$(shell cygpath --unix $(VULKAN_SDK))/Lib/vulkan-1.lib" -lglfw3
+endif
+ifdef LINUX
+LD_LIBS += -lvulkan -lglfw
 endif
 
 SRC = $(wildcard src/*.cpp) $(wildcard src/*/*.cpp)
