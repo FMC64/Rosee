@@ -100,11 +100,83 @@ Vk::DebugUtilsMessengerEXT Renderer::createDebugMessenger(void)
 	return res;
 }
 
+Vk::Device Renderer::createDevice(void)
+{
+	uint32_t physical_device_count;
+	vkAssert(vkEnumeratePhysicalDevices(m_instance, &physical_device_count, nullptr));
+	VkPhysicalDevice physical_devices[physical_device_count];
+	VkPhysicalDeviceProperties physical_devices_properties[physical_device_count];
+	VkPhysicalDeviceFeatures physical_devices_features[physical_device_count];
+	vkAssert(vkEnumeratePhysicalDevices(m_instance, &physical_device_count, physical_devices));
+
+	for (uint32_t i = 0; i < physical_device_count; i++) {
+		vkGetPhysicalDeviceProperties(physical_devices[i], &physical_devices_properties[i]);
+		vkGetPhysicalDeviceFeatures(physical_devices[i], &physical_devices_features[i]);
+	}
+
+	static auto required_features = VkPhysicalDeviceFeatures {
+	};
+
+	uint32_t chosen = ~0UL;
+	size_t chosen_score = ~0ULL;
+
+	for (size_t i = 0; i < physical_device_count; i++) {
+		//auto &dev = physical_devices[i];
+		auto &properties = physical_devices_properties[i];
+		auto &features = physical_devices_features[i];
+
+		constexpr size_t f_b_count = sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
+		auto req_f_set = reinterpret_cast<VkBool32*>(&required_features);
+		auto got_f_set = reinterpret_cast<VkBool32*>(&features);
+		for (size_t i = 0; i < f_b_count; i++)
+			if (req_f_set[i] && !got_f_set[i])
+				continue;
+
+		size_t score = 1;
+		if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+			score++;
+		if (chosen == ~0UL || score > chosen_score) {
+			chosen = i;
+			chosen_score = score;
+		}
+
+		//vkEnumerateDeviceExtensionProperties
+	};
+
+	if (chosen == ~0UL)
+		throw std::runtime_error("No compatible GPU found on your system.");
+	m_properties = physical_devices_properties[chosen];
+	m_limits = m_properties.limits;
+	m_features = physical_devices_features[chosen];
+
+	VkDeviceCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+	VkDeviceQueueCreateInfo qci{};
+	qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	qci.queueFamilyIndex = 0;
+	qci.queueCount = 1;
+
+	const float prio[] {
+		1.0f
+	};
+	qci.pQueuePriorities = prio;
+
+	VkDeviceQueueCreateInfo qcis[] {qci};
+	ci.queueCreateInfoCount = array_size(qcis);
+	ci.pQueueCreateInfos = qcis;
+
+	VkDevice res;
+	vkAssert(vkCreateDevice(physical_devices[chosen], &ci, nullptr, &res));
+	return res;
+}
+
 Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_validate(validate),
 	m_use_render_doc(useRenderDoc),
 	m_instance(createInstance()),
-	m_debug_messenger(createDebugMessenger())
+	m_debug_messenger(createDebugMessenger()),
+	m_device(createDevice())
 {
 }
 

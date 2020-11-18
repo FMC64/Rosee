@@ -58,5 +58,7 @@ public:
 	}
 };
 
+using Device = Handle<VkDevice>;
+
 }
 }
