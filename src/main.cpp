@@ -8,5 +8,11 @@ using namespace Rosee;
 int main() {
 	auto r = Renderer(true, false);
 	auto m = Map();
+
+	while (true) {
+		r.pollEvents();
+		if (r.shouldClose())
+			break;
+	}
 	return 0;
 }

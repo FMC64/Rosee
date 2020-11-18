@@ -1,5 +1,6 @@
 #pragma once
 
+#include <GLFW/glfw3.h>
 #include "Vk.hpp"
 
 namespace Rosee {
@@ -8,6 +9,9 @@ class Renderer
 {
 	bool m_validate;
 	bool m_use_render_doc;
+	void throwGlfwError(void);
+	GLFWwindow *m_window;
+	GLFWwindow *createWindow(void);
 	Vk::Instance m_instance;
 	Vk::Instance createInstance(void);
 	Vk::DebugUtilsMessengerEXT m_debug_messenger;
@@ -21,6 +25,9 @@ class Renderer
 public:
 	Renderer(bool validate, bool useRenderDoc);
 	~Renderer(void);
+
+	void pollEvents(void);
+	bool shouldClose(void) const;
 };
 
 }

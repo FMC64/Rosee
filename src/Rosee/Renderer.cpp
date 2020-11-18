@@ -5,6 +5,23 @@
 
 namespace Rosee {
 
+void Renderer::throwGlfwError(void)
+{
+	const char *msg;
+	glfwGetError(&msg);
+	throw std::runtime_error(msg);
+}
+
+GLFWwindow* Renderer::createWindow(void)
+{
+	if (glfwInit() != GLFW_TRUE)
+		throwGlfwError();
+	auto res = glfwCreateWindow(1600, 900, "Rosee", nullptr, nullptr);
+	if (res == nullptr)
+		throwGlfwError();
+	return res;
+}
+
 Vk::Instance Renderer::createInstance(void)
 {
 	VkInstanceCreateInfo ci{};
@@ -19,11 +36,18 @@ Vk::Instance Renderer::createInstance(void)
 	ai.apiVersion = VK_API_VERSION_1_0;
 	ci.pApplicationInfo = &ai;
 
+	uint32_t glfw_ext_count;
+	auto glfw_exts = glfwGetRequiredInstanceExtensions(&glfw_ext_count);
+	if (glfw_exts == nullptr)
+		throwGlfwError();
+
 	size_t layer_count = 0;
 	const char *layers[16];
 	size_t ext_count = 0;
-	const char *exts[16];
+	const char *exts[glfw_ext_count + 16];
 
+	for (uint32_t i = 0; i < glfw_ext_count; i++)
+		exts[ext_count++] = glfw_exts[i];
 	if (m_validate) {
 		layers[layer_count++] = "VK_LAYER_KHRONOS_validation";
 		exts[ext_count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
@@ -35,6 +59,15 @@ Vk::Instance Renderer::createInstance(void)
 	ci.ppEnabledLayerNames = layers;
 	ci.enabledExtensionCount = ext_count;
 	ci.ppEnabledExtensionNames = exts;
+
+	std::cout << "VkInstance layers:" << std::endl;
+	for (size_t i = 0; i < layer_count; i++)
+		std::cout << layers[i] << std::endl;
+	std::cout << std::endl;
+	std::cout << "VkInstance extensions:" << std::endl;
+	for (size_t i = 0; i < ext_count; i++)
+		std::cout << exts[i] << std::endl;
+	std::cout << std::endl;
 
 	VkInstance res;
 	vkAssert(vkCreateInstance(&ci, nullptr, &res));
@@ -174,6 +207,7 @@ Vk::Device Renderer::createDevice(void)
 Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_validate(validate),
 	m_use_render_doc(useRenderDoc),
+	m_window(createWindow()),
 	m_instance(createInstance()),
 	m_debug_messenger(createDebugMessenger()),
 	m_device(createDevice())
@@ -186,7 +220,18 @@ Renderer::~Renderer(void)
 	if (m_debug_messenger)
 		m_instance.getProcAddr<PFN_vkDestroyDebugUtilsMessengerEXT>("vkDestroyDebugUtilsMessengerEXT")(m_instance, m_debug_messenger, nullptr);
 	vkDestroyInstance(m_instance, nullptr);
+	glfwDestroyWindow(m_window);
+	glfwTerminate();
 }
 
+void Renderer::pollEvents(void)
+{
+	glfwPollEvents();
+}
+
+bool Renderer::shouldClose(void) const
+{
+	return glfwWindowShouldClose(m_window);
+}
 
 }
