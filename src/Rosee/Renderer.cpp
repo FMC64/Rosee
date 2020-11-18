@@ -286,11 +286,12 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	VkSwapchainCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	ci.surface = m_surface;
-	ci.minImageCount = 1;
+	ci.minImageCount = clamp(static_cast<uint32_t>(1), m_surface_capabilities.minImageCount, m_surface_capabilities.maxImageCount);
 	ci.imageFormat = fmt.format;
 	ci.imageColorSpace = fmt.colorSpace;
 	auto wins = getWindowSize();
-	ci.imageExtent = VkExtent2D{static_cast<uint32_t>(wins.x), static_cast<uint32_t>(wins.y)};
+	ci.imageExtent = VkExtent2D{clamp(static_cast<uint32_t>(wins.x), max(m_surface_capabilities.minImageExtent.width, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.width),
+		clamp(static_cast<uint32_t>(wins.y), max(m_surface_capabilities.minImageExtent.height, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.height)};
 	ci.imageArrayLayers = 1;
 	ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
