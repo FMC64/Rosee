@@ -24,7 +24,10 @@ public:
 		return m_handle;
 	}
 
-	
+	operator bool(void) const
+	{
+		return m_handle != VK_NULL_HANDLE;
+	}
 };
 
 class Instance : public Handle<VkInstance>
@@ -32,6 +35,25 @@ class Instance : public Handle<VkInstance>
 public:
 	Instance(VkInstance instance) :
 		Handle<VkInstance>(instance)
+	{
+	}
+
+private:
+	void* getProcAddrImpl(const char *name) const;
+
+public:
+	template <typename ProcType>
+	ProcType getProcAddr(const char *name) const
+	{
+		return reinterpret_cast<ProcType>(getProcAddrImpl(name));
+	}
+};
+
+class DebugUtilsMessengerEXT : public Handle<VkDebugUtilsMessengerEXT>
+{
+public:
+	DebugUtilsMessengerEXT(VkDebugUtilsMessengerEXT messenger) :
+		Handle<VkDebugUtilsMessengerEXT>(messenger)
 	{
 	}
 };

@@ -46,4 +46,13 @@ void vkAssert(VkResult res)
 		throw std::runtime_error(table.at(res));
 }
 
+void* Vk::Instance::getProcAddrImpl(const char *name) const
+{
+	auto res = vkGetInstanceProcAddr(*this, name);
+
+	if (res == nullptr)
+		throw std::runtime_error(std::string("Can't resolve proc '") + std::string(name) + std::string("'"));
+	return reinterpret_cast<void*>(res);
+}
+
 }
