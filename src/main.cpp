@@ -13,6 +13,7 @@ int main() {
 		r.pollEvents();
 		if (r.shouldClose())
 			break;
+		r.render();
 	}
 	return 0;
 }

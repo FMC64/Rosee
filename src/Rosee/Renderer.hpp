@@ -36,22 +36,35 @@ class Renderer
 	Vk::Queue m_queue;
 	Vk::SwapchainKHR m_swapchain;
 	Vk::SwapchainKHR createSwapchain(void);
+	vector<VkImage> m_swapchain_images;
+	vector<Vk::ImageView> m_swapchain_image_views;
+	vector<Vk::ImageView> createSwapchainImageViews(void);
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
+	vector<Vk::Framebuffer> m_opaque_fbs;
+	vector<Vk::Framebuffer> createOpaqueFbs(void);
 	Vk::CommandPool m_command_pool;
 
 	class Frame
 	{
-		VkCommandBuffer m_cmd;
+		Renderer &m_r;
+		Vk::CommandBuffer m_cmd;
+		Vk::Fence m_frame_done;
+		Vk::Semaphore m_render_done;
+		Vk::Semaphore m_image_ready;
+		bool m_ever_submitted = false;
 
 	public:
 		Frame(Renderer &r, VkCommandBuffer cmd);
 		~Frame(void);
+
+		void render(void);
 	};
 
 	vector<Frame> m_frames;
 	vector<Frame> createFrames(void);
+	size_t m_current_frame = 0;
 
 public:
 	Renderer(size_t frameCount, bool validate, bool useRenderDoc);
@@ -59,6 +72,7 @@ public:
 
 	void pollEvents(void);
 	bool shouldClose(void) const;
+	void render(void);
 };
 
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include "vector.hpp"
 
 namespace Rosee {
 
@@ -28,6 +29,9 @@ public:
 	{
 		return m_handle != VK_NULL_HANDLE;
 	}
+
+	HandleType* ptr(void) { return &m_handle; }
+	const HandleType* ptr(void) const { return &m_handle; }
 };
 
 using SurfaceKHR = Handle<VkSurfaceKHR>;
@@ -61,7 +65,7 @@ public:
 	}
 };
 
-static inline Instance createInstance(VkInstanceCreateInfo &ci)
+static inline Instance createInstance(const VkInstanceCreateInfo &ci)
 {
 	VkInstance res;
 	vkAssert(vkCreateInstance(&ci, nullptr, &res));
@@ -89,6 +93,28 @@ public:
 	}
 };
 
+class CommandBuffer : public Handle<VkCommandBuffer>
+{
+public:
+	CommandBuffer(VkCommandBuffer commandBuffer) :
+		Handle<VkCommandBuffer>(commandBuffer)
+	{
+	}
+
+	void beginPrimary(VkCommandBufferUsageFlags flags);
+	void end(void);
+
+	void beginRenderPass(const VkRenderPassBeginInfo &bi, VkSubpassContents contents)
+	{
+		vkCmdBeginRenderPass(*this, &bi, contents);
+	}
+
+	void endRenderPass(void)
+	{
+		vkCmdEndRenderPass(*this);
+	}
+};
+
 class Queue : public Handle<VkQueue>
 {
 public:
@@ -98,7 +124,38 @@ public:
 	}
 
 	void waitIdle(void) const;
+
+	void submit(uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence)
+	{
+		vkAssert(vkQueueSubmit(*this, submitCount, pSubmits, fence));
+	}
+
+	void present(const VkPresentInfoKHR &pi) const
+	{
+		vkAssert(vkQueuePresentKHR(*this, &pi));
+	}
 };
+
+class Fence : public Handle<VkFence>
+{
+public:
+	Fence(VkFence fence) :
+		Handle<VkFence>(fence)
+	{
+	}
+};
+
+class Semaphore : public Handle<VkSemaphore>
+{
+public:
+	Semaphore(VkSemaphore semaphore) :
+		Handle<VkSemaphore>(semaphore)
+	{
+	}
+};
+
+using Framebuffer = Handle<VkFramebuffer>;
+using ImageView = Handle<VkImageView>;
 
 class Device : public Handle<VkDevice>
 {
@@ -108,16 +165,20 @@ public:
 	{
 	}
 
-	Queue getQueue(uint32_t family, uint32_t index) const;
+	vector<VkImage> getSwapchainImages(VkSwapchainKHR swapchain) const;
 
-	SwapchainKHR createSwapchainKHR(VkSwapchainCreateInfoKHR &ci) const
+	Queue getQueue(uint32_t family, uint32_t index) const;
+	void wait(VkFence fence) const;
+	void reset(VkFence fence);
+
+	SwapchainKHR createSwapchainKHR(const VkSwapchainCreateInfoKHR &ci) const
 	{
 		VkSwapchainKHR res;
 		vkAssert(vkCreateSwapchainKHR(*this, &ci, nullptr, &res));
 		return res;
 	}
 
-	RenderPass createRenderPass(VkRenderPassCreateInfo &ci) const
+	RenderPass createRenderPass(const VkRenderPassCreateInfo &ci) const
 	{
 		VkRenderPass res;
 		vkAssert(vkCreateRenderPass(*this, &ci, nullptr, &res));
@@ -127,6 +188,23 @@ public:
 	CommandPool createCommandPool(VkCommandPoolCreateFlags flags, uint32_t queueFamilyIndex) const;
 
 	void allocateCommandBuffers(VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t commandBufferCount, VkCommandBuffer *commandBuffers) const;
+
+	Fence createFence(VkFenceCreateFlags flags) const;
+	Semaphore createSemaphore(void) const;
+
+	Framebuffer createFramebuffer(const VkFramebufferCreateInfo &ci) const
+	{
+		VkFramebuffer res;
+		vkAssert(vkCreateFramebuffer(*this, &ci, nullptr, &res));
+		return res;
+	}
+
+	ImageView createImageView(const VkImageViewCreateInfo &ci) const
+	{
+		VkImageView res;
+		vkAssert(vkCreateImageView(*this, &ci, nullptr, &res));
+		return res;
+	}
 
 	void destroy(VkRenderPass renderPass) const
 	{
@@ -143,13 +221,33 @@ public:
 		vkDestroyCommandPool(*this, commandPool, nullptr);
 	}
 
+	void destroy(VkFence fence) const
+	{
+		vkDestroyFence(*this, fence, nullptr);
+	}
+
+	void destroy(VkSemaphore semaphore) const
+	{
+		vkDestroySemaphore(*this, semaphore, nullptr);
+	}
+
+	void destroy(VkFramebuffer framebuffer) const
+	{
+		vkDestroyFramebuffer(*this, framebuffer, nullptr);
+	}
+
+	void destroy(VkImageView imageView) const
+	{
+		vkDestroyImageView(*this, imageView, nullptr);
+	}
+
 	void destroy(void)
 	{
 		vkDestroyDevice(*this, nullptr);
 	}
 };
 
-static inline Vk::Device createDevice(VkPhysicalDevice physicalDevice, VkDeviceCreateInfo &ci)
+static inline Vk::Device createDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo &ci)
 {
 	VkDevice res;
 	vkAssert(vkCreateDevice(physicalDevice, &ci, nullptr, &res));

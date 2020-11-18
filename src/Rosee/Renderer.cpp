@@ -329,6 +329,30 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	return m_device.createSwapchainKHR(ci);
 }
 
+vector<Vk::ImageView> Renderer::createSwapchainImageViews(void)
+{
+	vector<Vk::ImageView> res;
+	res.reserve(m_swapchain_images.size());
+	for (auto &i : m_swapchain_images) {
+		VkImageViewCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		ci.image = i;
+		ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		ci.format = m_surface_format.format;
+		ci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		ci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		ci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		ci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		ci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		ci.subresourceRange.baseMipLevel = 0;
+		ci.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+		ci.subresourceRange.baseArrayLayer = 0;
+		ci.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+		res.emplace(m_device.createImageView(ci));
+	}
+	return res;
+}
+
 Vk::RenderPass Renderer::createOpaquePass(void)
 {
 	VkRenderPassCreateInfo ci{};
@@ -356,6 +380,27 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	return m_device.createRenderPass(ci);
 }
 
+vector<Vk::Framebuffer> Renderer::createOpaqueFbs(void)
+{
+	vector<Vk::Framebuffer> res;
+	res.reserve(m_swapchain_image_views.size());
+
+	auto wins = getWindowSize();
+
+	for (auto &i : m_swapchain_image_views) {
+		VkFramebufferCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		ci.renderPass = m_opaque_pass;
+		ci.attachmentCount = 1;
+		ci.pAttachments = i.ptr();
+		ci.width = wins.x;
+		ci.height = wins.y;
+		ci.layers = 1;
+		res.emplace(m_device.createFramebuffer(ci));
+	}
+	return res;
+}
+
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
 	VkCommandBuffer cmds[m_frame_count];
@@ -379,7 +424,10 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_device(createDevice()),
 	m_queue(m_device.getQueue(m_queue_family_graphics, 0)),
 	m_swapchain(createSwapchain()),
+	m_swapchain_images(m_device.getSwapchainImages(m_swapchain)),
+	m_swapchain_image_views(createSwapchainImageViews()),
 	m_opaque_pass(createOpaquePass()),
+	m_opaque_fbs(createOpaqueFbs()),
 	m_command_pool(m_device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
 	m_frames(createFrames())
@@ -392,7 +440,11 @@ Renderer::~Renderer(void)
 
 	m_frames.clear();
 	m_device.destroy(m_command_pool);
+	for (auto &f : m_opaque_fbs)
+		m_device.destroy(f);
 	m_device.destroy(m_opaque_pass);
+	for (auto &v : m_swapchain_image_views)
+		m_device.destroy(v);
 	m_device.destroy(m_swapchain);
 	m_device.destroy();
 	m_instance.destroy(m_surface);
@@ -413,13 +465,72 @@ bool Renderer::shouldClose(void) const
 	return glfwWindowShouldClose(m_window);
 }
 
+void Renderer::render(void)
+{
+	m_frames[m_current_frame].render();
+	m_current_frame = (m_current_frame + 1) % m_frame_count;
+}
+
 Renderer::Frame::Frame(Renderer &r, VkCommandBuffer cmd) :
-	m_cmd(cmd)
+	m_r(r),
+	m_cmd(cmd),
+	m_frame_done(r.m_device.createFence(0)),
+	m_render_done(r.m_device.createSemaphore()),
+	m_image_ready(r.m_device.createSemaphore())
 {
 }
 
 Renderer::Frame::~Frame(void)
 {
+	m_r.m_device.destroy(m_frame_done);
+	m_r.m_device.destroy(m_render_done);
+	m_r.m_device.destroy(m_image_ready);
+}
+
+void Renderer::Frame::render(void)
+{
+	if (m_ever_submitted) {
+		m_r.m_device.wait(m_frame_done);
+		m_r.m_device.reset(m_frame_done);
+	}
+
+	auto wins = m_r.getWindowSize();
+
+	uint32_t swapchain_index;
+	vkAssert(vkAcquireNextImageKHR(m_r.m_device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
+
+	m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	{
+		VkRenderPassBeginInfo bi{};
+		bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		bi.renderPass = m_r.m_opaque_pass;
+		bi.framebuffer = m_r.m_opaque_fbs[swapchain_index];
+		bi.renderArea = VkRect2D{{0, 0}, {static_cast<uint32_t>(wins.x), static_cast<uint32_t>(wins.y)}};
+		m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+	}
+	m_cmd.endRenderPass();
+	m_cmd.end();
+
+	VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	VkSubmitInfo si[] {
+		{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
+			1, m_image_ready.ptr(),
+			&wait_stage,
+			1, m_cmd.ptr(),
+			1, m_render_done.ptr()}
+	};
+	m_r.m_queue.submit(array_size(si), si, m_frame_done);
+
+	VkPresentInfoKHR pi{};
+	pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	pi.waitSemaphoreCount = 1;
+	pi.pWaitSemaphores = m_render_done.ptr();
+	pi.swapchainCount = 1;
+	pi.pSwapchains = m_r.m_swapchain.ptr();
+	pi.pImageIndices = &swapchain_index;
+	m_r.m_queue.present(pi);
+
+	m_ever_submitted = true;
 }
 
 }

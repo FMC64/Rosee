@@ -55,6 +55,15 @@ void* Vk::Instance::getProcAddrImpl(const char *name) const
 	return reinterpret_cast<void*>(res);
 }
 
+vector<VkImage> Vk::Device::getSwapchainImages(VkSwapchainKHR swapchain) const
+{
+	uint32_t count;
+	vkAssert(vkGetSwapchainImagesKHR(*this, swapchain, &count, nullptr));
+	vector<VkImage> res(count);
+	vkAssert(vkGetSwapchainImagesKHR(*this, swapchain, &count, res.data()));
+	return res;
+}
+
 Vk::Queue Vk::Device::getQueue(uint32_t family, uint32_t index) const
 {
 	VkQueue res;
@@ -79,6 +88,29 @@ Vk::CommandPool Vk::Device::createCommandPool(VkCommandPoolCreateFlags flags, ui
 	return res;
 }
 
+void Vk::CommandBuffer::beginPrimary(VkCommandBufferUsageFlags flags)
+{
+	VkCommandBufferBeginInfo bi{};
+	bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	bi.flags = flags;
+	vkAssert(vkBeginCommandBuffer(*this, &bi));
+}
+
+void Vk::CommandBuffer::end(void)
+{
+	vkAssert(vkEndCommandBuffer(*this));
+}
+
+void Vk::Device::wait(VkFence fence) const
+{
+	vkAssert(vkWaitForFences(*this, 1, &fence, VK_TRUE, ~0ULL));
+}
+
+void Vk::Device::reset(VkFence fence)
+{
+	vkAssert(vkResetFences(*this, 1, &fence));
+}
+
 void Vk::Device::allocateCommandBuffers(VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t commandBufferCount, VkCommandBuffer *commandBuffers) const
 {
 	VkCommandBufferAllocateInfo ai{};
@@ -89,5 +121,25 @@ void Vk::Device::allocateCommandBuffers(VkCommandPool commandPool, VkCommandBuff
 	vkAssert(vkAllocateCommandBuffers(*this, &ai, commandBuffers));
 }
 
+Vk::Fence Vk::Device::createFence(VkFenceCreateFlags flags) const
+{
+	VkFenceCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	ci.flags = flags;
+
+	VkFence res;
+	vkAssert(vkCreateFence(*this, &ci, nullptr, &res));
+	return res;
+}
+
+Vk::Semaphore Vk::Device::createSemaphore(void) const
+{
+	VkSemaphoreCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkSemaphore res;
+	vkAssert(vkCreateSemaphore(*this, &ci, nullptr, &res));
+	return res;
+}
 
 }
