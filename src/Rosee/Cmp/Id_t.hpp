@@ -1,0 +1,1 @@
+template <typename Up> struct Id_t { static inline constexpr cmp_id id = list::get_id<Up>(); };

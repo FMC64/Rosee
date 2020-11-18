@@ -17,11 +17,12 @@ namespace Cmp {
 
 using list = List<Id, Transform>;
 
+#include "Cmp/Id_t.hpp"
+
 }
 
-struct Id
+struct Id : public Cmp::Id_t<Id>
 {
-	static inline constexpr cmp_id id = Cmp::list::get_id<Id>();
 	static Cmp::init_fun_t init;
 	static Cmp::destr_fun_t destr;
 
@@ -41,9 +42,8 @@ struct Id
 	}
 };
 
-struct Transform
+struct Transform : public Cmp::Id_t<Transform>
 {
-	static inline constexpr cmp_id id = Cmp::list::get_id<Transform>();
 	static Cmp::init_fun_t init;
 	static Cmp::destr_fun_t destr;
 
