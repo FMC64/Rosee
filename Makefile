@@ -1,7 +1,7 @@
 CXX = clang++
 CXXFLAGS = -Wall -Wextra -std=c++20
 
-RELEASE = true
+#RELEASE = true
 #DEBUG = true
 #SANITIZE = true
 
