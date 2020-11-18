@@ -165,6 +165,9 @@ Vk::Device Renderer::createDevice(void)
 
 	static auto required_features = VkPhysicalDeviceFeatures {
 	};
+	static const char *required_exts[] {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
 
 	uint32_t chosen = ~0U;
 	size_t chosen_score = 0;
@@ -182,6 +185,25 @@ Vk::Device Renderer::createDevice(void)
 			if (req_f_set[j] && !got_f_set[j])
 				has_all_req_features = false;
 		if (!has_all_req_features)
+			continue;
+		uint32_t ext_count;
+		vkEnumerateDeviceExtensionProperties(dev, nullptr, &ext_count, nullptr);
+		VkExtensionProperties exts[ext_count];
+		vkEnumerateDeviceExtensionProperties(dev, nullptr, &ext_count, exts);
+		bool ext_missing = false;
+		for (size_t j = 0; j < array_size(required_exts); j++) {
+			bool found = false;
+			for (size_t k = 0; k < ext_count; k++)
+				if (std::strcmp(required_exts[j], exts[k].extensionName) == 0) {
+					found = true;
+					break;
+				}
+			if (!found) {
+				ext_missing = true;
+				break;
+			}
+		}
+		if (ext_missing)
 			continue;
 
 		uint32_t queue_family_count;
@@ -223,7 +245,7 @@ Vk::Device Renderer::createDevice(void)
 			chosen = i;
 			chosen_score = score;
 		}
-	};
+	}
 
 	if (chosen == ~0U)
 		throw std::runtime_error("No compatible GPU found on your system.");
@@ -265,6 +287,8 @@ Vk::Device Renderer::createDevice(void)
 	ci.queueCreateInfoCount = array_size(qcis);
 	ci.pQueueCreateInfos = qcis;
 	ci.pEnabledFeatures = &required_features;
+	ci.enabledExtensionCount = array_size(required_exts);
+	ci.ppEnabledExtensionNames = required_exts;
 
 	VkDevice res;
 	vkAssert(vkCreateDevice(physical_devices[chosen], &ci, nullptr, &res));
@@ -325,6 +349,7 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 
 Renderer::~Renderer(void)
 {
+	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	if (m_debug_messenger)
