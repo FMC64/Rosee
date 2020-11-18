@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CmpId.hpp"
+#include "Id.hpp"
 
 namespace Rosee {
 namespace Cmp {

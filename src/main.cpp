@@ -15,7 +15,7 @@ int main() {
 
 	//for (size_t i = 0; i < 100; i++) {
 	m.add<Id, Transform>(73);
-	auto ent = m.add<Id, Transform>(64000000);
+	auto ent = m.add<Id, Transform>(6400000);
 	m.add<Id, Transform>(129);
 	std::cout << "ent id: " << ent << std::endl;
 
@@ -23,11 +23,11 @@ int main() {
 		auto [b, n] = m.find(ent);
 		auto trans = b->get<Transform>();
 		auto bef = std::chrono::high_resolution_clock::now();
-		std::memset(trans, 0, 64000000 * sizeof(glm::mat4));
+		std::memset(trans, 0, 6400000 * sizeof(glm::mat4));
 		auto now = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> dif = now - bef;
 		std::cout << "set: " << dif.count() << std::endl;
-		std::memset(trans, 0, 64000000 * sizeof(glm::mat4));
+		std::memset(trans, 0, 6400000 * sizeof(glm::mat4));
 		auto now2 = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> dif2 = now2 - now;
 		std::cout << "set2: " << dif2.count() << std::endl;

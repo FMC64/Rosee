@@ -5,8 +5,8 @@
 #define GLM_EXTERNAL_TEMPLATE
 #include <glm/mat4x4.hpp>
 #include "array.hpp"
-#include "CmpList.hpp"
-#include "CmpId.hpp"
+#include "Cmp/List.hpp"
+#include "Cmp/Id.hpp"
 
 namespace Rosee {
 
@@ -22,8 +22,8 @@ using list = List<Id, Transform>;
 struct Id
 {
 	static inline constexpr cmp_id id = Cmp::list::get_id<Id>();
-	static void init(void *ptr, size_t size);
-	static void destr(void *ptr, size_t size);
+	static Cmp::init_fun_t init;
+	static Cmp::destr_fun_t destr;
 
 	using type = uint32_t;
 
@@ -44,12 +44,12 @@ struct Id
 struct Transform
 {
 	static inline constexpr cmp_id id = Cmp::list::get_id<Transform>();
-	static void init(void *ptr, size_t size);
-	static void destr(void *ptr, size_t size);
+	static Cmp::init_fun_t init;
+	static Cmp::destr_fun_t destr;
 
 	glm::mat4 mat;
 };
 
 }
 
-#include "CmpUtils.hpp"
+#include "Cmp/Utils.hpp"

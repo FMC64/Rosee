@@ -1,7 +1,7 @@
 #pragma once
 
-#include "CmpId.hpp"
-#include "array.hpp"
+#include "Id.hpp"
+#include "../array.hpp"
 
 namespace Rosee {
 namespace Cmp {
