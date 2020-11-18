@@ -23,6 +23,13 @@ GLFWwindow* Renderer::createWindow(void)
 	return res;
 }
 
+svec2 Renderer::getWindowSize(void) const
+{
+	int w, h;
+	glfwGetWindowSize(m_window, &w, &h);
+	return svec2(w, h);
+}
+
 Vk::Instance Renderer::createInstance(void)
 {
 	VkInstanceCreateInfo ci{};
@@ -233,6 +240,8 @@ Vk::Device Renderer::createDevice(void)
 		vkAssert(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices[chosen], m_surface, &m_surface_capabilities));
 	}
 
+	m_queue_family_graphics = physical_devices_gqueue_families[chosen];
+
 	std::cout << "Vulkan device: " << m_properties.deviceName << std::endl;
 	std::cout << std::endl;
 
@@ -241,7 +250,7 @@ Vk::Device Renderer::createDevice(void)
 
 	VkDeviceQueueCreateInfo qci{};
 	qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	qci.queueFamilyIndex = physical_devices_gqueue_families[chosen];
+	qci.queueFamilyIndex = m_queue_family_graphics;
 	qci.queueCount = 1;
 
 	const float prio[] {
@@ -259,6 +268,44 @@ Vk::Device Renderer::createDevice(void)
 	return res;
 }
 
+Vk::SwapchainKHR Renderer::createSwapchain(void)
+{
+	VkSurfaceFormatKHR fmt = m_surface_formats[0];
+	for (auto &f : m_surface_formats)
+		if (f.format == VK_FORMAT_B8G8R8A8_SRGB) {
+			fmt = f;
+			break;
+		}
+	VkPresentModeKHR present_mode = m_present_modes[0];
+	for (auto &p : m_present_modes)
+		if (p == VK_PRESENT_MODE_MAILBOX_KHR) {
+			present_mode = p;
+			break;
+		}
+
+	VkSwapchainCreateInfoKHR ci{};
+	ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	ci.surface = m_surface;
+	ci.minImageCount = 1;
+	ci.imageFormat = fmt.format;
+	ci.imageColorSpace = fmt.colorSpace;
+	auto wins = getWindowSize();
+	ci.imageExtent = VkExtent2D{static_cast<uint32_t>(wins.x), static_cast<uint32_t>(wins.y)};
+	ci.imageArrayLayers = 1;
+	ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	ci.queueFamilyIndexCount = 1;
+	ci.pQueueFamilyIndices = &m_queue_family_graphics;
+	ci.preTransform = m_surface_capabilities.currentTransform;
+	ci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	ci.presentMode = present_mode;
+	ci.clipped = VK_TRUE;
+
+	VkSwapchainKHR res;
+	vkAssert(vkCreateSwapchainKHR(m_device, &ci, nullptr, &res));
+	return res;
+}
+
 Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_validate(validate),
 	m_use_render_doc(useRenderDoc),
@@ -266,7 +313,9 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_instance(createInstance()),
 	m_debug_messenger(createDebugMessenger()),
 	m_surface(createSurface()),
-	m_device(createDevice())
+	m_device(createDevice()),
+	m_queue(m_device.getQueue(m_queue_family_graphics, 0)),
+	m_swapchain(createSwapchain())
 {
 }
 

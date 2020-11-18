@@ -59,7 +59,25 @@ public:
 };
 
 using SurfaceKHR = Handle<VkSurfaceKHR>;
-using Device = Handle<VkDevice>;
+using Queue = Handle<VkQueue>;
+
+class Device : public Handle<VkDevice>
+{
+public:
+	Device(VkDevice dev) :
+		Handle<VkDevice>(dev)
+	{
+	}
+
+	Queue getQueue(uint32_t family, uint32_t index)
+	{
+		VkQueue res;
+		vkGetDeviceQueue(*this, family, index, &res);
+		return res;
+	}
+};
+
+using SwapchainKHR = Handle<VkSwapchainKHR>;
 
 }
 }

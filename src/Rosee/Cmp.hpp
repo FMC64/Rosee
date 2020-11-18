@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <type_traits>
-#define GLM_EXTERNAL_TEMPLATE
 #include <glm/mat4x4.hpp>
 #include "array.hpp"
 #include "Cmp/List.hpp"
