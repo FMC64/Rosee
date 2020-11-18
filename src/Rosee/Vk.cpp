@@ -55,4 +55,39 @@ void* Vk::Instance::getProcAddrImpl(const char *name) const
 	return reinterpret_cast<void*>(res);
 }
 
+Vk::Queue Vk::Device::getQueue(uint32_t family, uint32_t index) const
+{
+	VkQueue res;
+	vkGetDeviceQueue(*this, family, index, &res);
+	return res;
+}
+
+void Vk::Queue::waitIdle(void) const
+{
+	vkQueueWaitIdle(*this);
+}
+
+Vk::CommandPool Vk::Device::createCommandPool(VkCommandPoolCreateFlags flags, uint32_t queueFamilyIndex) const
+{
+	VkCommandPoolCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	ci.flags = flags;
+	ci.queueFamilyIndex = queueFamilyIndex;
+
+	VkCommandPool res;
+	vkAssert(vkCreateCommandPool(*this, &ci, nullptr, &res));
+	return res;
+}
+
+void Vk::Device::allocateCommandBuffers(VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t commandBufferCount, VkCommandBuffer *commandBuffers) const
+{
+	VkCommandBufferAllocateInfo ai{};
+	ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	ai.commandPool = commandPool;
+	ai.level = level;
+	ai.commandBufferCount = commandBufferCount;
+	vkAssert(vkAllocateCommandBuffers(*this, &ai, commandBuffers));
+}
+
+
 }

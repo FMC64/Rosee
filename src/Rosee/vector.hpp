@@ -45,11 +45,7 @@ public:
 	}
 	~vector(void)
 	{
-		if (m_buf != nullptr) {
-			for (size_t i = 0; i < m_size; i++)
-				m_buf[i].~T();
-			std::free(m_buf);
-		}
+		clear();
 	}
 	vector(vector &&other) :
 		m_size(other.m_size),
@@ -191,6 +187,15 @@ public:
 		resolve_alloc();
 		for (size_t i = was_size; i < size; i++)
 			new (&m_buf[i]) T(std::forward<Args>(args)...);
+	}
+
+	void clear(void)
+	{
+		for (size_t i = 0; i < m_size; i++)
+			m_buf[i].~T();
+		m_size = 0;
+		std::free(m_buf);
+		m_buf = nullptr;
 	}
 
 	bool operator<(const vector &other) const

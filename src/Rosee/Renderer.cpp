@@ -254,12 +254,26 @@ Vk::Device Renderer::createDevice(void)
 	{
 		uint32_t present_mode_count;
 		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, nullptr));
-		m_present_modes.resize(present_mode_count);
-		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, m_present_modes.data()));
+		VkPresentModeKHR present_modes[present_mode_count];
+		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, present_modes));
+		m_present_mode = present_modes[0];
+		for (size_t i = 0; i < present_mode_count; i++)
+			if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+				m_present_mode = present_modes[i];
+				break;
+			}
+
 		uint32_t surface_format_count;
 		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, nullptr));
-		m_surface_formats.resize(surface_format_count);
-		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, m_surface_formats.data()));
+		VkSurfaceFormatKHR surface_formats[surface_format_count];
+		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, surface_formats));
+		m_surface_format = surface_formats[0];
+		for (size_t i = 0; i < surface_format_count; i++)
+			if (surface_formats[i].format == VK_FORMAT_B8G8R8A8_SRGB) {
+				m_surface_format = surface_formats[i];
+				break;
+			}
+
 		vkAssert(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices[chosen], m_surface, &m_surface_capabilities));
 	}
 
@@ -293,25 +307,12 @@ Vk::Device Renderer::createDevice(void)
 
 Vk::SwapchainKHR Renderer::createSwapchain(void)
 {
-	VkSurfaceFormatKHR fmt = m_surface_formats[0];
-	for (auto &f : m_surface_formats)
-		if (f.format == VK_FORMAT_B8G8R8A8_SRGB) {
-			fmt = f;
-			break;
-		}
-	VkPresentModeKHR present_mode = m_present_modes[0];
-	for (auto &p : m_present_modes)
-		if (p == VK_PRESENT_MODE_MAILBOX_KHR) {
-			present_mode = p;
-			break;
-		}
-
 	VkSwapchainCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	ci.surface = m_surface;
-	ci.minImageCount = clamp(static_cast<uint32_t>(1), m_surface_capabilities.minImageCount, m_surface_capabilities.maxImageCount);
-	ci.imageFormat = fmt.format;
-	ci.imageColorSpace = fmt.colorSpace;
+	ci.minImageCount = clamp(static_cast<uint32_t>(m_frame_count), m_surface_capabilities.minImageCount, m_surface_capabilities.maxImageCount);
+	ci.imageFormat = m_surface_format.format;
+	ci.imageColorSpace = m_surface_format.colorSpace;
 	auto wins = getWindowSize();
 	ci.imageExtent = VkExtent2D{clamp(static_cast<uint32_t>(wins.x), max(m_surface_capabilities.minImageExtent.width, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.width),
 		clamp(static_cast<uint32_t>(wins.y), max(m_surface_capabilities.minImageExtent.height, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.height)};
@@ -322,7 +323,7 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	ci.pQueueFamilyIndices = &m_queue_family_graphics;
 	ci.preTransform = m_surface_capabilities.currentTransform;
 	ci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	ci.presentMode = present_mode;
+	ci.presentMode = m_present_mode;
 	ci.clipped = VK_TRUE;
 
 	return m_device.createSwapchainKHR(ci);
@@ -355,7 +356,20 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	return m_device.createRenderPass(ci);
 }
 
-Renderer::Renderer(bool validate, bool useRenderDoc) :
+vector<Renderer::Frame> Renderer::createFrames(void)
+{
+	VkCommandBuffer cmds[m_frame_count];
+	m_device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count, cmds);
+
+	vector<Renderer::Frame> res;
+	res.reserve(m_frame_count);
+	for (size_t i = 0; i < m_frame_count; i++)
+		res.emplace(*this, cmds[i]);
+	return res;
+}
+
+Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
+	m_frame_count(frameCount),
 	m_validate(validate),
 	m_use_render_doc(useRenderDoc),
 	m_window(createWindow()),
@@ -365,12 +379,19 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_device(createDevice()),
 	m_queue(m_device.getQueue(m_queue_family_graphics, 0)),
 	m_swapchain(createSwapchain()),
-	m_opaque_pass(createOpaquePass())
+	m_opaque_pass(createOpaquePass()),
+	m_command_pool(m_device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		m_queue_family_graphics)),
+	m_frames(createFrames())
 {
 }
 
 Renderer::~Renderer(void)
 {
+	m_queue.waitIdle();
+
+	m_frames.clear();
+	m_device.destroy(m_command_pool);
 	m_device.destroy(m_opaque_pass);
 	m_device.destroy(m_swapchain);
 	m_device.destroy();
@@ -390,6 +411,15 @@ void Renderer::pollEvents(void)
 bool Renderer::shouldClose(void) const
 {
 	return glfwWindowShouldClose(m_window);
+}
+
+Renderer::Frame::Frame(Renderer &r, VkCommandBuffer cmd) :
+	m_cmd(cmd)
+{
+}
+
+Renderer::Frame::~Frame(void)
+{
 }
 
 }

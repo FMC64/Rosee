@@ -9,6 +9,7 @@ namespace Rosee {
 
 class Renderer
 {
+	size_t m_frame_count;
 	bool m_validate;
 	bool m_use_render_doc;
 
@@ -26,8 +27,8 @@ class Renderer
 	VkPhysicalDeviceProperties m_properties;
 	VkPhysicalDeviceLimits m_limits;
 	VkPhysicalDeviceFeatures m_features;
-	vector<VkPresentModeKHR> m_present_modes;
-	vector<VkSurfaceFormatKHR> m_surface_formats;
+	VkPresentModeKHR m_present_mode;
+	VkSurfaceFormatKHR m_surface_format;
 	VkSurfaceCapabilitiesKHR m_surface_capabilities;
 	uint32_t m_queue_family_graphics = ~0U;
 	Vk::Device m_device;
@@ -38,9 +39,22 @@ class Renderer
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
+	Vk::CommandPool m_command_pool;
+
+	class Frame
+	{
+		VkCommandBuffer m_cmd;
+
+	public:
+		Frame(Renderer &r, VkCommandBuffer cmd);
+		~Frame(void);
+	};
+
+	vector<Frame> m_frames;
+	vector<Frame> createFrames(void);
 
 public:
-	Renderer(bool validate, bool useRenderDoc);
+	Renderer(size_t frameCount, bool validate, bool useRenderDoc);
 	~Renderer(void);
 
 	void pollEvents(void);

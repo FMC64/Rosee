@@ -77,9 +77,28 @@ public:
 	}
 };
 
-using Queue = Handle<VkQueue>;
 using SwapchainKHR = Handle<VkSwapchainKHR>;
 using RenderPass = Handle<VkRenderPass>;
+
+class CommandPool : public Handle<VkCommandPool>
+{
+public:
+	CommandPool(VkCommandPool commandPool) :
+		Handle<VkCommandPool>(commandPool)
+	{
+	}
+};
+
+class Queue : public Handle<VkQueue>
+{
+public:
+	Queue(VkQueue queue) :
+		Handle<VkQueue>(queue)
+	{
+	}
+
+	void waitIdle(void) const;
+};
 
 class Device : public Handle<VkDevice>
 {
@@ -89,12 +108,7 @@ public:
 	{
 	}
 
-	Queue getQueue(uint32_t family, uint32_t index) const
-	{
-		VkQueue res;
-		vkGetDeviceQueue(*this, family, index, &res);
-		return res;
-	}
+	Queue getQueue(uint32_t family, uint32_t index) const;
 
 	SwapchainKHR createSwapchainKHR(VkSwapchainCreateInfoKHR &ci) const
 	{
@@ -110,6 +124,10 @@ public:
 		return res;
 	}
 
+	CommandPool createCommandPool(VkCommandPoolCreateFlags flags, uint32_t queueFamilyIndex) const;
+
+	void allocateCommandBuffers(VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t commandBufferCount, VkCommandBuffer *commandBuffers) const;
+
 	void destroy(VkRenderPass renderPass) const
 	{
 		vkDestroyRenderPass(*this, renderPass, nullptr);
@@ -118,6 +136,11 @@ public:
 	void destroy(VkSwapchainKHR swapchain) const
 	{
 		vkDestroySwapchainKHR(*this, swapchain, nullptr);
+	}
+
+	void destroy(VkCommandPool commandPool) const
+	{
+		vkDestroyCommandPool(*this, commandPool, nullptr);
 	}
 
 	void destroy(void)

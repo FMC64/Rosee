@@ -6,7 +6,7 @@
 using namespace Rosee;
 
 int main() {
-	auto r = Renderer(true, false);
+	auto r = Renderer(3, true, false);
 	auto m = Map();
 
 	while (true) {
