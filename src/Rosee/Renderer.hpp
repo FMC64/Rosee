@@ -1,7 +1,7 @@
 #pragma once
 
-#include <GLFW/glfw3.h>
 #include "Vk.hpp"
+#include <GLFW/glfw3.h>
 
 namespace Rosee {
 
@@ -16,6 +16,8 @@ class Renderer
 	Vk::Instance createInstance(void);
 	Vk::DebugUtilsMessengerEXT m_debug_messenger;
 	Vk::DebugUtilsMessengerEXT createDebugMessenger(void);
+	Vk::SurfaceKHR m_surface;
+	Vk::SurfaceKHR createSurface(void);
 	VkPhysicalDeviceProperties m_properties;
 	VkPhysicalDeviceLimits m_limits;
 	VkPhysicalDeviceFeatures m_features;

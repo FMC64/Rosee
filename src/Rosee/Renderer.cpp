@@ -16,6 +16,7 @@ GLFWwindow* Renderer::createWindow(void)
 {
 	if (glfwInit() != GLFW_TRUE)
 		throwGlfwError();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	auto res = glfwCreateWindow(1600, 900, "Rosee", nullptr, nullptr);
 	if (res == nullptr)
 		throwGlfwError();
@@ -133,6 +134,13 @@ Vk::DebugUtilsMessengerEXT Renderer::createDebugMessenger(void)
 	return res;
 }
 
+Vk::SurfaceKHR Renderer::createSurface(void)
+{
+	VkSurfaceKHR res;
+	vkAssert(glfwCreateWindowSurface(m_instance, m_window, nullptr, &res));
+	return res;
+}
+
 Vk::Device Renderer::createDevice(void)
 {
 	uint32_t physical_device_count;
@@ -210,6 +218,7 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_window(createWindow()),
 	m_instance(createInstance()),
 	m_debug_messenger(createDebugMessenger()),
+	m_surface(createSurface()),
 	m_device(createDevice())
 {
 }
@@ -217,6 +226,7 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 Renderer::~Renderer(void)
 {
 	vkDestroyDevice(m_device, nullptr);
+	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	if (m_debug_messenger)
 		m_instance.getProcAddr<PFN_vkDestroyDebugUtilsMessengerEXT>("vkDestroyDebugUtilsMessengerEXT")(m_instance, m_debug_messenger, nullptr);
 	vkDestroyInstance(m_instance, nullptr);

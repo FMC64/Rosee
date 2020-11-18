@@ -58,6 +58,7 @@ public:
 	}
 };
 
+using SurfaceKHR = Handle<VkSurfaceKHR>;
 using Device = Handle<VkDevice>;
 
 }
