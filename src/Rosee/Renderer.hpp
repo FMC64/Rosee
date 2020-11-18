@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vector.hpp"
 #include "Vk.hpp"
 #include <GLFW/glfw3.h>
 
@@ -21,6 +22,9 @@ class Renderer
 	VkPhysicalDeviceProperties m_properties;
 	VkPhysicalDeviceLimits m_limits;
 	VkPhysicalDeviceFeatures m_features;
+	vector<VkPresentModeKHR> m_present_modes;
+	vector<VkSurfaceFormatKHR> m_surface_formats;
+	VkSurfaceCapabilitiesKHR m_surface_capabilities;
 	Vk::Device m_device;
 	Vk::Device createDevice(void);
 

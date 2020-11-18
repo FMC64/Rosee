@@ -148,6 +148,7 @@ Vk::Device Renderer::createDevice(void)
 	VkPhysicalDevice physical_devices[physical_device_count];
 	VkPhysicalDeviceProperties physical_devices_properties[physical_device_count];
 	VkPhysicalDeviceFeatures physical_devices_features[physical_device_count];
+	uint32_t physical_devices_gqueue_families[physical_device_count];
 	vkAssert(vkEnumeratePhysicalDevices(m_instance, &physical_device_count, physical_devices));
 
 	for (uint32_t i = 0; i < physical_device_count; i++) {
@@ -159,10 +160,10 @@ Vk::Device Renderer::createDevice(void)
 	};
 
 	uint32_t chosen = ~0U;
-	size_t chosen_score = ~0ULL;
+	size_t chosen_score = 0;
 
 	for (size_t i = 0; i < physical_device_count; i++) {
-		//auto &dev = physical_devices[i];
+		auto &dev = physical_devices[i];
 		auto &properties = physical_devices_properties[i];
 		auto &features = physical_devices_features[i];
 
@@ -173,15 +174,45 @@ Vk::Device Renderer::createDevice(void)
 			if (req_f_set[i] && !got_f_set[i])
 				continue;
 
+		uint32_t queue_family_count;
+		vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_family_count, nullptr);
+		VkQueueFamilyProperties queue_families[queue_family_count];
+		vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_family_count, queue_families);
+
+		physical_devices_gqueue_families[i] = ~0U;
+		size_t gbits = ~0ULL;
+		for (uint32_t j = 0; j < queue_family_count; j++) {
+			auto &cur = queue_families[j];
+			size_t fbits = 0;
+			for (size_t k = 0; k < sizeof(cur.queueFlags) * 8; k++)
+				if (cur.queueFlags & (1 << k))
+					fbits++;
+			VkBool32 present_supported;
+			vkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(dev, j, m_surface, &present_supported));
+			if (present_supported && (cur.queueFlags & VK_QUEUE_GRAPHICS_BIT) && fbits < gbits) {
+				physical_devices_gqueue_families[i] = j;
+				gbits = fbits;
+			}
+		}
+		if (physical_devices_gqueue_families[i] == ~0U)
+			continue;
+
+		uint32_t present_mode_count;
+		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(dev, m_surface, &present_mode_count, nullptr));
+		if (present_mode_count == 0)
+			continue;
+		uint32_t surface_format_count;
+		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(dev, m_surface, &surface_format_count, nullptr));
+		if (surface_format_count == 0)
+			continue;
+
 		size_t score = 1;
 		if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 			score++;
-		if (chosen == ~0U || score > chosen_score) {
+		if (score > chosen_score) {
 			chosen = i;
 			chosen_score = score;
 		}
-
-		//vkEnumerateDeviceExtensionProperties
 	};
 
 	if (chosen == ~0U)
@@ -190,12 +221,27 @@ Vk::Device Renderer::createDevice(void)
 	m_limits = m_properties.limits;
 	m_features = physical_devices_features[chosen];
 
+	{
+		uint32_t present_mode_count;
+		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, nullptr));
+		m_present_modes.resize(present_mode_count);
+		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, m_present_modes.data()));
+		uint32_t surface_format_count;
+		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, nullptr));
+		m_surface_formats.resize(surface_format_count);
+		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, m_surface_formats.data()));
+		vkAssert(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices[chosen], m_surface, &m_surface_capabilities));
+	}
+
+	std::cout << "Vulkan device: " << m_properties.deviceName << std::endl;
+	std::cout << std::endl;
+
 	VkDeviceCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
 	VkDeviceQueueCreateInfo qci{};
 	qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	qci.queueFamilyIndex = 0;
+	qci.queueFamilyIndex = physical_devices_gqueue_families[chosen];
 	qci.queueCount = 1;
 
 	const float prio[] {
@@ -206,6 +252,7 @@ Vk::Device Renderer::createDevice(void)
 	VkDeviceQueueCreateInfo qcis[] {qci};
 	ci.queueCreateInfoCount = array_size(qcis);
 	ci.pQueueCreateInfos = qcis;
+	ci.pEnabledFeatures = &required_features;
 
 	VkDevice res;
 	vkAssert(vkCreateDevice(physical_devices[chosen], &ci, nullptr, &res));

@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
 
 namespace Rosee {
 
