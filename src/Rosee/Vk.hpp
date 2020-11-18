@@ -30,12 +30,24 @@ public:
 	}
 };
 
+using SurfaceKHR = Handle<VkSurfaceKHR>;
+
 class Instance : public Handle<VkInstance>
 {
 public:
 	Instance(VkInstance instance) :
 		Handle<VkInstance>(instance)
 	{
+	}
+
+	void destroy(VkSurfaceKHR surface) const
+	{
+		vkDestroySurfaceKHR(*this, surface, nullptr);
+	}
+
+	void destroy(void)
+	{
+		vkDestroyInstance(*this, nullptr);
 	}
 
 private:
@@ -58,8 +70,9 @@ public:
 	}
 };
 
-using SurfaceKHR = Handle<VkSurfaceKHR>;
 using Queue = Handle<VkQueue>;
+using SwapchainKHR = Handle<VkSwapchainKHR>;
+using RenderPass = Handle<VkRenderPass>;
 
 class Device : public Handle<VkDevice>
 {
@@ -69,16 +82,28 @@ public:
 	{
 	}
 
-	Queue getQueue(uint32_t family, uint32_t index)
+	Queue getQueue(uint32_t family, uint32_t index) const
 	{
 		VkQueue res;
 		vkGetDeviceQueue(*this, family, index, &res);
 		return res;
 	}
-};
 
-using SwapchainKHR = Handle<VkSwapchainKHR>;
-using RenderPass = Handle<VkRenderPass>;
+	void destroy(VkRenderPass renderPass) const
+	{
+		vkDestroyRenderPass(*this, renderPass, nullptr);
+	}
+
+	void destroy(VkSwapchainKHR swapchain) const
+	{
+		vkDestroySwapchainKHR(*this, swapchain, nullptr);
+	}
+
+	void destroy(void)
+	{
+		vkDestroyDevice(*this, nullptr);
+	}
+};
 
 static inline constexpr auto AttachmentLoadOp_Load = VK_ATTACHMENT_LOAD_OP_LOAD;
 static inline constexpr auto AttachmentLoadOp_Clear = VK_ATTACHMENT_LOAD_OP_CLEAR;

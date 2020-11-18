@@ -379,13 +379,13 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 
 Renderer::~Renderer(void)
 {
-	vkDestroyRenderPass(m_device, m_opaque_pass, nullptr);
-	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
-	vkDestroyDevice(m_device, nullptr);
-	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+	m_device.destroy(m_opaque_pass);
+	m_device.destroy(m_swapchain);
+	m_device.destroy();
+	m_instance.destroy(m_surface);
 	if (m_debug_messenger)
 		m_instance.getProcAddr<PFN_vkDestroyDebugUtilsMessengerEXT>("vkDestroyDebugUtilsMessengerEXT")(m_instance, m_debug_messenger, nullptr);
-	vkDestroyInstance(m_instance, nullptr);
+	m_instance.destroy();
 	glfwDestroyWindow(m_window);
 	glfwTerminate();
 }
