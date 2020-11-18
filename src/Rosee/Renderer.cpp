@@ -359,7 +359,7 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	VkAttachmentDescription atts[] {
-		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount1Bit, Vk::AttachmentLoadOp_DontCare, Vk::AttachmentStoreOp_Store,	// wsi 0
+		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount1Bit, Vk::AttachmentLoadOp_Clear, Vk::AttachmentStoreOp_Store,	// wsi 0
 			Vk::AttachmentLoadOp_DontCare, Vk::AttachmentStoreOp_DontCare,
 			Vk::ImageLayout_Undefined, Vk::ImageLayout_PresentSrcKhr}
 	};
@@ -506,6 +506,17 @@ void Renderer::Frame::render(void)
 		bi.renderPass = m_r.m_opaque_pass;
 		bi.framebuffer = m_r.m_opaque_fbs[swapchain_index];
 		bi.renderArea = VkRect2D{{0, 0}, {static_cast<uint32_t>(wins.x), static_cast<uint32_t>(wins.y)}};
+
+		VkClearColorValue cv0;
+		cv0.float32[0] = 0.5f;
+		cv0.float32[1] = 0.5f;
+		cv0.float32[2] = 0.5f;
+		cv0.float32[3] = 1.0f;
+		VkClearValue cvs[] {
+			{ .color = cv0 }
+		};
+		bi.clearValueCount = array_size(cvs);
+		bi.pClearValues = cvs;
 		m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 	}
 	m_cmd.endRenderPass();
