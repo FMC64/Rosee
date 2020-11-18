@@ -77,9 +77,7 @@ Vk::Instance Renderer::createInstance(void)
 		std::cout << exts[i] << std::endl;
 	std::cout << std::endl;
 
-	VkInstance res;
-	vkAssert(vkCreateInstance(&ci, nullptr, &res));
-	return res;
+	return Vk::createInstance(ci);
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_cb(
@@ -290,9 +288,7 @@ Vk::Device Renderer::createDevice(void)
 	ci.enabledExtensionCount = array_size(required_exts);
 	ci.ppEnabledExtensionNames = required_exts;
 
-	VkDevice res;
-	vkAssert(vkCreateDevice(physical_devices[chosen], &ci, nullptr, &res));
-	return res;
+	return Vk::createDevice(physical_devices[chosen], ci);
 }
 
 Vk::SwapchainKHR Renderer::createSwapchain(void)
@@ -329,9 +325,7 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	ci.presentMode = present_mode;
 	ci.clipped = VK_TRUE;
 
-	VkSwapchainKHR res;
-	vkAssert(vkCreateSwapchainKHR(m_device, &ci, nullptr, &res));
-	return res;
+	return m_device.createSwapchainKHR(ci);
 }
 
 Vk::RenderPass Renderer::createOpaquePass(void)
@@ -358,9 +352,7 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.subpassCount = array_size(subpasses);
 	ci.pSubpasses = subpasses;
 
-	VkRenderPass res;
-	vkAssert(vkCreateRenderPass(m_device, &ci, nullptr, &res));
-	return res;
+	return m_device.createRenderPass(ci);
 }
 
 Renderer::Renderer(bool validate, bool useRenderDoc) :

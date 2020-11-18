@@ -61,6 +61,13 @@ public:
 	}
 };
 
+static inline Instance createInstance(VkInstanceCreateInfo &ci)
+{
+	VkInstance res;
+	vkAssert(vkCreateInstance(&ci, nullptr, &res));
+	return res;
+}
+
 class DebugUtilsMessengerEXT : public Handle<VkDebugUtilsMessengerEXT>
 {
 public:
@@ -89,6 +96,20 @@ public:
 		return res;
 	}
 
+	SwapchainKHR createSwapchainKHR(VkSwapchainCreateInfoKHR &ci) const
+	{
+		VkSwapchainKHR res;
+		vkAssert(vkCreateSwapchainKHR(*this, &ci, nullptr, &res));
+		return res;
+	}
+
+	RenderPass createRenderPass(VkRenderPassCreateInfo &ci) const
+	{
+		VkRenderPass res;
+		vkAssert(vkCreateRenderPass(*this, &ci, nullptr, &res));
+		return res;
+	}
+
 	void destroy(VkRenderPass renderPass) const
 	{
 		vkDestroyRenderPass(*this, renderPass, nullptr);
@@ -104,6 +125,13 @@ public:
 		vkDestroyDevice(*this, nullptr);
 	}
 };
+
+static inline Vk::Device createDevice(VkPhysicalDevice physicalDevice, VkDeviceCreateInfo &ci)
+{
+	VkDevice res;
+	vkAssert(vkCreateDevice(physicalDevice, &ci, nullptr, &res));
+	return res;
+}
 
 static inline constexpr auto AttachmentLoadOp_Load = VK_ATTACHMENT_LOAD_OP_LOAD;
 static inline constexpr auto AttachmentLoadOp_Clear = VK_ATTACHMENT_LOAD_OP_CLEAR;
