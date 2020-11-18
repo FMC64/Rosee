@@ -36,6 +36,9 @@ class Renderer
 	Vk::SwapchainKHR m_swapchain;
 	Vk::SwapchainKHR createSwapchain(void);
 
+	Vk::RenderPass m_opaque_pass;
+	Vk::RenderPass createOpaquePass(void);
+
 public:
 	Renderer(bool validate, bool useRenderDoc);
 	~Renderer(void);

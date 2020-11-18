@@ -334,6 +334,35 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	return res;
 }
 
+Vk::RenderPass Renderer::createOpaquePass(void)
+{
+	VkRenderPassCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+
+	VkAttachmentDescription atts[] {
+		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount1Bit, Vk::AttachmentLoadOp_DontCare, Vk::AttachmentStoreOp_Store,	// wsi 0
+			Vk::AttachmentLoadOp_DontCare, Vk::AttachmentStoreOp_DontCare,
+			Vk::ImageLayout_Undefined, Vk::ImageLayout_PresentSrcKhr}
+	};
+	VkAttachmentReference wsi {0, Vk::ImageLayout_ColorAttachmentOptimal};
+	VkSubpassDescription subpasses[] {
+		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			0, nullptr,		// input
+			1, &wsi, nullptr,	// color, resolve
+			nullptr,		// depth
+			0, nullptr}		// preserve
+	};
+
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.subpassCount = array_size(subpasses);
+	ci.pSubpasses = subpasses;
+
+	VkRenderPass res;
+	vkAssert(vkCreateRenderPass(m_device, &ci, nullptr, &res));
+	return res;
+}
+
 Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_validate(validate),
 	m_use_render_doc(useRenderDoc),
@@ -343,12 +372,14 @@ Renderer::Renderer(bool validate, bool useRenderDoc) :
 	m_surface(createSurface()),
 	m_device(createDevice()),
 	m_queue(m_device.getQueue(m_queue_family_graphics, 0)),
-	m_swapchain(createSwapchain())
+	m_swapchain(createSwapchain()),
+	m_opaque_pass(createOpaquePass())
 {
 }
 
 Renderer::~Renderer(void)
 {
+	vkDestroyRenderPass(m_device, m_opaque_pass, nullptr);
 	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
