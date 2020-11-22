@@ -1,3 +1,4 @@
 *.o
+*.spv
 /rosee.exe
 /rosee

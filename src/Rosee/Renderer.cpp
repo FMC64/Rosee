@@ -4,6 +4,8 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <fstream>
+#include <sstream>
 
 namespace Rosee {
 
@@ -166,6 +168,7 @@ Vk::Device Renderer::createDevice(void)
 	}
 
 	static auto required_features = VkPhysicalDeviceFeatures {
+		.fillModeNonSolid = true
 	};
 	static const char *required_exts[] {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -323,6 +326,15 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
 	}
 
+	m_pipeline_viewport_state.viewport = VkViewport{0.0f, 0.0f, static_cast<float>(m_swapchain_extent.width), static_cast<float>(m_swapchain_extent.height), 0.0f, 1.0f};
+	m_pipeline_viewport_state.scissor = VkRect2D{{0, 0}, {m_swapchain_extent.width, m_swapchain_extent.height}};
+	m_pipeline_viewport_state.ci = VkPipelineViewportStateCreateInfo{};
+	m_pipeline_viewport_state.ci.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	m_pipeline_viewport_state.ci.viewportCount = 1;
+	m_pipeline_viewport_state.ci.pViewports = &m_pipeline_viewport_state.viewport;
+	m_pipeline_viewport_state.ci.scissorCount = 1;
+	m_pipeline_viewport_state.ci.pScissors = &m_pipeline_viewport_state.scissor;
+
 	VkSwapchainCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	ci.surface = m_surface;
@@ -427,6 +439,117 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	return res;
 }
 
+Vk::ShaderModule Renderer::loadShaderModule(const char *path) const
+{
+	VkShaderModuleCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+
+	std::ifstream f(path, std::ios::binary);
+	if (!f.good())
+		throw std::runtime_error(path);
+	std::stringstream ss;
+	ss << f.rdbuf();
+	auto str = ss.str();
+	ci.codeSize = str.size();
+	ci.pCode = reinterpret_cast<const uint32_t*>(str.data());
+
+	return m_device.createShaderModule(ci);
+}
+
+VkPipelineShaderStageCreateInfo Renderer::initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module)
+{
+	VkPipelineShaderStageCreateInfo res{};
+	res.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	res.stage = stage;
+	res.module = module;
+	res.pName = "main";
+	return res;
+}
+
+Vk::PipelineLayout Renderer::createPipelineLayoutEmpty(void)
+{
+	VkPipelineLayoutCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	VkPushConstantRange ranges[] {
+		{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 128}
+	};
+	ci.pushConstantRangeCount = array_size(ranges);
+	ci.pPushConstantRanges = ranges;
+	return m_device.createPipelineLayout(ci);
+}
+
+Vk::Pipeline Renderer::createParticlePipeline(void)
+{
+	VkGraphicsPipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	VkPipelineShaderStageCreateInfo stages[] {
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_particle_vert),
+		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, m_particle_frag)
+	};
+	ci.stageCount = array_size(stages);
+	ci.pStages = stages;
+
+	VkPipelineVertexInputStateCreateInfo vertex_input{};
+	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	VkVertexInputBindingDescription vertex_input_bindings[] {
+		{0, sizeof(glm::vec2), VK_VERTEX_INPUT_RATE_VERTEX}
+	};
+	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+	VkVertexInputAttributeDescription vertex_input_attributes[] {
+		{0, 0, VK_FORMAT_R32G32_SFLOAT, 0}
+	};
+	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+	ci.pVertexInputState = &vertex_input;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+	ci.pInputAssemblyState = &input_assembly;
+
+	ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+	VkPipelineRasterizationStateCreateInfo rasterization{};
+	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization.polygonMode = VK_POLYGON_MODE_POINT;
+	rasterization.cullMode = VK_CULL_MODE_NONE;
+	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterization.lineWidth = 1.0f;
+	ci.pRasterizationState = &rasterization;
+
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ci.pMultisampleState = &multisample;
+
+	VkPipelineColorBlendStateCreateInfo color_blend{};
+	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment
+	};
+	color_blend.attachmentCount = array_size(color_blend_attachments);
+	color_blend.pAttachments = color_blend_attachments;
+	ci.pColorBlendState = &color_blend;
+
+	VkPipelineDynamicStateCreateInfo dynamic{};
+	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	VkDynamicState dynamic_states[] {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	dynamic.dynamicStateCount = array_size(dynamic_states);
+	dynamic.pDynamicStates = dynamic_states;
+	ci.pDynamicState = &dynamic;
+	ci.layout = m_pipeline_layout_empty;
+	ci.renderPass = m_opaque_pass;
+
+	return m_device.createGraphicsPipeline(m_pipeline_cache, ci);
+}
+
 Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_frame_count(frameCount),
 	m_validate(validate),
@@ -436,6 +559,7 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_debug_messenger(createDebugMessenger()),
 	m_surface(createSurface()),
 	m_device(createDevice()),
+	m_pipeline_cache(VK_NULL_HANDLE),
 	m_queue(m_device.getQueue(m_queue_family_graphics, 0)),
 	m_swapchain(createSwapchain()),
 	m_swapchain_images(m_device.getSwapchainImages(m_swapchain)),
@@ -444,7 +568,11 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_opaque_fbs(createOpaqueFbs()),
 	m_command_pool(m_device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
-	m_frames(createFrames())
+	m_frames(createFrames()),
+	m_pipeline_layout_empty(createPipelineLayoutEmpty()),
+	m_particle_vert(loadShaderModule("sha/particle.vert.spv")),
+	m_particle_frag(loadShaderModule("sha/particle.frag.spv")),
+	m_particle_pipeline(createParticlePipeline())
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
@@ -453,6 +581,11 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 Renderer::~Renderer(void)
 {
 	m_queue.waitIdle();
+
+	m_device.destroy(m_particle_pipeline);
+	m_device.destroy(m_particle_vert);
+	m_device.destroy(m_particle_frag);
+	m_device.destroy(m_pipeline_layout_empty);
 
 	m_frames.clear();
 	m_device.destroy(m_command_pool);

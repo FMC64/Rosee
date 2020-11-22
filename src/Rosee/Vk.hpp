@@ -157,6 +157,10 @@ public:
 
 using Framebuffer = Handle<VkFramebuffer>;
 using ImageView = Handle<VkImageView>;
+using PipelineCache = Handle<VkPipelineCache>;
+using ShaderModule = Handle<VkShaderModule>;
+using PipelineLayout = Handle<VkPipelineLayout>;
+using Pipeline = Handle<VkPipeline>;
 
 class Device : public Handle<VkDevice>
 {
@@ -207,6 +211,32 @@ public:
 		return res;
 	}
 
+	void createGraphicsPipelines(VkPipelineCache pipelineCache, uint32_t createInfoCount, const VkGraphicsPipelineCreateInfo *pCreateInfos, VkPipeline *pPipelines) const
+	{
+		vkAssert(vkCreateGraphicsPipelines(*this, pipelineCache, createInfoCount, pCreateInfos, nullptr, pPipelines));
+	}
+
+	ShaderModule createShaderModule(const VkShaderModuleCreateInfo &ci) const
+	{
+		VkShaderModule res;
+		vkAssert(vkCreateShaderModule(*this, &ci, nullptr, &res));
+		return res;
+	}
+
+	PipelineLayout createPipelineLayout(const VkPipelineLayoutCreateInfo &ci) const
+	{
+		VkPipelineLayout res;
+		vkAssert(vkCreatePipelineLayout(*this, &ci, nullptr, &res));
+		return res;
+	}
+
+	Pipeline createGraphicsPipeline(VkPipelineCache pipelineCache, const VkGraphicsPipelineCreateInfo &ci) const
+	{
+		VkPipeline res;
+		vkAssert(vkCreateGraphicsPipelines(*this, pipelineCache, 1, &ci, nullptr, &res));
+		return res;
+	}
+
 	void destroy(VkRenderPass renderPass) const
 	{
 		vkDestroyRenderPass(*this, renderPass, nullptr);
@@ -240,6 +270,21 @@ public:
 	void destroy(VkImageView imageView) const
 	{
 		vkDestroyImageView(*this, imageView, nullptr);
+	}
+
+	void destroy(VkShaderModule shaderModule) const
+	{
+		vkDestroyShaderModule(*this, shaderModule, nullptr);
+	}
+
+	void destroy(VkPipelineLayout pipelineLayout) const
+	{
+		vkDestroyPipelineLayout(*this, pipelineLayout, nullptr);
+	}
+
+	void destroy(VkPipeline pipeline) const
+	{
+		vkDestroyPipeline(*this, pipeline, nullptr);
 	}
 
 	void destroy(void)

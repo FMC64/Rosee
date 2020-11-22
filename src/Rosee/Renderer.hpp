@@ -40,8 +40,14 @@ class Renderer
 	VkPhysicalDevice m_physical_device;
 	Vk::Device m_device;
 	Vk::Device createDevice(void);
+	Vk::PipelineCache m_pipeline_cache;
 	Vk::Queue m_queue;
 	VkExtent2D m_swapchain_extent;
+	struct PipelineViewportState {
+		VkViewport viewport;
+		VkRect2D scissor;
+		VkPipelineViewportStateCreateInfo ci;
+	} m_pipeline_viewport_state;
 	Vk::SwapchainKHR m_swapchain;
 	Vk::SwapchainKHR createSwapchain(void);
 	vector<VkImage> m_swapchain_images;
@@ -75,6 +81,17 @@ class Renderer
 	size_t m_current_frame = 0;
 
 	void recreateSwapchain(void);
+
+	Vk::ShaderModule loadShaderModule(const char *path) const;
+	static VkPipelineShaderStageCreateInfo initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module);
+
+	Vk::PipelineLayout m_pipeline_layout_empty;
+	Vk::PipelineLayout createPipelineLayoutEmpty(void);
+
+	Vk::ShaderModule m_particle_vert;
+	Vk::ShaderModule m_particle_frag;
+	Vk::Pipeline m_particle_pipeline;
+	Vk::Pipeline createParticlePipeline(void);
 
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];

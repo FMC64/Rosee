@@ -27,14 +27,28 @@ ifdef LINUX
 LD_LIBS += -lvulkan -lglfw
 endif
 
-SRC = $(wildcard src/*.cpp) $(wildcard src/*/*.cpp)
+SRCD = src
+ROSEED = $(SRCD)/Rosee
+ROSEE_SRC = $(ROSEED)/Brush.cpp $(ROSEED)/Cmp.cpp $(ROSEED)/Map.cpp $(ROSEED)/Renderer.cpp $(ROSEED)/Vk.cpp
+SRC = $(SRCD)/main.cpp $(ROSEE_SRC)
 OBJ = $(SRC:.cpp=.o)
+
+%.vert.spv: %.vert
+	glslangValidator $< -V -o $@
+
+%.frag.spv: %.frag
+	glslangValidator $< -V -o $@
+
+SHAD = sha
+SHA = $(SHAD)/particle.frag $(SHAD)/particle.vert
+SHA_VERT = $(SHA:.vert=.vert.spv)
+SHA_FRAG = $(SHA:.frag=.frag.spv)
 
 TARGET = rosee
 
 all: $(TARGET)
 
-$(TARGET): $(OBJ)
+$(TARGET): $(OBJ) $(SHA_VERT) $(SHA_FRAG)
 	$(CXX) $(CXXFLAGS) $(OBJ) -o $(TARGET) $(LD_LIBS)
 
 clean:
