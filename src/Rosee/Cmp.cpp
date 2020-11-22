@@ -19,6 +19,14 @@ void Transform::destr(void*, size_t)
 {
 }
 
+void Point2D::init(void*, size_t)
+{
+}
+
+void Point2D::destr(void*, size_t)
+{
+}
+
 namespace Cmp {
 
 static constexpr sarray<size_t, max> get_sizes(void)

@@ -776,12 +776,15 @@ void Renderer::Frame::render(Map &map)
 			glm::vec2 pos;
 			float size;
 		} pc;
-		pc.color = glm::vec3(1.0f, 0.0f, 0.0f);
-		pc.pos = glm::vec2(0.0f, 0.0f);
-		pc.size = 4.0f;
-		m_cmd.pushConstants(m_r.m_pipeline_layout_empty, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
-		m_cmd.draw(1, 1, 0, 0);
-		map.query<Transform>([](Brush &b){
+		map.query<Point2D>([&](Brush &b){
+			auto points = b.get<Point2D>();
+			for (size_t i = 0; i < b.size(); i++) {
+				pc.color = points[i].color;
+				pc.pos = points[i].pos;
+				pc.size = points[i].size;
+				m_cmd.pushConstants(m_r.m_pipeline_layout_empty, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+				m_cmd.draw(1, 1, 0, 0);
+			}
 		});
 
 		m_cmd.endRenderPass();

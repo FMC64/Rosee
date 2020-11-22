@@ -12,10 +12,11 @@ namespace Rosee {
 
 struct Id;
 struct Transform;
+struct Point2D;
 
 namespace Cmp {
 
-using list = List<Id, Transform>;
+using list = List<Id, Transform, Point2D>;
 
 #include "Cmp/Id_t.hpp"
 
@@ -48,6 +49,17 @@ struct Transform : public Cmp::Id_t<Transform>
 	static Cmp::destr_fun_t destr;
 
 	glm::mat4 mat;
+};
+
+struct Point2D : public Cmp::Id_t<Point2D>
+{
+	static Cmp::init_fun_t init;
+	static Cmp::destr_fun_t destr;
+
+	glm::vec3 color;
+	glm::vec2 pos;
+	glm::vec2 base_pos;
+	float size;
 };
 
 }
