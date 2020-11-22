@@ -41,6 +41,8 @@ class Renderer
 	Vk::Device m_device;
 	Vk::Device createDevice(void);
 	Vk::PipelineCache m_pipeline_cache;
+	Vk::Allocator m_allocator;
+	Vk::Allocator createAllocator(void);
 	Vk::Queue m_queue;
 	VkExtent2D m_swapchain_extent;
 	struct PipelineViewportState {
@@ -93,8 +95,8 @@ class Renderer
 	Vk::Pipeline m_particle_pipeline;
 	Vk::Pipeline createParticlePipeline(void);
 
-	Vk::Buffer m_point_buffer;
-	Vk::Buffer createPointBuffer(void);
+	Vk::BufferAllocation m_point_buffer;
+	Vk::BufferAllocation createPointBuffer(void);
 
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];

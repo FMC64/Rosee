@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include "../../dep/VulkanMemoryAllocator/src/vk_mem_alloc.h"
 #include "vector.hpp"
 
 namespace Rosee {
@@ -374,6 +375,52 @@ static inline constexpr auto SampleCount8Bit = VK_SAMPLE_COUNT_8_BIT;
 static inline constexpr auto SampleCount16Bit = VK_SAMPLE_COUNT_16_BIT;
 static inline constexpr auto SampleCount32Bit = VK_SAMPLE_COUNT_32_BIT;
 static inline constexpr auto SampleCount64Bit = VK_SAMPLE_COUNT_64_BIT;
+
+using Allocation = Handle<VmaAllocation>;
+
+class BufferAllocation : public Buffer, public Allocation
+{
+public:
+	BufferAllocation(VkBuffer buffer, VmaAllocation allocation) :
+		Buffer(buffer),
+		Allocation(allocation)
+	{
+	}
+};
+
+class Allocator : public Handle<VmaAllocator>
+{
+public:
+	Allocator(VmaAllocator allocator) :
+		Handle<VmaAllocator>(allocator)
+	{
+	}
+
+	BufferAllocation createBuffer(const VkBufferCreateInfo &bci, const VmaAllocationCreateInfo &aci)
+	{
+		VkBuffer buffer;
+		VmaAllocation allocation;
+		vkAssert(vmaCreateBuffer(*this, &bci, &aci, &buffer, &allocation, nullptr));
+		return BufferAllocation(buffer, allocation);
+	}
+
+	void destroy(BufferAllocation &bufferAllocation)
+	{
+		vmaDestroyBuffer(*this, bufferAllocation, bufferAllocation);
+	}
+
+	void destroy(void)
+	{
+		vmaDestroyAllocator(*this);
+	}
+};
+
+static inline Vk::Allocator createAllocator(const VmaAllocatorCreateInfo &ci)
+{
+	VmaAllocator res;
+	vkAssert(vmaCreateAllocator(&ci, &res));
+	return res;
+}
 
 }
 }

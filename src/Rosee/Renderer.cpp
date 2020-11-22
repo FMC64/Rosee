@@ -313,6 +313,16 @@ Vk::Device Renderer::createDevice(void)
 	return Vk::createDevice(physical_devices[chosen], ci);
 }
 
+Vk::Allocator Renderer::createAllocator(void)
+{
+	VmaAllocatorCreateInfo ci{};
+	ci.vulkanApiVersion = VK_API_VERSION_1_0;
+	ci.physicalDevice = m_physical_device;
+	ci.device = m_device;
+	ci.instance = m_instance;
+	return Vk::createAllocator(ci);
+}
+
 Vk::SwapchainKHR Renderer::createSwapchain(void)
 {
 	while (true) {
@@ -550,14 +560,16 @@ Vk::Pipeline Renderer::createParticlePipeline(void)
 	return m_device.createGraphicsPipeline(m_pipeline_cache, ci);
 }
 
-Vk::Buffer Renderer::createPointBuffer(void)
+Vk::BufferAllocation Renderer::createPointBuffer(void)
 {
-	VkBufferCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	ci.size = sizeof(glm::vec2);
-	ci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	return m_device.createBuffer(ci);
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = sizeof(glm::vec2);
+	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	return m_allocator.createBuffer(bci, aci);
 }
 
 Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
@@ -570,6 +582,7 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_surface(createSurface()),
 	m_device(createDevice()),
 	m_pipeline_cache(VK_NULL_HANDLE),
+	m_allocator(createAllocator()),
 	m_queue(m_device.getQueue(m_queue_family_graphics, 0)),
 	m_swapchain(createSwapchain()),
 	m_swapchain_images(m_device.getSwapchainImages(m_swapchain)),
@@ -593,6 +606,8 @@ Renderer::~Renderer(void)
 {
 	m_queue.waitIdle();
 
+	m_allocator.destroy(m_point_buffer);
+
 	m_device.destroy(m_particle_pipeline);
 	m_device.destroy(m_particle_vert);
 	m_device.destroy(m_particle_frag);
@@ -606,6 +621,7 @@ Renderer::~Renderer(void)
 	for (auto &v : m_swapchain_image_views)
 		m_device.destroy(v);
 	m_device.destroy(m_swapchain);
+	m_allocator.destroy();
 	m_device.destroy();
 	m_instance.destroy(m_surface);
 	if (m_debug_messenger)

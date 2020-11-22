@@ -1,5 +1,6 @@
 CXX = clang++
-CXXFLAGS = -Wall -Wextra -std=c++20
+CXXFLAGS_BASE = -std=c++20
+CXXFLAGS = -Wall -Wextra $(CXXFLAGS_BASE)
 
 WINDOWS = true
 #LINUX = true
@@ -10,14 +11,14 @@ RELEASE = true
 
 ifdef SANITIZE
 DEBUG = true
-CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined
+CXXFLAGS_BASE += -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined
 #LD_LIBS += -shared-libsan
 endif
 ifdef DEBUG
-CXXFLAGS += -g
+CXXFLAGS_BASE += -g
 endif
 ifdef RELEASE
-CXXFLAGS += -O3
+CXXFLAGS_BASE += -O3
 endif
 
 ifdef WINDOWS
@@ -30,8 +31,9 @@ endif
 SRCD = src
 ROSEED = $(SRCD)/Rosee
 ROSEE_SRC = $(ROSEED)/Brush.cpp $(ROSEED)/Cmp.cpp $(ROSEED)/Map.cpp $(ROSEED)/Renderer.cpp $(ROSEED)/Vk.cpp
+OBJ_DEP = $(ROSEED)/Vma.o
 SRC = $(SRCD)/main.cpp $(ROSEE_SRC)
-OBJ = $(SRC:.cpp=.o)
+OBJ = $(SRC:.cpp=.o) $(OBJ_DEP)
 
 %.vert.spv: %.vert
 	glslangValidator $< -V -o $@
@@ -46,10 +48,13 @@ SHA_FRAG = $(SHA:.frag=.frag.spv)
 
 TARGET = rosee
 
-all: $(TARGET)
+all: $(TARGET) $(SHA_VERT) $(SHA_FRAG)
 
-$(TARGET): $(OBJ) $(SHA_VERT) $(SHA_FRAG)
+$(TARGET): $(OBJ) $(OBJ_DEP)
 	$(CXX) $(CXXFLAGS) $(OBJ) -o $(TARGET) $(LD_LIBS)
+
+$(ROSEED)/Vma.o:
+	$(CXX) $(CXXFLAGS_BASE) -Wno-nullability-completeness $(ROSEED)/Vma.cpp -c -o $(ROSEED)/Vma.o
 
 clean:
 	rm -f $(OBJ) $(TARGET)
