@@ -113,6 +113,42 @@ public:
 	{
 		vkCmdEndRenderPass(*this);
 	}
+
+	void bindPipeline(VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline)
+	{
+		vkCmdBindPipeline(*this, pipelineBindPoint, pipeline);
+	}
+
+	void bindVertexBuffers(uint32_t firstBinding, uint32_t bindingCount, const VkBuffer *pBuffers, const VkDeviceSize *pOffsets)
+	{
+		vkCmdBindVertexBuffers(*this, firstBinding, bindingCount, pBuffers, pOffsets);
+	}
+
+	void bindVertexBuffer(uint32_t firstBinding, VkBuffer buffer, VkDeviceSize offset)
+	{
+		vkCmdBindVertexBuffers(*this, firstBinding, 1, &buffer, &offset);
+	}
+
+	void draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
+	{
+		vkCmdDraw(*this, vertexCount, instanceCount, firstVertex, firstInstance);
+	}
+
+	void setViewport(const VkViewport &viewport)
+	{
+		vkCmdSetViewport(*this, 0, 1, &viewport);
+	}
+
+	void setScissor(const VkRect2D &scissor)
+	{
+		vkCmdSetScissor(*this, 0, 1, &scissor);
+	}
+
+	void setExtent(const VkExtent2D &extent)
+	{
+		setViewport(VkViewport{0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f});
+		setScissor(VkRect2D{{0, 0}, {extent.width, extent.height}});
+	}
 };
 
 class Queue : public Handle<VkQueue>
@@ -161,6 +197,7 @@ using PipelineCache = Handle<VkPipelineCache>;
 using ShaderModule = Handle<VkShaderModule>;
 using PipelineLayout = Handle<VkPipelineLayout>;
 using Pipeline = Handle<VkPipeline>;
+using Buffer = Handle<VkBuffer>;
 
 class Device : public Handle<VkDevice>
 {
@@ -237,6 +274,13 @@ public:
 		return res;
 	}
 
+	Buffer createBuffer(VkBufferCreateInfo &ci) const
+	{
+		VkBuffer res;
+		vkAssert(vkCreateBuffer(*this, &ci, nullptr, &res));
+		return res;
+	}
+
 	void destroy(VkRenderPass renderPass) const
 	{
 		vkDestroyRenderPass(*this, renderPass, nullptr);
@@ -285,6 +329,11 @@ public:
 	void destroy(VkPipeline pipeline) const
 	{
 		vkDestroyPipeline(*this, pipeline, nullptr);
+	}
+
+	void destroy(VkBuffer buffer) const
+	{
+		vkDestroyBuffer(*this, buffer, nullptr);
 	}
 
 	void destroy(void)

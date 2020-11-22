@@ -550,6 +550,16 @@ Vk::Pipeline Renderer::createParticlePipeline(void)
 	return m_device.createGraphicsPipeline(m_pipeline_cache, ci);
 }
 
+Vk::Buffer Renderer::createPointBuffer(void)
+{
+	VkBufferCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	ci.size = sizeof(glm::vec2);
+	ci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	return m_device.createBuffer(ci);
+}
+
 Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_frame_count(frameCount),
 	m_validate(validate),
@@ -572,7 +582,8 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_pipeline_layout_empty(createPipelineLayoutEmpty()),
 	m_particle_vert(loadShaderModule("sha/particle.vert.spv")),
 	m_particle_frag(loadShaderModule("sha/particle.frag.spv")),
-	m_particle_pipeline(createParticlePipeline())
+	m_particle_pipeline(createParticlePipeline()),
+	m_point_buffer(createPointBuffer())
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
@@ -717,28 +728,36 @@ void Renderer::Frame::render(void)
 	uint32_t swapchain_index;
 	vkAssert(vkAcquireNextImageKHR(m_r.m_device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
 
-	m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	{
-		VkRenderPassBeginInfo bi{};
-		bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		bi.renderPass = m_r.m_opaque_pass;
-		bi.framebuffer = m_r.m_opaque_fbs[swapchain_index];
-		bi.renderArea = VkRect2D{{0, 0}, sex};
+		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		{
+			VkRenderPassBeginInfo bi{};
+			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			bi.renderPass = m_r.m_opaque_pass;
+			bi.framebuffer = m_r.m_opaque_fbs[swapchain_index];
+			bi.renderArea = VkRect2D{{0, 0}, sex};
 
-		VkClearColorValue cv0;
-		cv0.float32[0] = 0.5f;
-		cv0.float32[1] = 0.5f;
-		cv0.float32[2] = 0.5f;
-		cv0.float32[3] = 1.0f;
-		VkClearValue cvs[] {
-			{ .color = cv0 }
-		};
-		bi.clearValueCount = array_size(cvs);
-		bi.pClearValues = cvs;
-		m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+			VkClearColorValue cv0;
+			cv0.float32[0] = 0.5f;
+			cv0.float32[1] = 0.5f;
+			cv0.float32[2] = 0.5f;
+			cv0.float32[3] = 1.0f;
+			VkClearValue cvs[] {
+				{ .color = cv0 }
+			};
+			bi.clearValueCount = array_size(cvs);
+			bi.pClearValues = cvs;
+			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+		}
+
+		m_cmd.setExtent(m_r.m_swapchain_extent);
+		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_particle_pipeline);
+		m_cmd.bindVertexBuffer(0, m_r.m_point_buffer, 0);
+		m_cmd.draw(1, 1, 0, 0);
+
+		m_cmd.endRenderPass();
+		m_cmd.end();
 	}
-	m_cmd.endRenderPass();
-	m_cmd.end();
 
 	VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo si[] {
