@@ -4,6 +4,7 @@
 #include "Vk.hpp"
 #include <GLFW/glfw3.h>
 #include "math.hpp"
+#include <mutex>
 
 namespace Rosee {
 
@@ -79,6 +80,8 @@ class Renderer
 	bool m_keys[GLFW_KEY_LAST];
 	static inline constexpr size_t key_update_count = 1;
 	static size_t m_keys_update[key_update_count];
+	std::mutex m_input_mutex;
+	std::mutex m_render_mutex;
 
 public:
 	Renderer(size_t frameCount, bool validate, bool useRenderDoc);
@@ -86,9 +89,9 @@ public:
 
 	void pollEvents(void);
 	bool shouldClose(void) const;
-	bool keyState(int glfw_key) const;
-	bool keyPressed(int glfw_key) const;
-	bool keyReleased(int glfw_key) const;
+	bool keyState(int glfw_key);
+	bool keyPressed(int glfw_key);
+	bool keyReleased(int glfw_key);
 
 	void render(void);
 };

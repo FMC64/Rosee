@@ -321,7 +321,6 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 		if (m_swapchain_extent.width * m_swapchain_extent.height > 0)
 			break;
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
-		glfwPollEvents();
 	}
 
 	VkSwapchainCreateInfoKHR ci{};
@@ -494,13 +493,18 @@ size_t Renderer::m_keys_update[Renderer::key_update_count] {
 void Renderer::pollEvents(void)
 {
 	m_frame_ndx++;
+	std::this_thread::sleep_for(std::chrono::microseconds(1000));
 	glfwPollEvents();
-	std::memcpy(m_keys_prev, m_keys, sizeof(m_keys));
-	for (size_t i = 0; i < key_update_count; i++) {
-		auto glfw_key = m_keys_update[i];
-		m_keys[glfw_key] = glfwGetKey(m_window, glfw_key);
+	{
+		std::lock_guard l(m_input_mutex);
+		std::memcpy(m_keys_prev, m_keys, sizeof(m_keys));
+		for (size_t i = 0; i < key_update_count; i++) {
+			auto glfw_key = m_keys_update[i];
+			m_keys[glfw_key] = glfwGetKey(m_window, glfw_key);
+		}
 	}
 	if (keyReleased(GLFW_KEY_F11)) {
+		std::lock_guard l(m_render_mutex);
 		m_fullscreen = !m_fullscreen;
 		int monitor_count;
 		auto monitors = glfwGetMonitors(&monitor_count);
@@ -523,18 +527,21 @@ bool Renderer::shouldClose(void) const
 	return glfwWindowShouldClose(m_window);
 }
 
-bool Renderer::keyState(int glfw_key) const
+bool Renderer::keyState(int glfw_key)
 {
+	std::lock_guard l(m_input_mutex);
 	return m_keys[glfw_key];
 }
 
-bool Renderer::keyPressed(int glfw_key) const
+bool Renderer::keyPressed(int glfw_key)
 {
+	std::lock_guard l(m_input_mutex);
 	return !m_keys_prev[glfw_key] && m_keys[glfw_key];
 }
 
-bool Renderer::keyReleased(int glfw_key) const
+bool Renderer::keyReleased(int glfw_key)
 {
+	std::lock_guard l(m_input_mutex);
 	return m_keys_prev[glfw_key] && !m_keys[glfw_key];
 }
 
@@ -567,6 +574,7 @@ void Renderer::Frame::render(void)
 		m_r.m_device.reset(m_frame_done);
 	}
 
+	std::lock_guard l(m_r.m_render_mutex);
 	auto &sex = m_r.m_swapchain_extent;
 
 	uint32_t swapchain_index;
