@@ -130,9 +130,10 @@ public:
 		vkAssert(vkQueueSubmit(*this, submitCount, pSubmits, fence));
 	}
 
-	void present(const VkPresentInfoKHR &pi) const
+	// dont assert because suboptimal must be handled
+	VkResult present(const VkPresentInfoKHR &pi) const
 	{
-		vkAssert(vkQueuePresentKHR(*this, &pi));
+		return vkQueuePresentKHR(*this, &pi);
 	}
 };
 

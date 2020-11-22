@@ -31,9 +31,11 @@ class Renderer
 	VkSurfaceFormatKHR m_surface_format;
 	VkSurfaceCapabilitiesKHR m_surface_capabilities;
 	uint32_t m_queue_family_graphics = ~0U;
+	VkPhysicalDevice m_physical_device;
 	Vk::Device m_device;
 	Vk::Device createDevice(void);
 	Vk::Queue m_queue;
+	VkExtent2D m_swapchain_extent;
 	Vk::SwapchainKHR m_swapchain;
 	Vk::SwapchainKHR createSwapchain(void);
 	vector<VkImage> m_swapchain_images;
@@ -66,12 +68,24 @@ class Renderer
 	vector<Frame> createFrames(void);
 	size_t m_current_frame = 0;
 
+	void recreateSwapchain(void);
+
+	size_t m_frame_ndx = 0;
+	bool m_keys_prev[GLFW_KEY_LAST];
+	bool m_keys[GLFW_KEY_LAST];
+	static inline constexpr size_t key_update_count = 1;
+	static size_t m_keys_update[key_update_count];
+
 public:
 	Renderer(size_t frameCount, bool validate, bool useRenderDoc);
 	~Renderer(void);
 
 	void pollEvents(void);
 	bool shouldClose(void) const;
+	bool keyState(int glfw_key) const;
+	bool keyPressed(int glfw_key) const;
+	bool keyReleased(int glfw_key) const;
+
 	void render(void);
 };
 

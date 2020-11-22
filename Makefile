@@ -1,11 +1,11 @@
 CXX = clang++
 CXXFLAGS = -Wall -Wextra -std=c++20
 
-#WINDOWS = true
-LINUX = true
+WINDOWS = true
+#LINUX = true
 
-#RELEASE = true
-DEBUG = true
+RELEASE = true
+#DEBUG = true
 #SANITIZE = true
 
 ifdef SANITIZE

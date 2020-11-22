@@ -2,6 +2,8 @@
 #include "c.hpp"
 #include <map>
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 namespace Rosee {
 
@@ -250,6 +252,7 @@ Vk::Device Renderer::createDevice(void)
 	m_properties = physical_devices_properties[chosen];
 	m_limits = m_properties.limits;
 	m_features = physical_devices_features[chosen];
+	m_physical_device = physical_devices[chosen];
 
 	{
 		uint32_t present_mode_count;
@@ -307,15 +310,25 @@ Vk::Device Renderer::createDevice(void)
 
 Vk::SwapchainKHR Renderer::createSwapchain(void)
 {
+	while (true) {
+		vkAssert(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physical_device, m_surface, &m_surface_capabilities));
+
+		auto wins = getWindowSize();
+		m_swapchain_extent = VkExtent2D{clamp(static_cast<uint32_t>(wins.x), max(m_surface_capabilities.minImageExtent.width, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.width),
+			clamp(static_cast<uint32_t>(wins.y), max(m_surface_capabilities.minImageExtent.height, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.height)};
+		if (m_swapchain_extent.width * m_swapchain_extent.height > 0)
+			break;
+		std::this_thread::sleep_for(std::chrono::milliseconds(16));
+		glfwPollEvents();
+	}
+
 	VkSwapchainCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	ci.surface = m_surface;
 	ci.minImageCount = clamp(static_cast<uint32_t>(m_frame_count), m_surface_capabilities.minImageCount, m_surface_capabilities.maxImageCount);
 	ci.imageFormat = m_surface_format.format;
 	ci.imageColorSpace = m_surface_format.colorSpace;
-	auto wins = getWindowSize();
-	ci.imageExtent = VkExtent2D{clamp(static_cast<uint32_t>(wins.x), max(m_surface_capabilities.minImageExtent.width, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.width),
-		clamp(static_cast<uint32_t>(wins.y), max(m_surface_capabilities.minImageExtent.height, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.height)};
+	ci.imageExtent = m_swapchain_extent;
 	ci.imageArrayLayers = 1;
 	ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -385,7 +398,7 @@ vector<Vk::Framebuffer> Renderer::createOpaqueFbs(void)
 	vector<Vk::Framebuffer> res;
 	res.reserve(m_swapchain_image_views.size());
 
-	auto wins = getWindowSize();
+	auto &sex = m_swapchain_extent;
 
 	for (auto &i : m_swapchain_image_views) {
 		VkFramebufferCreateInfo ci{};
@@ -393,8 +406,8 @@ vector<Vk::Framebuffer> Renderer::createOpaqueFbs(void)
 		ci.renderPass = m_opaque_pass;
 		ci.attachmentCount = 1;
 		ci.pAttachments = i.ptr();
-		ci.width = wins.x;
-		ci.height = wins.y;
+		ci.width = sex.width;
+		ci.height = sex.height;
 		ci.layers = 1;
 		res.emplace(m_device.createFramebuffer(ci));
 	}
@@ -455,14 +468,54 @@ Renderer::~Renderer(void)
 	glfwTerminate();
 }
 
+void Renderer::recreateSwapchain(void)
+{
+	m_queue.waitIdle();
+	for (auto &f : m_opaque_fbs)
+		m_device.destroy(f);
+	for (auto &i : m_swapchain_image_views)
+		m_device.destroy(i);
+	m_device.destroy(m_swapchain);
+
+	m_swapchain = createSwapchain();
+	m_swapchain_images = m_device.getSwapchainImages(m_swapchain);
+	m_swapchain_image_views = createSwapchainImageViews();
+	m_opaque_fbs = createOpaqueFbs();
+}
+
+size_t Renderer::m_keys_update[Renderer::key_update_count] {
+	GLFW_KEY_F11
+};
+
 void Renderer::pollEvents(void)
 {
+	m_frame_ndx++;
 	glfwPollEvents();
+	std::memcpy(m_keys_prev, m_keys, sizeof(m_keys));
+	for (size_t i = 0; i < key_update_count; i++) {
+		auto glfw_key = m_keys_update[i];
+		m_keys[glfw_key] = glfwGetKey(m_window, glfw_key);
+	}
 }
 
 bool Renderer::shouldClose(void) const
 {
 	return glfwWindowShouldClose(m_window);
+}
+
+bool Renderer::keyState(int glfw_key) const
+{
+	return m_keys[glfw_key];
+}
+
+bool Renderer::keyPressed(int glfw_key) const
+{
+	return !m_keys_prev[glfw_key] && m_keys[glfw_key];
+}
+
+bool Renderer::keyReleased(int glfw_key) const
+{
+	return m_keys_prev[glfw_key] && !m_keys[glfw_key];
 }
 
 void Renderer::render(void)
@@ -494,7 +547,7 @@ void Renderer::Frame::render(void)
 		m_r.m_device.reset(m_frame_done);
 	}
 
-	auto wins = m_r.getWindowSize();
+	auto &sex = m_r.m_swapchain_extent;
 
 	uint32_t swapchain_index;
 	vkAssert(vkAcquireNextImageKHR(m_r.m_device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
@@ -505,7 +558,7 @@ void Renderer::Frame::render(void)
 		bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		bi.renderPass = m_r.m_opaque_pass;
 		bi.framebuffer = m_r.m_opaque_fbs[swapchain_index];
-		bi.renderArea = VkRect2D{{0, 0}, {static_cast<uint32_t>(wins.x), static_cast<uint32_t>(wins.y)}};
+		bi.renderArea = VkRect2D{{0, 0}, sex};
 
 		VkClearColorValue cv0;
 		cv0.float32[0] = 0.5f;
@@ -539,7 +592,15 @@ void Renderer::Frame::render(void)
 	pi.swapchainCount = 1;
 	pi.pSwapchains = m_r.m_swapchain.ptr();
 	pi.pImageIndices = &swapchain_index;
-	m_r.m_queue.present(pi);
+	{
+		auto pres_res = m_r.m_queue.present(pi);
+		if (pres_res != VK_SUCCESS) {
+			if (pres_res == VK_SUBOPTIMAL_KHR || pres_res == VK_ERROR_OUT_OF_DATE_KHR)
+				m_r.recreateSwapchain();
+			else
+				vkAssert(pres_res);
+		}
+	}
 
 	m_ever_submitted = true;
 }

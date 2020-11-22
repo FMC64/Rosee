@@ -61,6 +61,7 @@ public:
 		m_buf = other.m_buf;
 
 		other.m_buf = nullptr;
+		return *this;
 	}
 	vector(const vector &other)
 	{
