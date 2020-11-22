@@ -492,8 +492,10 @@ size_t Renderer::m_keys_update[Renderer::key_update_count] {
 
 void Renderer::pollEvents(void)
 {
-	m_frame_ndx++;
-	std::this_thread::sleep_for(std::chrono::microseconds(1000));
+	{
+		std::unique_lock<std::mutex> l(m_next_input_mutex);
+		m_next_input_cv.wait(l);
+	}
 	glfwPollEvents();
 	{
 		std::lock_guard l(m_input_mutex);
@@ -569,6 +571,8 @@ Renderer::Frame::~Frame(void)
 
 void Renderer::Frame::render(void)
 {
+	m_r.m_next_input_cv.notify_one();
+
 	if (m_ever_submitted) {
 		m_r.m_device.wait(m_frame_done);
 		m_r.m_device.reset(m_frame_done);

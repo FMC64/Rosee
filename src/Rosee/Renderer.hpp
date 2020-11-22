@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include "math.hpp"
 #include <mutex>
+#include <condition_variable>
 
 namespace Rosee {
 
@@ -75,11 +76,12 @@ class Renderer
 
 	void recreateSwapchain(void);
 
-	size_t m_frame_ndx = 0;
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];
 	static inline constexpr size_t key_update_count = 1;
 	static size_t m_keys_update[key_update_count];
+	std::mutex m_next_input_mutex;
+	std::condition_variable m_next_input_cv;
 	std::mutex m_input_mutex;
 	std::mutex m_render_mutex;
 
