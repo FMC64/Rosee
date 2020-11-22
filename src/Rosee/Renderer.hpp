@@ -2,6 +2,7 @@
 
 #include "vector.hpp"
 #include "Vk.hpp"
+#include "Map.hpp"
 #include <GLFW/glfw3.h>
 #include "math.hpp"
 #include <mutex>

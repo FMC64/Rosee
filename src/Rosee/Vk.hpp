@@ -150,6 +150,11 @@ public:
 		setViewport(VkViewport{0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f});
 		setScissor(VkRect2D{{0, 0}, {extent.width, extent.height}});
 	}
+
+	void pushConstants(VkPipelineLayout pipelineLayout, VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size, const void *pValues)
+	{
+		vkCmdPushConstants(*this, pipelineLayout, stageFlags, offset, size, pValues);
+	}
 };
 
 class Queue : public Handle<VkQueue>

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <glm/mat4x4.hpp>
+#include <glm/vec3.hpp>
 #include "array.hpp"
 #include "Cmp/List.hpp"
 #include "Cmp/Id.hpp"

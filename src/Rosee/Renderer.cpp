@@ -769,6 +769,17 @@ void Renderer::Frame::render(void)
 		m_cmd.setExtent(m_r.m_swapchain_extent);
 		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_particle_pipeline);
 		m_cmd.bindVertexBuffer(0, m_r.m_point_buffer, 0);
+
+		struct PC {
+			glm::vec3 color;
+			float _pad;
+			glm::vec2 pos;
+			float size;
+		} pc;
+		pc.color = glm::vec3(1.0f, 0.0f, 0.0f);
+		pc.pos = glm::vec2(0.0f, 0.0f);
+		pc.size = 4.0f;
+		m_cmd.pushConstants(m_r.m_pipeline_layout_empty, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 		m_cmd.draw(1, 1, 0, 0);
 
 		m_cmd.endRenderPass();
