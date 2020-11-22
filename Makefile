@@ -33,7 +33,7 @@ ROSEED = $(SRCD)/Rosee
 ROSEE_SRC = $(ROSEED)/Brush.cpp $(ROSEED)/Cmp.cpp $(ROSEED)/Map.cpp $(ROSEED)/Renderer.cpp $(ROSEED)/Vk.cpp
 OBJ_DEP = $(ROSEED)/Vma.o
 SRC = $(SRCD)/main.cpp $(ROSEE_SRC)
-OBJ = $(SRC:.cpp=.o) $(OBJ_DEP)
+OBJ = $(SRC:.cpp=.o)
 
 %.vert.spv: %.vert
 	glslangValidator $< -V -o $@
@@ -51,10 +51,13 @@ TARGET = rosee
 all: $(TARGET) $(SHA_VERT) $(SHA_FRAG)
 
 $(TARGET): $(OBJ) $(OBJ_DEP)
-	$(CXX) $(CXXFLAGS) $(OBJ) -o $(TARGET) $(LD_LIBS)
+	$(CXX) $(CXXFLAGS) $(OBJ) $(OBJ_DEP) -o $(TARGET) $(LD_LIBS)
 
 $(ROSEED)/Vma.o:
 	$(CXX) $(CXXFLAGS_BASE) -Wno-nullability-completeness $(ROSEED)/Vma.cpp -c -o $(ROSEED)/Vma.o
 
 clean:
 	rm -f $(OBJ) $(TARGET)
+
+clean_all:
+	rm -f $(OBJ) $(OBJ_DEP) $(TARGET)

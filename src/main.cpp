@@ -17,13 +17,14 @@ class Game
 
 	void render(void)
 	{
+		m_m.add<Id, Transform>(512);
 		while (true) {
 			{
 				std::lock_guard l(m_done_mtx);
 				if (m_done)
 					break;
 			}
-			m_r.render();
+			m_r.render(m_m);
 		}
 	}
 

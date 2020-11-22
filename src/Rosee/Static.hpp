@@ -14,11 +14,11 @@ class map
 public:
 	map(void)
 	{
-		init(this);
+		init(data);
 	}
 	~map(void)
 	{
-		destr(this);
+		destr(data);
 	}
 };
 

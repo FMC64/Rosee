@@ -707,9 +707,9 @@ bool Renderer::keyReleased(int glfw_key)
 	return m_keys_prev[glfw_key] && !m_keys[glfw_key];
 }
 
-void Renderer::render(void)
+void Renderer::render(Map &map)
 {
-	m_frames[m_current_frame].render();
+	m_frames[m_current_frame].render(map);
 	m_current_frame = (m_current_frame + 1) % m_frame_count;
 }
 
@@ -729,7 +729,7 @@ Renderer::Frame::~Frame(void)
 	m_r.m_device.destroy(m_image_ready);
 }
 
-void Renderer::Frame::render(void)
+void Renderer::Frame::render(Map &map)
 {
 	m_r.m_next_input_cv.notify_one();
 
@@ -781,6 +781,8 @@ void Renderer::Frame::render(void)
 		pc.size = 4.0f;
 		m_cmd.pushConstants(m_r.m_pipeline_layout_empty, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 		m_cmd.draw(1, 1, 0, 0);
+		map.query<Transform>([](Brush &b){
+		});
 
 		m_cmd.endRenderPass();
 		m_cmd.end();

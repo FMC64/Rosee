@@ -67,6 +67,22 @@ public:
 	std::pair<Brush*, size_t> find(size_t id);
 
 	void remove(size_t id, size_t count);
+
+private:
+	using BrushCb = void (Brush &b, void *data);
+	void query_imp(const array<cmp_id> &comps, BrushCb *cb, void *data);
+
+public:
+	template <typename ...Components, typename Callback>
+	void query(Callback &&callback)
+	{
+		struct CallPayload {
+			Callback &&cb;
+		} call_payload { std::forward<Callback>(callback) };
+		query_imp(Cmp::make_id_array<Components...>(), [](Brush &b, void *data){
+			reinterpret_cast<CallPayload*>(data)->cb(b);
+		}, &call_payload);
+	}
 };
 
 }

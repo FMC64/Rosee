@@ -70,4 +70,21 @@ void Map::remove(size_t id, size_t count)
 	}
 }
 
+void Map::query_imp(const array<cmp_id> &comps, BrushCb *cb, void *data)
+{
+	auto &m = Static::get(m_brushes);
+	for (auto &bp : m) {
+		auto &b = bp.second;
+		bool match = true;
+		for (size_t i = 0; i < comps.size; i++)
+			if (!b.cmpIsPres(comps.data[i])) {
+				match = false;
+				break;
+			}
+		if (!match)
+			continue;
+		cb(b, data);
+	}
+}
+
 }

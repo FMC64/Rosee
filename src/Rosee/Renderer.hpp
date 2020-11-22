@@ -76,7 +76,7 @@ class Renderer
 		Frame(Renderer &r, VkCommandBuffer cmd);
 		~Frame(void);
 
-		void render(void);
+		void render(Map &map);
 	};
 
 	vector<Frame> m_frames;
@@ -118,7 +118,7 @@ public:
 	bool keyPressed(int glfw_key);
 	bool keyReleased(int glfw_key);
 
-	void render(void);
+	void render(Map &map);
 };
 
 }
