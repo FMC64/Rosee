@@ -14,6 +14,10 @@ class Renderer
 	bool m_use_render_doc;
 
 	void throwGlfwError(void);
+	glm::ivec2 m_window_last_pos;
+	glm::ivec2 m_window_last_size;
+	bool m_fullscreen = false;
+
 	GLFWwindow *m_window;
 	GLFWwindow *createWindow(void);
 	svec2 getWindowSize(void) const;

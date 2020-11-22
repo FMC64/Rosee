@@ -22,6 +22,8 @@ GLFWwindow* Renderer::createWindow(void)
 	auto res = glfwCreateWindow(1600, 900, "Rosee", nullptr, nullptr);
 	if (res == nullptr)
 		throwGlfwError();
+	glfwGetWindowPos(res, &m_window_last_pos.x, &m_window_last_pos.y);
+	glfwGetWindowSize(res, &m_window_last_size.x, &m_window_last_size.y);
 	return res;
 }
 
@@ -445,6 +447,8 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 		m_queue_family_graphics)),
 	m_frames(createFrames())
 {
+	std::memset(m_keys, 0, sizeof(m_keys));
+	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
 }
 
 Renderer::~Renderer(void)
@@ -495,6 +499,22 @@ void Renderer::pollEvents(void)
 	for (size_t i = 0; i < key_update_count; i++) {
 		auto glfw_key = m_keys_update[i];
 		m_keys[glfw_key] = glfwGetKey(m_window, glfw_key);
+	}
+	if (keyReleased(GLFW_KEY_F11)) {
+		m_fullscreen = !m_fullscreen;
+		int monitor_count;
+		auto monitors = glfwGetMonitors(&monitor_count);
+		if (monitors == nullptr)
+			throwGlfwError();
+		if (m_fullscreen) {
+			glfwGetWindowPos(m_window, &m_window_last_pos.x, &m_window_last_pos.y);
+			glfwGetWindowSize(m_window, &m_window_last_size.x, &m_window_last_size.y);
+			if (monitor_count > 0) {
+				auto mode = glfwGetVideoMode(monitors[0]);
+				glfwSetWindowMonitor(m_window, monitors[0], 0, 0, mode->width, mode->height, mode->refreshRate);
+			}
+		} else
+			glfwSetWindowMonitor(m_window, nullptr, m_window_last_pos.x, m_window_last_pos.y, m_window_last_size.x, m_window_last_size.y, GLFW_DONT_CARE);
 	}
 }
 
