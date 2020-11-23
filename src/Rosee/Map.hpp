@@ -76,12 +76,9 @@ public:
 	template <typename ...Components, typename Callback>
 	void query(Callback &&callback)
 	{
-		struct CallPayload {
-			Callback &&cb;
-		} call_payload { std::forward<Callback>(callback) };
 		query_imp(Cmp::make_id_array<Components...>(), [](Brush &b, void *data){
-			reinterpret_cast<CallPayload*>(data)->cb(b);
-		}, &call_payload);
+			(*reinterpret_cast<Callback*>(data))(b);
+		}, &callback);
 	}
 };
 
