@@ -1,6 +1,4 @@
-CXX = clang++
-CXXFLAGS_BASE = -std=c++20
-CXXFLAGS = -Wall -Wextra $(CXXFLAGS_BASE)
+###### CONF ######
 
 WINDOWS = true
 #LINUX = true
@@ -9,6 +7,12 @@ RELEASE = true
 #DEBUG = true
 #SANITIZE = true
 
+##################
+
+CXX = clang++
+CXXFLAGS_BASE = -std=c++20
+CXXFLAGS = -Wall -Wextra $(CXXFLAGS_BASE)
+
 ifdef SANITIZE
 DEBUG = true
 CXXFLAGS_BASE += -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined
@@ -16,6 +20,7 @@ CXXFLAGS_BASE += -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined
 endif
 ifdef DEBUG
 CXXFLAGS_BASE += -g
+CXXFLAGS += -DDEBUG
 endif
 ifdef RELEASE
 CXXFLAGS_BASE += -O3
@@ -45,10 +50,11 @@ SHAD = sha
 SHA = $(SHAD)/particle.frag $(SHAD)/particle.vert
 SHA_VERT = $(SHA:.vert=.vert.spv)
 SHA_FRAG = $(SHA:.frag=.frag.spv)
+SHAS = $(filter-out $(SHA), $(SHA_VERT) $(SHA_FRAG))
 
 TARGET = rosee
 
-all: $(TARGET) $(SHA_VERT) $(SHA_FRAG)
+all: $(TARGET) $(SHAS)
 
 $(TARGET): $(OBJ) $(OBJ_DEP)
 	$(CXX) $(CXXFLAGS) $(OBJ) $(OBJ_DEP) -o $(TARGET) $(LD_LIBS)
@@ -59,5 +65,8 @@ $(ROSEED)/Vma.o:
 clean:
 	rm -f $(OBJ) $(TARGET)
 
-clean_all:
-	rm -f $(OBJ) $(OBJ_DEP) $(TARGET)
+clean_sha:
+	rm -f $(SHAS)
+
+clean_all: clean clean_sha
+	rm -f $(TARGET)

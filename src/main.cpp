@@ -8,6 +8,12 @@
 #include <ctime>
 #include <cmath>
 
+#ifdef DEBUG
+static inline constexpr bool is_debug = true;
+#else
+static inline constexpr bool is_debug = false;
+#endif
+
 using namespace Rosee;
 
 class Game
@@ -66,7 +72,7 @@ class Game
 
 public:
 	Game(void) :
-		m_r(3, true, false),
+		m_r(3, is_debug, false),
 		m_rt([this](){
 			render();
 		})
