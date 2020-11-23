@@ -53,6 +53,7 @@ class Game
 				if (m_done)
 					break;
 			}
+			m_r.resetFrame();
 			auto now = std::chrono::high_resolution_clock::now();
 			auto delta = static_cast<std::chrono::duration<double>>(now - bef).count();
 			bef = now;

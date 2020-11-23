@@ -654,7 +654,10 @@ void Renderer::pollEvents(void)
 {
 	{
 		std::unique_lock<std::mutex> l(m_next_input_mutex);
-		m_next_input_cv.wait(l);
+		m_next_input_cv.wait(l, [this](){
+			return m_next_input > 0;
+		});
+		m_next_input--;
 	}
 	glfwPollEvents();
 	{
@@ -707,6 +710,11 @@ bool Renderer::keyReleased(int glfw_key)
 	return m_keys_prev[glfw_key] && !m_keys[glfw_key];
 }
 
+void Renderer::resetFrame(void)
+{
+	m_frames[m_current_frame].reset();
+}
+
 void Renderer::render(Map &map)
 {
 	m_frames[m_current_frame].render(map);
@@ -729,15 +737,22 @@ Renderer::Frame::~Frame(void)
 	m_r.m_device.destroy(m_image_ready);
 }
 
-void Renderer::Frame::render(Map &map)
+void Renderer::Frame::reset(void)
 {
+	{
+		std::lock_guard l(m_r.m_next_input_mutex);
+		m_r.m_next_input++;
+	}
 	m_r.m_next_input_cv.notify_one();
 
 	if (m_ever_submitted) {
 		m_r.m_device.wait(m_frame_done);
 		m_r.m_device.reset(m_frame_done);
 	}
+}
 
+void Renderer::Frame::render(Map &map)
+{
 	std::lock_guard l(m_r.m_render_mutex);
 	auto &sex = m_r.m_swapchain_extent;
 

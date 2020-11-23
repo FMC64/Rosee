@@ -76,6 +76,7 @@ class Renderer
 		Frame(Renderer &r, VkCommandBuffer cmd);
 		~Frame(void);
 
+		void reset(void);
 		void render(Map &map);
 	};
 
@@ -103,6 +104,7 @@ class Renderer
 	bool m_keys[GLFW_KEY_LAST];
 	static inline constexpr size_t key_update_count = 1;
 	static size_t m_keys_update[key_update_count];
+	size_t m_next_input = 0;
 	std::mutex m_next_input_mutex;
 	std::condition_variable m_next_input_cv;
 	std::mutex m_input_mutex;
@@ -118,6 +120,7 @@ public:
 	bool keyPressed(int glfw_key);
 	bool keyReleased(int glfw_key);
 
+	void resetFrame(void);
 	void render(Map &map);
 };
 
