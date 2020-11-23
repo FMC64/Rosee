@@ -27,10 +27,10 @@ CXXFLAGS_BASE += -O3
 endif
 
 ifdef WINDOWS
-LD_LIBS += "$(shell cygpath --unix $(VULKAN_SDK))/Lib/vulkan-1.lib" -lglfw3
+LD_LIBS += "$(shell cygpath --unix $(VULKAN_SDK))/Lib/vulkan-1.lib" -lglfw3 -lpthread
 endif
 ifdef LINUX
-LD_LIBS += -lvulkan -lglfw
+LD_LIBS += -lvulkan -lglfw -lpthread
 endif
 
 SRCD = src
@@ -68,5 +68,7 @@ clean:
 clean_sha:
 	rm -f $(SHAS)
 
-clean_all: clean clean_sha
-	rm -f $(TARGET)
+clean_dep:
+	rm -f $(OBJ_DEP)
+
+clean_all: clean clean_sha clean_dep
