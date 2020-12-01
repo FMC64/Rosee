@@ -348,7 +348,7 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	VkSwapchainCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	ci.surface = m_surface;
-	ci.minImageCount = clamp(static_cast<uint32_t>(m_frame_count), m_surface_capabilities.minImageCount, m_surface_capabilities.maxImageCount);
+	ci.minImageCount = clamp(m_frame_count, m_surface_capabilities.minImageCount, m_surface_capabilities.maxImageCount);
 	ci.imageFormat = m_surface_format.format;
 	ci.imageColorSpace = m_surface_format.colorSpace;
 	ci.imageExtent = m_swapchain_extent;
@@ -437,15 +437,45 @@ vector<Vk::Framebuffer> Renderer::createOpaqueFbs(void)
 	return res;
 }
 
+Vk::DescriptorSetLayout Renderer::createDescriptorSetLayoutDynamic(void)
+{
+	VkDescriptorSetLayoutCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayoutBinding bindings[] {
+		{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr}
+	};
+	ci.bindingCount = array_size(bindings);
+	ci.pBindings = bindings;
+	return m_device.createDescriptorSetLayout(ci);
+}
+
+Vk::DescriptorPool Renderer::createDescriptorPoolDynamic(void)
+{
+	VkDescriptorPoolCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	ci.maxSets = m_frame_count;
+	VkDescriptorPoolSize pool_sizes[] {
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count}
+	};
+	ci.poolSizeCount = array_size(pool_sizes);
+	ci.pPoolSizes = pool_sizes;
+	return m_device.createDescriptorPool(ci);
+}
+
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
 	VkCommandBuffer cmds[m_frame_count];
 	m_device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count, cmds);
+	VkDescriptorSet sets[m_frame_count];
+	VkDescriptorSetLayout set_layouts[m_frame_count];
+	for (uint32_t i = 0; i < m_frame_count; i++)
+		set_layouts[i] = m_descriptor_set_layout_dynamic;
+	m_device.allocateDescriptorSets(m_descriptor_pool_dynamic, m_frame_count, set_layouts, sets);
 
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
-	for (size_t i = 0; i < m_frame_count; i++)
-		res.emplace(*this, cmds[i]);
+	for (uint32_t i = 0; i < m_frame_count; i++)
+		res.emplace(*this, cmds[i], sets[i]);
 	return res;
 }
 
@@ -572,7 +602,7 @@ Vk::BufferAllocation Renderer::createPointBuffer(void)
 	return m_allocator.createBuffer(bci, aci);
 }
 
-Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
+Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_frame_count(frameCount),
 	m_validate(validate),
 	m_use_render_doc(useRenderDoc),
@@ -591,6 +621,8 @@ Renderer::Renderer(size_t frameCount, bool validate, bool useRenderDoc) :
 	m_opaque_fbs(createOpaqueFbs()),
 	m_command_pool(m_device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
+	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
+	m_descriptor_pool_dynamic(createDescriptorPoolDynamic()),
 	m_frames(createFrames()),
 	m_pipeline_layout_empty(createPipelineLayoutEmpty()),
 	m_particle_vert(loadShaderModule("sha/particle.vert.spv")),
@@ -614,6 +646,10 @@ Renderer::~Renderer(void)
 	m_device.destroy(m_pipeline_layout_empty);
 
 	m_frames.clear();
+
+	m_device.destroy(m_descriptor_pool_dynamic);
+	m_device.destroy(m_descriptor_set_layout_dynamic);
+
 	m_device.destroy(m_command_pool);
 	for (auto &f : m_opaque_fbs)
 		m_device.destroy(f);
@@ -721,12 +757,13 @@ void Renderer::render(Map &map)
 	m_current_frame = (m_current_frame + 1) % m_frame_count;
 }
 
-Renderer::Frame::Frame(Renderer &r, VkCommandBuffer cmd) :
+Renderer::Frame::Frame(Renderer &r, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic) :
 	m_r(r),
 	m_cmd(cmd),
 	m_frame_done(r.m_device.createFence(0)),
 	m_render_done(r.m_device.createSemaphore()),
-	m_image_ready(r.m_device.createSemaphore())
+	m_image_ready(r.m_device.createSemaphore()),
+	m_descriptor_set_dynamic(descriptorSetDynamic)
 {
 }
 

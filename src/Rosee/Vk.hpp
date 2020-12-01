@@ -199,6 +199,9 @@ public:
 
 using Framebuffer = Handle<VkFramebuffer>;
 using ImageView = Handle<VkImageView>;
+using DescriptorSetLayout = Handle<VkDescriptorSetLayout>;
+using DescriptorPool = Handle<VkDescriptorPool>;
+//using DescriptorSet = Handle<VkDescriptorSet>;
 using PipelineCache = Handle<VkPipelineCache>;
 using ShaderModule = Handle<VkShaderModule>;
 using PipelineLayout = Handle<VkPipelineLayout>;
@@ -287,6 +290,22 @@ public:
 		return res;
 	}
 
+	DescriptorSetLayout createDescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo &ci)
+	{
+		VkDescriptorSetLayout res;
+		vkAssert(vkCreateDescriptorSetLayout(*this, &ci, nullptr, &res));
+		return res;
+	}
+
+	DescriptorPool createDescriptorPool(const VkDescriptorPoolCreateInfo &ci)
+	{
+		VkDescriptorPool res;
+		vkAssert(vkCreateDescriptorPool(*this, &ci, nullptr, &res));
+		return res;
+	}
+
+	void allocateDescriptorSets(VkDescriptorPool descriptorPool, uint32_t desciptorSetCount, const VkDescriptorSetLayout *pSetLayouts, VkDescriptorSet *pDescriptorSets) const;
+
 	void destroy(VkRenderPass renderPass) const
 	{
 		vkDestroyRenderPass(*this, renderPass, nullptr);
@@ -340,6 +359,16 @@ public:
 	void destroy(VkBuffer buffer) const
 	{
 		vkDestroyBuffer(*this, buffer, nullptr);
+	}
+
+	void destroy(VkDescriptorSetLayout descriptorSetLayout) const
+	{
+		vkDestroyDescriptorSetLayout(*this, descriptorSetLayout, nullptr);
+	}
+
+	void destroy(VkDescriptorPool descriptorPool) const
+	{
+		vkDestroyDescriptorPool(*this, descriptorPool, nullptr);
 	}
 
 	void destroy(void)

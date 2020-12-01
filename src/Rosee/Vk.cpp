@@ -142,4 +142,14 @@ Vk::Semaphore Vk::Device::createSemaphore(void) const
 	return res;
 }
 
+void Vk::Device::allocateDescriptorSets(VkDescriptorPool descriptorPool, uint32_t desciptorSetCount, const VkDescriptorSetLayout *pSetLayouts, VkDescriptorSet *pDescriptorSets) const
+{
+	VkDescriptorSetAllocateInfo ai{};
+	ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	ai.descriptorPool = descriptorPool;
+	ai.descriptorSetCount = desciptorSetCount;
+	ai.pSetLayouts = pSetLayouts;
+	vkAssert(vkAllocateDescriptorSets(*this, &ai, pDescriptorSets));
+}
+
 }

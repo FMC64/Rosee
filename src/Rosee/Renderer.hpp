@@ -12,7 +12,7 @@ namespace Rosee {
 
 class Renderer
 {
-	size_t m_frame_count;
+	uint32_t m_frame_count;
 	bool m_validate;
 	bool m_use_render_doc;
 
@@ -63,6 +63,11 @@ class Renderer
 	vector<Vk::Framebuffer> createOpaqueFbs(void);
 	Vk::CommandPool m_command_pool;
 
+	Vk::DescriptorSetLayout m_descriptor_set_layout_dynamic;
+	Vk::DescriptorSetLayout createDescriptorSetLayoutDynamic(void);
+	Vk::DescriptorPool m_descriptor_pool_dynamic;
+	Vk::DescriptorPool createDescriptorPoolDynamic(void);
+
 	class Frame
 	{
 		Renderer &m_r;
@@ -72,8 +77,10 @@ class Renderer
 		Vk::Semaphore m_image_ready;
 		bool m_ever_submitted = false;
 
+		VkDescriptorSet m_descriptor_set_dynamic;
+
 	public:
-		Frame(Renderer &r, VkCommandBuffer cmd);
+		Frame(Renderer &r, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic);
 		~Frame(void);
 
 		void reset(void);
@@ -111,7 +118,7 @@ class Renderer
 	std::mutex m_render_mutex;
 
 public:
-	Renderer(size_t frameCount, bool validate, bool useRenderDoc);
+	Renderer(uint32_t frameCount, bool validate, bool useRenderDoc);
 	~Renderer(void);
 
 	void pollEvents(void);
