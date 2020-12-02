@@ -34,7 +34,7 @@ class Game
 			return zrand() * 2.0 - 1.0;
 		};
 
-		size_t p_count = 512;
+		size_t p_count = 512000;
 		auto [b, n] = m_m.addBrush<Id, Point2D>(p_count);
 		auto points = b.get<Point2D>();
 		auto id = *b.get<Id>();

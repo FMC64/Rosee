@@ -472,10 +472,40 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 		set_layouts[i] = m_descriptor_set_layout_dynamic;
 	m_device.allocateDescriptorSets(m_descriptor_pool_dynamic, m_frame_count, set_layouts, sets);
 
+	Vk::BufferAllocation dyn_buffers[m_frame_count];
+	for (uint32_t i = 0; i < m_frame_count; i++) {
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = Frame::dyn_buffer_size;
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		dyn_buffers[i] = m_allocator.createBuffer(bci, aci);
+	}
+
+	VkWriteDescriptorSet desc_writes[m_frame_count];
+	VkDescriptorBufferInfo bi[m_frame_count];
+	for (uint32_t i = 0; i < m_frame_count; i++) {
+		VkWriteDescriptorSet cur{};
+		cur.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		cur.dstSet = sets[i];
+		cur.dstBinding = 0;
+		cur.dstArrayElement = 0;
+		cur.descriptorCount = 1;
+		cur.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+		auto &cbi = bi[i];
+		cbi.buffer = dyn_buffers[i];
+		cbi.offset = 0;
+		cbi.range = Frame::dyn_buffer_size;
+		cur.pBufferInfo = &cbi;
+		desc_writes[i] = cur;
+	}
+	m_device.updateDescriptorSets(m_frame_count, desc_writes, 0, nullptr);
+
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
-		res.emplace(*this, cmds[i * 2], cmds[i * 2 + 1], sets[i]);
+		res.emplace(*this, cmds[i * 2], cmds[i * 2 + 1], sets[i], dyn_buffers[i]);
 	return res;
 }
 
@@ -510,11 +540,13 @@ Vk::PipelineLayout Renderer::createPipelineLayoutEmpty(void)
 {
 	VkPipelineLayoutCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	VkPushConstantRange ranges[] {
+	ci.setLayoutCount = 1;
+	ci.pSetLayouts = m_descriptor_set_layout_dynamic.ptr();
+	/*VkPushConstantRange ranges[] {
 		{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 128}
 	};
 	ci.pushConstantRangeCount = array_size(ranges);
-	ci.pPushConstantRanges = ranges;
+	ci.pPushConstantRanges = ranges;*/
 	return m_device.createPipelineLayout(ci);
 }
 
@@ -769,18 +801,7 @@ Vk::BufferAllocation Renderer::Frame::createDynBufferStaging(void)
 	return m_r.m_allocator.createBuffer(bci, aci, &m_dyn_buffer_staging_ptr);
 }
 
-Vk::BufferAllocation Renderer::Frame::createDynBuffer(void)
-{
-	VkBufferCreateInfo bci{};
-	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bci.size = dyn_buffer_size;
-	bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-	VmaAllocationCreateInfo aci{};
-	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	return m_r.m_allocator.createBuffer(bci, aci);
-}
-
-Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic) :
+Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
 	m_r(r),
 	m_transfer_cmd(transferCmd),
 	m_cmd(cmd),
@@ -789,7 +810,7 @@ Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer
 	m_image_ready(r.m_device.createSemaphore()),
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
-	m_dyn_buffer(createDynBuffer())
+	m_dyn_buffer(dynBuffer)
 {
 }
 
@@ -854,11 +875,17 @@ void Renderer::Frame::render(Map &map)
 		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_particle_pipeline);
 		m_cmd.bindVertexBuffer(0, m_r.m_point_buffer, 0);
 
+		uint32_t dyn_off[] {
+			0
+		};
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_empty, 0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
+
 		struct PC {
 			glm::vec3 color;
 			float _pad;
 			glm::vec2 pos;
 			float size;
+			float _pad2;
 		} pc;
 		map.query<Point2D>([&](Brush &b){
 			auto points = b.get<Point2D>();
@@ -866,9 +893,11 @@ void Renderer::Frame::render(Map &map)
 				pc.color = points[i].color;
 				pc.pos = points[i].pos;
 				pc.size = points[i].size;
-				m_cmd.pushConstants(m_r.m_pipeline_layout_empty, Vk::ShaderStage::VertexBit | Vk::ShaderStage::FragmentBit, 0, sizeof(pc), &pc);
-				m_cmd.draw(1, 1, 0, 0);
+				*(PC*)((uint8_t*)m_dyn_buffer_staging_ptr + m_dyn_buffer_size) = pc;
+				m_dyn_buffer_size += sizeof(PC);
+				//m_cmd.pushConstants(m_r.m_pipeline_layout_empty, Vk::ShaderStage::VertexBit | Vk::ShaderStage::FragmentBit, 0, sizeof(pc), &pc);
 			}
+			m_cmd.draw(1, b.size(), 0, 0);
 		});
 
 		m_cmd.endRenderPass();

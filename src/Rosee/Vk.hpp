@@ -16,6 +16,7 @@ class Handle
 	HandleType m_handle;
 
 public:
+	Handle(void) = default;
 	Handle(HandleType handle) :
 		m_handle(handle)
 	{
@@ -171,6 +172,13 @@ public:
 	{
 		vkCmdCopyBuffer(*this, srcBuffer, dstBuffer, regionCount, pRegions);
 	}
+
+	void bindDescriptorSets(VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout,
+		uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet *pDescriptorSets,
+		uint32_t dynamicOffsetCount, const uint32_t *pDynamicOffsets)
+	{
+		vkCmdBindDescriptorSets(*this, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
+	}
 };
 
 class Queue : public Handle<VkQueue>
@@ -306,21 +314,28 @@ public:
 		return res;
 	}
 
-	DescriptorSetLayout createDescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo &ci)
+	DescriptorSetLayout createDescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo &ci) const
 	{
 		VkDescriptorSetLayout res;
 		vkAssert(vkCreateDescriptorSetLayout(*this, &ci, nullptr, &res));
 		return res;
 	}
 
-	DescriptorPool createDescriptorPool(const VkDescriptorPoolCreateInfo &ci)
+	DescriptorPool createDescriptorPool(const VkDescriptorPoolCreateInfo &ci) const
 	{
 		VkDescriptorPool res;
 		vkAssert(vkCreateDescriptorPool(*this, &ci, nullptr, &res));
 		return res;
 	}
 
-	void allocateDescriptorSets(VkDescriptorPool descriptorPool, uint32_t desciptorSetCount, const VkDescriptorSetLayout *pSetLayouts, VkDescriptorSet *pDescriptorSets) const;
+	void allocateDescriptorSets(VkDescriptorPool descriptorPool,
+		uint32_t desciptorSetCount, const VkDescriptorSetLayout *pSetLayouts, VkDescriptorSet *pDescriptorSets) const;
+
+	void updateDescriptorSets(uint32_t descriptorWriteCount, const VkWriteDescriptorSet *pDescriptorWrites,
+		uint32_t descriptorCopyCount, const VkCopyDescriptorSet *pDescriptorCopies) const
+	{
+		vkUpdateDescriptorSets(*this, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount, pDescriptorCopies);
+	}
 
 	void destroy(VkRenderPass renderPass) const
 	{
@@ -500,6 +515,7 @@ using Allocation = Handle<VmaAllocation>;
 class BufferAllocation : public Buffer, public Allocation
 {
 public:
+	BufferAllocation(void) = default;
 	BufferAllocation(VkBuffer buffer, VmaAllocation allocation) :
 		Buffer(buffer),
 		Allocation(allocation)

@@ -86,10 +86,11 @@ class Renderer
 		Vk::BufferAllocation m_dyn_buffer_staging;
 		Vk::BufferAllocation createDynBufferStaging(void);
 		Vk::BufferAllocation m_dyn_buffer;
-		Vk::BufferAllocation createDynBuffer(void);
+
+		friend class Renderer;
 
 	public:
-		Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic);
+		Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
 		~Frame(void);
 
 		void reset(void);
