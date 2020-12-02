@@ -400,31 +400,100 @@ static inline Vk::Device createDevice(VkPhysicalDevice physicalDevice, const VkD
 	return res;
 }
 
-static inline constexpr auto AttachmentLoadOp_Load = VK_ATTACHMENT_LOAD_OP_LOAD;
-static inline constexpr auto AttachmentLoadOp_Clear = VK_ATTACHMENT_LOAD_OP_CLEAR;
-static inline constexpr auto AttachmentLoadOp_DontCare = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+namespace AttachmentLoadOp {
 
-static inline constexpr auto AttachmentStoreOp_Store = VK_ATTACHMENT_STORE_OP_STORE;
-static inline constexpr auto AttachmentStoreOp_DontCare = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+static inline constexpr auto Load = VK_ATTACHMENT_LOAD_OP_LOAD;
+static inline constexpr auto Clear = VK_ATTACHMENT_LOAD_OP_CLEAR;
+static inline constexpr auto DontCare = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 
-static inline constexpr auto ImageLayout_Undefined = VK_IMAGE_LAYOUT_UNDEFINED;
-static inline constexpr auto ImageLayout_General = VK_IMAGE_LAYOUT_GENERAL;
-static inline constexpr auto ImageLayout_ColorAttachmentOptimal = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-static inline constexpr auto ImageLayout_DepthStencilAttachmentOptimal = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-static inline constexpr auto ImageLayout_DepthStencilReadOnlyOptimal = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-static inline constexpr auto ImageLayout_ShaderReadOnlyOptimal = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-static inline constexpr auto ImageLayout_TransferSrcOptimal = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-static inline constexpr auto ImageLayout_TransferDstOptimal = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-static inline constexpr auto ImageLayout_Preinitialized = VK_IMAGE_LAYOUT_PREINITIALIZED;
-static inline constexpr auto ImageLayout_PresentSrcKhr = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+}
 
-static inline constexpr auto SampleCount1Bit = VK_SAMPLE_COUNT_1_BIT;
-static inline constexpr auto SampleCount2Bit = VK_SAMPLE_COUNT_2_BIT;
-static inline constexpr auto SampleCount4Bit = VK_SAMPLE_COUNT_4_BIT;
-static inline constexpr auto SampleCount8Bit = VK_SAMPLE_COUNT_8_BIT;
-static inline constexpr auto SampleCount16Bit = VK_SAMPLE_COUNT_16_BIT;
-static inline constexpr auto SampleCount32Bit = VK_SAMPLE_COUNT_32_BIT;
-static inline constexpr auto SampleCount64Bit = VK_SAMPLE_COUNT_64_BIT;
+namespace AttachmentStoreOp {
+
+static inline constexpr auto Store = VK_ATTACHMENT_STORE_OP_STORE;
+static inline constexpr auto DontCare = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+}
+
+namespace ImageLayout {
+
+static inline constexpr auto Undefined = VK_IMAGE_LAYOUT_UNDEFINED;
+static inline constexpr auto General = VK_IMAGE_LAYOUT_GENERAL;
+static inline constexpr auto ColorAttachmentOptimal = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+static inline constexpr auto DepthStencilAttachmentOptimal = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+static inline constexpr auto DepthStencilReadOnlyOptimal = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+static inline constexpr auto ShaderReadOnlyOptimal = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+static inline constexpr auto TransferSrcOptimal = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+static inline constexpr auto TransferDstOptimal = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+static inline constexpr auto Preinitialized = VK_IMAGE_LAYOUT_PREINITIALIZED;
+static inline constexpr auto PresentSrcKhr = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+}
+
+static inline constexpr auto SampleCount_1Bit = VK_SAMPLE_COUNT_1_BIT;
+static inline constexpr auto SampleCount_2Bit = VK_SAMPLE_COUNT_2_BIT;
+static inline constexpr auto SampleCount_4Bit = VK_SAMPLE_COUNT_4_BIT;
+static inline constexpr auto SampleCount_8Bit = VK_SAMPLE_COUNT_8_BIT;
+static inline constexpr auto SampleCount_16Bit = VK_SAMPLE_COUNT_16_BIT;
+static inline constexpr auto SampleCount_32Bit = VK_SAMPLE_COUNT_32_BIT;
+static inline constexpr auto SampleCount_64Bit = VK_SAMPLE_COUNT_64_BIT;
+
+namespace Access {
+
+static inline constexpr auto IndirectCommandReadBit = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+static inline constexpr auto IndexReadBit = VK_ACCESS_INDEX_READ_BIT;
+static inline constexpr auto VertexAttributeReadBit = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+static inline constexpr auto UniformReadBit = VK_ACCESS_UNIFORM_READ_BIT;
+static inline constexpr auto InputAttachmentReadBit = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+static inline constexpr auto ShaderReadBit = VK_ACCESS_SHADER_READ_BIT;
+static inline constexpr auto ShaderWriteBit = VK_ACCESS_SHADER_WRITE_BIT;
+static inline constexpr auto ColorAttachmentReadBit = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+static inline constexpr auto ColorAttachmentWriteBit = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+static inline constexpr auto DepthStencilAttachmentReadBit = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+static inline constexpr auto DepthStencilAttachmentWriteBit = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+static inline constexpr auto TransferReadBit = VK_ACCESS_TRANSFER_READ_BIT;
+static inline constexpr auto TransferWriteBit = VK_ACCESS_TRANSFER_WRITE_BIT;
+static inline constexpr auto HostReadBit = VK_ACCESS_HOST_READ_BIT;
+static inline constexpr auto HostWriteBit = VK_ACCESS_HOST_WRITE_BIT;
+static inline constexpr auto MemoryReadBit = VK_ACCESS_MEMORY_READ_BIT;
+static inline constexpr auto MemoryWriteBit = VK_ACCESS_MEMORY_WRITE_BIT;
+
+}
+
+namespace PipelineStage {
+
+static inline constexpr auto TopOfPipeBit = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+static inline constexpr auto DrawIndirectBit = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+static inline constexpr auto VertexInputBit = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+static inline constexpr auto VertexShaderBit = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+static inline constexpr auto TesselationControlShaderBit = VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT;
+static inline constexpr auto TesselationEvaluationShaderBit = VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
+static inline constexpr auto GeometryShaderBit = VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT;
+static inline constexpr auto FragmentShaderBit = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+static inline constexpr auto EarlyFragmentTestsBit = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+static inline constexpr auto LateFragmentTestsBit = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+static inline constexpr auto ColorAttachmentOutputBit = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+static inline constexpr auto ComputeShaderBit = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+static inline constexpr auto TransferBit = VK_PIPELINE_STAGE_TRANSFER_BIT;
+static inline constexpr auto BottomOfPipeBit = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+static inline constexpr auto HostBit = VK_PIPELINE_STAGE_HOST_BIT;
+static inline constexpr auto AllGraphicsBit = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+static inline constexpr auto AllCommandsBit = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+}
+
+namespace ShaderStage {
+
+static inline constexpr auto VertexBit = VK_SHADER_STAGE_VERTEX_BIT;
+static inline constexpr auto TesselationControlBit = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+static inline constexpr auto TesselationEvaluationBit = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+static inline constexpr auto GeometryBit = VK_SHADER_STAGE_GEOMETRY_BIT;
+static inline constexpr auto FragmentBit = VK_SHADER_STAGE_FRAGMENT_BIT;
+static inline constexpr auto ComputeBit = VK_SHADER_STAGE_COMPUTE_BIT;
+static inline constexpr auto AllGraphics = VK_SHADER_STAGE_ALL_GRAPHICS;
+static inline constexpr auto All = VK_SHADER_STAGE_ALL;
+
+}
 
 using Allocation = Handle<VmaAllocation>;
 

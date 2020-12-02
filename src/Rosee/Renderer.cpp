@@ -395,11 +395,11 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	VkAttachmentDescription atts[] {
-		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount1Bit, Vk::AttachmentLoadOp_Clear, Vk::AttachmentStoreOp_Store,	// wsi 0
-			Vk::AttachmentLoadOp_DontCare, Vk::AttachmentStoreOp_DontCare,
-			Vk::ImageLayout_Undefined, Vk::ImageLayout_PresentSrcKhr}
+		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// wsi 0
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::PresentSrcKhr}
 	};
-	VkAttachmentReference wsi {0, Vk::ImageLayout_ColorAttachmentOptimal};
+	VkAttachmentReference wsi {0, Vk::ImageLayout::ColorAttachmentOptimal};
 	VkSubpassDescription subpasses[] {
 		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
 			0, nullptr,		// input
@@ -866,7 +866,7 @@ void Renderer::Frame::render(Map &map)
 				pc.color = points[i].color;
 				pc.pos = points[i].pos;
 				pc.size = points[i].size;
-				m_cmd.pushConstants(m_r.m_pipeline_layout_empty, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+				m_cmd.pushConstants(m_r.m_pipeline_layout_empty, Vk::ShaderStage::VertexBit | Vk::ShaderStage::FragmentBit, 0, sizeof(pc), &pc);
 				m_cmd.draw(1, 1, 0, 0);
 			}
 		});
@@ -882,8 +882,8 @@ void Renderer::Frame::render(Map &map)
 			m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_dyn_buffer, 1, &region);
 	}
 	{
-		VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT };
-		m_transfer_cmd.pipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0,
+		VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::MemoryReadBit };
+		m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::AllGraphicsBit, 0,
 			1, &barrier, 0, nullptr, 0, nullptr);
 	}
 	m_transfer_cmd.end();
@@ -892,7 +892,7 @@ void Renderer::Frame::render(Map &map)
 		m_transfer_cmd,
 		m_cmd
 	};
-	VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	VkPipelineStageFlags wait_stage = Vk::PipelineStage::ColorAttachmentOutputBit;
 	VkSubmitInfo si[] {
 		{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
 			1, m_image_ready.ptr(),
