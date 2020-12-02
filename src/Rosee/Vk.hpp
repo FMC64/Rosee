@@ -155,6 +155,22 @@ public:
 	{
 		vkCmdPushConstants(*this, pipelineLayout, stageFlags, offset, size, pValues);
 	}
+
+	void pipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags,
+		uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
+		uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers,
+		uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers)
+	{
+		vkCmdPipelineBarrier(*this, srcStageMask, dstStageMask, dependencyFlags,
+			memoryBarrierCount, pMemoryBarriers,
+			bufferMemoryBarrierCount, pBufferMemoryBarriers,
+			imageMemoryBarrierCount, pImageMemoryBarriers);
+	}
+
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t regionCount, const VkBufferCopy *pRegions)
+	{
+		vkCmdCopyBuffer(*this, srcBuffer, dstBuffer, regionCount, pRegions);
+	}
 };
 
 class Queue : public Handle<VkQueue>
@@ -438,6 +454,16 @@ public:
 		return BufferAllocation(buffer, allocation);
 	}
 
+	BufferAllocation createBuffer(const VkBufferCreateInfo &bci, const VmaAllocationCreateInfo &aci, void **ppMappedData)
+	{
+		VkBuffer buffer;
+		VmaAllocation allocation;
+		VmaAllocationInfo alloc_info;
+		vkAssert(vmaCreateBuffer(*this, &bci, &aci, &buffer, &allocation, &alloc_info));
+		*ppMappedData = alloc_info.pMappedData;
+		return BufferAllocation(buffer, allocation);
+	}
+
 	void destroy(BufferAllocation &bufferAllocation)
 	{
 		vmaDestroyBuffer(*this, bufferAllocation, bufferAllocation);
@@ -446,6 +472,16 @@ public:
 	void destroy(void)
 	{
 		vmaDestroyAllocator(*this);
+	}
+
+	void flushAllocation(VmaAllocation allocation, VkDeviceSize offset, VkDeviceSize size)
+	{
+		vkAssert(vmaFlushAllocation(*this, allocation, offset, size));
+	}
+
+	void invalidateAllocation(VmaAllocation allocation, VkDeviceSize offset, VkDeviceSize size)
+	{
+		vkAssert(vmaInvalidateAllocation(*this, allocation, offset, size));
 	}
 };
 

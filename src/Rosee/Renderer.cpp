@@ -464,8 +464,8 @@ Vk::DescriptorPool Renderer::createDescriptorPoolDynamic(void)
 
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
-	VkCommandBuffer cmds[m_frame_count];
-	m_device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count, cmds);
+	VkCommandBuffer cmds[m_frame_count * 2];
+	m_device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * 2, cmds);
 	VkDescriptorSet sets[m_frame_count];
 	VkDescriptorSetLayout set_layouts[m_frame_count];
 	for (uint32_t i = 0; i < m_frame_count; i++)
@@ -475,7 +475,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
-		res.emplace(*this, cmds[i], sets[i]);
+		res.emplace(*this, cmds[i * 2], cmds[i * 2 + 1], sets[i]);
 	return res;
 }
 
@@ -757,18 +757,47 @@ void Renderer::render(Map &map)
 	m_current_frame = (m_current_frame + 1) % m_frame_count;
 }
 
-Renderer::Frame::Frame(Renderer &r, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic) :
+Vk::BufferAllocation Renderer::Frame::createDynBufferStaging(void)
+{
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = dyn_buffer_size;
+	bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+	aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	return m_r.m_allocator.createBuffer(bci, aci, &m_dyn_buffer_staging_ptr);
+}
+
+Vk::BufferAllocation Renderer::Frame::createDynBuffer(void)
+{
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = dyn_buffer_size;
+	bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	return m_r.m_allocator.createBuffer(bci, aci);
+}
+
+Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic) :
 	m_r(r),
+	m_transfer_cmd(transferCmd),
 	m_cmd(cmd),
 	m_frame_done(r.m_device.createFence(0)),
 	m_render_done(r.m_device.createSemaphore()),
 	m_image_ready(r.m_device.createSemaphore()),
-	m_descriptor_set_dynamic(descriptorSetDynamic)
+	m_descriptor_set_dynamic(descriptorSetDynamic),
+	m_dyn_buffer_staging(createDynBufferStaging()),
+	m_dyn_buffer(createDynBuffer())
 {
 }
 
 Renderer::Frame::~Frame(void)
 {
+	m_r.m_allocator.destroy(m_dyn_buffer);
+	m_r.m_allocator.destroy(m_dyn_buffer_staging);
+
 	m_r.m_device.destroy(m_frame_done);
 	m_r.m_device.destroy(m_render_done);
 	m_r.m_device.destroy(m_image_ready);
@@ -795,6 +824,9 @@ void Renderer::Frame::render(Map &map)
 
 	uint32_t swapchain_index;
 	vkAssert(vkAcquireNextImageKHR(m_r.m_device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
+
+	m_dyn_buffer_size = 0;
+	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 	{
 		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -843,12 +875,29 @@ void Renderer::Frame::render(Map &map)
 		m_cmd.end();
 	}
 
+	m_r.m_allocator.flushAllocation(m_dyn_buffer_staging, 0, m_dyn_buffer_size);
+	{
+		VkBufferCopy region {0, 0, m_dyn_buffer_size};
+		if (region.size > 0)
+			m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_dyn_buffer, 1, &region);
+	}
+	{
+		VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT };
+		m_transfer_cmd.pipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0,
+			1, &barrier, 0, nullptr, 0, nullptr);
+	}
+	m_transfer_cmd.end();
+
+	VkCommandBuffer cmds[] {
+		m_transfer_cmd,
+		m_cmd
+	};
 	VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo si[] {
 		{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
 			1, m_image_ready.ptr(),
 			&wait_stage,
-			1, m_cmd.ptr(),
+			array_size(cmds), cmds,
 			1, m_render_done.ptr()}
 	};
 	m_r.m_queue.submit(array_size(si), si, m_frame_done);

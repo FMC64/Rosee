@@ -71,6 +71,7 @@ class Renderer
 	class Frame
 	{
 		Renderer &m_r;
+		Vk::CommandBuffer m_transfer_cmd;
 		Vk::CommandBuffer m_cmd;
 		Vk::Fence m_frame_done;
 		Vk::Semaphore m_render_done;
@@ -79,8 +80,16 @@ class Renderer
 
 		VkDescriptorSet m_descriptor_set_dynamic;
 
+		static inline constexpr size_t dyn_buffer_size = 64000000;	// large for now, to eventually reduce to 2MB
+		size_t m_dyn_buffer_size;
+		void *m_dyn_buffer_staging_ptr;
+		Vk::BufferAllocation m_dyn_buffer_staging;
+		Vk::BufferAllocation createDynBufferStaging(void);
+		Vk::BufferAllocation m_dyn_buffer;
+		Vk::BufferAllocation createDynBuffer(void);
+
 	public:
-		Frame(Renderer &r, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic);
+		Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic);
 		~Frame(void);
 
 		void reset(void);
