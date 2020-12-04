@@ -564,20 +564,6 @@ VkPipelineShaderStageCreateInfo Renderer::initPipelineStage(VkShaderStageFlagBit
 	return res;
 }
 
-Vk::PipelineLayout Renderer::createPipelineLayoutEmpty(void)
-{
-	VkPipelineLayoutCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	ci.setLayoutCount = 1;
-	ci.pSetLayouts = m_descriptor_set_layout_dynamic.ptr();
-	/*VkPushConstantRange ranges[] {
-		{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 128}
-	};
-	ci.pushConstantRangeCount = array_size(ranges);
-	ci.pPushConstantRanges = ranges;*/
-	return m_device.createPipelineLayout(ci);
-}
-
 void Renderer::Pipeline::pushShaderModule(VkShaderModule module)
 {
 	shaderModules[shaderModuleCount++] = module;
@@ -586,11 +572,12 @@ void Renderer::Pipeline::pushShaderModule(VkShaderModule module)
 void Renderer::Pipeline::destroy(Vk::Device device)
 {
 	device.destroy(*this);
+	device.destroy(pipelineLayout);
 	for (uint32_t i = 0; i < shaderModuleCount; i++)
 		device.destroy(shaderModules[i]);
 }
 
-Renderer::Pipeline Renderer::createPipeline(const char *stagesPath)
+Renderer::Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantRange)
 {
 	Pipeline res;
 
@@ -662,7 +649,22 @@ Renderer::Pipeline Renderer::createPipeline(const char *stagesPath)
 	dynamic.dynamicStateCount = array_size(dynamic_states);
 	dynamic.pDynamicStates = dynamic_states;
 	ci.pDynamicState = &dynamic;
-	ci.layout = m_pipeline_layout_empty;
+
+	{
+		VkPipelineLayoutCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		ci.setLayoutCount = 1;
+		ci.pSetLayouts = m_descriptor_set_layout_dynamic.ptr();
+		VkPushConstantRange ranges[] {
+			{VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pushConstantRange}
+		};
+		if (pushConstantRange > 0) {
+			ci.pushConstantRangeCount = array_size(ranges);
+			ci.pPushConstantRanges = ranges;
+		}
+		res.pipelineLayout = m_device.createPipelineLayout(ci);
+	}
+	ci.layout = res.pipelineLayout;
 	ci.renderPass = m_opaque_pass;
 
 	res = m_device.createGraphicsPipeline(m_pipeline_cache, ci);
@@ -703,8 +705,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_descriptor_pool_dynamic(createDescriptorPoolDynamic()),
 	m_frames(createFrames()),
-	m_pipeline_layout_empty(createPipelineLayoutEmpty()),
-	m_particle_pipeline(createPipeline("sha/particle")),
+	m_particle_pipeline(createPipeline("sha/particle", 0)),
 	m_point_buffer(createPointBuffer())
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
@@ -718,7 +719,6 @@ Renderer::~Renderer(void)
 	m_allocator.destroy(m_point_buffer);
 
 	m_particle_pipeline.destroy(m_device);
-	m_device.destroy(m_pipeline_layout_empty);
 
 	m_frames.clear();
 
@@ -921,7 +921,7 @@ void Renderer::Frame::render(Map &map)
 		uint32_t dyn_off[] {
 			0
 		};
-		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_empty, 0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_particle_pipeline.pipelineLayout, 0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
 
 		struct PC {
 			glm::vec3 color;

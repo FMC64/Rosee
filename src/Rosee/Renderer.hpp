@@ -110,6 +110,7 @@ class Renderer
 	{
 		uint32_t shaderModuleCount = 0;
 		VkShaderModule shaderModules[8];
+		VkPipelineLayout pipelineLayout;
 
 		void pushShaderModule(VkShaderModule module);
 
@@ -129,10 +130,7 @@ class Renderer
 		const VkPipelineDepthStencilStateCreateInfo *pDepthStencilState,
 		uint32_t colorAttachmentCount,
 		VkPipelineLayout layout, VkRenderPass renderPass, uint32_t subpass);*/
-	Pipeline createPipeline(const char *stagesPath);
-
-	Vk::PipelineLayout m_pipeline_layout_empty;
-	Vk::PipelineLayout createPipelineLayoutEmpty(void);
+	Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
 
 	Pipeline m_particle_pipeline;
 	Pipeline createParticlePipeline(void);
