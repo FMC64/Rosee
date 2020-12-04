@@ -31,6 +31,11 @@ public:
 	{
 		return m_handle != VK_NULL_HANDLE;
 	}
+	Handle& operator=(HandleType handle)
+	{
+		m_handle = handle;
+		return *this;
+	}
 
 	HandleType* ptr(void) { return &m_handle; }
 	const HandleType* ptr(void) const { return &m_handle; }

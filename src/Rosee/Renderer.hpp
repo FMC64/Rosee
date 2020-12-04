@@ -103,16 +103,39 @@ class Renderer
 
 	void recreateSwapchain(void);
 
-	Vk::ShaderModule loadShaderModule(const char *path) const;
+	Vk::ShaderModule loadShaderModule(VkShaderStageFlagBits stage, const char *path) const;
 	static VkPipelineShaderStageCreateInfo initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module);
+
+	struct Pipeline : public Vk::Handle<VkPipeline>
+	{
+		uint32_t shaderModuleCount = 0;
+		VkShaderModule shaderModules[8];
+
+		void pushShaderModule(VkShaderModule module);
+
+		using Vk::Handle<VkPipeline>::operator=;
+
+		void destroy(Vk::Device device);
+	};
+	/*struct AttrDesc {
+		VkFormat fmt;
+		size_t offset;
+	};*/
+	/*Pipeline createPipeline(const char *stagesPath, VkShaderStageFlags stages,
+		uint32_t vertexStride, uint32_t vertexAttrCount, const AttrDesc *pVertexAttrs,
+		VkPrimitiveTopology topology, bool primitiveRestartEnable,
+		VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace frontFace,
+		VkSampleCountFlagBits rasterizationSamples,
+		const VkPipelineDepthStencilStateCreateInfo *pDepthStencilState,
+		uint32_t colorAttachmentCount,
+		VkPipelineLayout layout, VkRenderPass renderPass, uint32_t subpass);*/
+	Pipeline createPipeline(const char *stagesPath);
 
 	Vk::PipelineLayout m_pipeline_layout_empty;
 	Vk::PipelineLayout createPipelineLayoutEmpty(void);
 
-	Vk::ShaderModule m_particle_vert;
-	Vk::ShaderModule m_particle_frag;
-	Vk::Pipeline m_particle_pipeline;
-	Vk::Pipeline createParticlePipeline(void);
+	Pipeline m_particle_pipeline;
+	Pipeline createParticlePipeline(void);
 
 	Vk::BufferAllocation m_point_buffer;
 	Vk::BufferAllocation createPointBuffer(void);

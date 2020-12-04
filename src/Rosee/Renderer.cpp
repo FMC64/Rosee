@@ -509,14 +509,42 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	return res;
 }
 
-Vk::ShaderModule Renderer::loadShaderModule(const char *path) const
+Vk::ShaderModule Renderer::loadShaderModule(VkShaderStageFlagBits stage, const char *path) const
 {
+	size_t path_len = std::strlen(path);
+	char path_ex[path_len + 1 + 4 + 1 + 3 + 1];
+	std::memcpy(path_ex, path, path_len);
+	size_t i = path_len;
+	path_ex[i++] = '.';
+	const char *ext = nullptr;
+	{
+		static const struct { VkShaderStageFlagBits stage; const char *ext; } table[] {
+			{VK_SHADER_STAGE_FRAGMENT_BIT, "frag"},
+			{VK_SHADER_STAGE_VERTEX_BIT, "vert"},
+			{VK_SHADER_STAGE_COMPUTE_BIT, "comp"},
+			{VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, "tese"},
+			{VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, "tesc"},
+			{VK_SHADER_STAGE_GEOMETRY_BIT, "geom"}
+		};
+		for (size_t i = 0; i < array_size(table); i++)
+			if (table[i].stage == stage) {
+				ext = table[i].ext;
+				break;
+			}
+	}
+	std::memcpy(&path_ex[i], ext, 4);
+	i += 4;
+	path_ex[i++] = '.';
+	std::memcpy(&path_ex[i], "spv", 3);
+	i += 3;
+	path_ex[i++] = 0;
+
 	VkShaderModuleCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 
-	std::ifstream f(path, std::ios::binary);
+	std::ifstream f(path_ex, std::ios::binary);
 	if (!f.good())
-		throw std::runtime_error(path);
+		throw std::runtime_error(path_ex);
 	std::stringstream ss;
 	ss << f.rdbuf();
 	auto str = ss.str();
@@ -550,13 +578,31 @@ Vk::PipelineLayout Renderer::createPipelineLayoutEmpty(void)
 	return m_device.createPipelineLayout(ci);
 }
 
-Vk::Pipeline Renderer::createParticlePipeline(void)
+void Renderer::Pipeline::pushShaderModule(VkShaderModule module)
 {
+	shaderModules[shaderModuleCount++] = module;
+}
+
+void Renderer::Pipeline::destroy(Vk::Device device)
+{
+	device.destroy(*this);
+	for (uint32_t i = 0; i < shaderModuleCount; i++)
+		device.destroy(shaderModules[i]);
+}
+
+Renderer::Pipeline Renderer::createPipeline(const char *stagesPath)
+{
+	Pipeline res;
+
 	VkGraphicsPipelineCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	auto vert = loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, stagesPath);
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, stagesPath);
+	res.pushShaderModule(vert);
+	res.pushShaderModule(frag);
 	VkPipelineShaderStageCreateInfo stages[] {
-		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_particle_vert),
-		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, m_particle_frag)
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, vert),
+		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, frag)
 	};
 	ci.stageCount = array_size(stages);
 	ci.pStages = stages;
@@ -619,7 +665,8 @@ Vk::Pipeline Renderer::createParticlePipeline(void)
 	ci.layout = m_pipeline_layout_empty;
 	ci.renderPass = m_opaque_pass;
 
-	return m_device.createGraphicsPipeline(m_pipeline_cache, ci);
+	res = m_device.createGraphicsPipeline(m_pipeline_cache, ci);
+	return res;
 }
 
 Vk::BufferAllocation Renderer::createPointBuffer(void)
@@ -657,9 +704,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_descriptor_pool_dynamic(createDescriptorPoolDynamic()),
 	m_frames(createFrames()),
 	m_pipeline_layout_empty(createPipelineLayoutEmpty()),
-	m_particle_vert(loadShaderModule("sha/particle.vert.spv")),
-	m_particle_frag(loadShaderModule("sha/particle.frag.spv")),
-	m_particle_pipeline(createParticlePipeline()),
+	m_particle_pipeline(createPipeline("sha/particle")),
 	m_point_buffer(createPointBuffer())
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
@@ -672,9 +717,7 @@ Renderer::~Renderer(void)
 
 	m_allocator.destroy(m_point_buffer);
 
-	m_device.destroy(m_particle_pipeline);
-	m_device.destroy(m_particle_vert);
-	m_device.destroy(m_particle_frag);
+	m_particle_pipeline.destroy(m_device);
 	m_device.destroy(m_pipeline_layout_empty);
 
 	m_frames.clear();
