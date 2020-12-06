@@ -725,7 +725,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	pipeline_particle = m_pipeline_pool.allocate();
 	*pipeline_particle = createPipeline("sha/particle", 0);
-	pipeline_particle->pushDynamic<Point2DGPU>();
+	pipeline_particle->pushDynamic<Point2D>();
 
 	model_point = m_model_pool.allocate();
 	model_point->primitiveCount = 1;

@@ -5,6 +5,7 @@
 struct Frame {
 	vec3 color;
 	vec2 pos;
+	vec2 base_pos;
 	float size;
 };
 

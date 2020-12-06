@@ -35,9 +35,8 @@ class Game
 		};
 
 		size_t p_count = 512000;
-		auto [b, n] = m_m.addBrush<Id, Point2D, Point2DGPU, OpaqueRender>(p_count);
+		auto [b, n] = m_m.addBrush<Id, Point2D, OpaqueRender>(p_count);
 		auto points = b.get<Point2D>();
-		auto points_gpu = b.get<Point2DGPU>();
 		auto render = b.get<OpaqueRender>();
 		auto id = *b.get<Id>();
 		for (size_t i = 0; i < p_count; i++) {
@@ -70,11 +69,6 @@ class Game
 				for (size_t i = 0; i < p_count; i++) {
 					auto &p = points[n + i];
 					p.pos = glm::vec2(p.base_pos.x * st, p.base_pos.y * st);
-					auto &g = points_gpu[i];
-
-					g.color = p.color;
-					g.pos = p.pos;
-					g.size = p.size;
 				}
 			}
 			m_r.render(m_m);

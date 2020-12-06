@@ -17,12 +17,11 @@ struct Model;
 struct Id;
 struct Transform;
 struct Point2D;
-struct Point2DGPU;
 struct OpaqueRender;
 
 namespace Cmp {
 
-using list = List<Id, Transform, Point2D, Point2DGPU, OpaqueRender>;
+using list = List<Id, Transform, Point2D, OpaqueRender>;
 
 #include "Cmp/Id_t.hpp"
 
@@ -63,21 +62,11 @@ struct Point2D : public Cmp::Id_t<Point2D>
 	static Cmp::destr_fun_t destr;
 
 	glm::vec3 color;
+	float _pad;
 	glm::vec2 pos;
 	glm::vec2 base_pos;
 	float size;
-};
-
-struct Point2DGPU : public Cmp::Id_t<Point2DGPU>
-{
-	static Cmp::init_fun_t init;
-	static Cmp::destr_fun_t destr;
-
-	glm::vec3 color;
-	float _pad;
-	glm::vec2 pos;
-	float size;
-	float _pad2;
+	float _pad2[3];
 };
 
 struct Render
