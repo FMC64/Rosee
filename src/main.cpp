@@ -35,8 +35,9 @@ class Game
 		};
 
 		size_t p_count = 512000;
-		auto [b, n] = m_m.addBrush<Id, Point2D>(p_count);
+		auto [b, n] = m_m.addBrush<Id, Point2D, OpaqueRender>(p_count);
 		auto points = b.get<Point2D>();
+		auto render = b.get<OpaqueRender>();
 		auto id = *b.get<Id>();
 		for (size_t i = 0; i < p_count; i++) {
 			auto &p = points[n + i];
@@ -44,6 +45,9 @@ class Game
 			p.pos = glm::vec2(nrand(), nrand());
 			p.base_pos = p.pos;
 			p.size = zrand() * 16.0f;
+			render[i].pipeline = m_r.pipeline_particle;
+			render[i].material = nullptr;
+			render[i].model = m_r.model_point;
 		}
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;

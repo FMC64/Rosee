@@ -10,13 +10,18 @@
 
 namespace Rosee {
 
+struct Pipeline;
+struct Material;
+struct Model;
+
 struct Id;
 struct Transform;
 struct Point2D;
+struct OpaqueRender;
 
 namespace Cmp {
 
-using list = List<Id, Transform, Point2D>;
+using list = List<Id, Transform, Point2D, OpaqueRender>;
 
 #include "Cmp/Id_t.hpp"
 
@@ -60,6 +65,20 @@ struct Point2D : public Cmp::Id_t<Point2D>
 	glm::vec2 pos;
 	glm::vec2 base_pos;
 	float size;
+};
+
+struct Render
+{
+	static Cmp::init_fun_t init;
+	static Cmp::destr_fun_t destr;
+
+	Pipeline *pipeline;
+	Material *material;
+	Model *model;
+};
+
+struct OpaqueRender : public Render, public Cmp::Id_t<OpaqueRender>
+{
 };
 
 }

@@ -27,6 +27,14 @@ void Point2D::destr(void*, size_t)
 {
 }
 
+void Render::init(void*, size_t)
+{
+}
+
+void Render::destr(void*, size_t)
+{
+}
+
 namespace Cmp {
 
 static constexpr sarray<size_t, max> get_sizes(void)
