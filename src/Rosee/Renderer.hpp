@@ -99,6 +99,9 @@ class Renderer
 
 		void reset(void);
 		void render(Map &map);
+
+	private:
+		void render_subset(Map &map, cmp_id render_id);
 	};
 
 	vector<Frame> m_frames;

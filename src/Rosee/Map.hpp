@@ -80,6 +80,14 @@ public:
 			(*reinterpret_cast<Callback*>(data))(b);
 		}, &callback);
 	}
+
+	template <typename Callback>
+	void query(const array<cmp_id> &comps, Callback &&callback)
+	{
+		query_imp(comps, [](Brush &b, void *data){
+			(*reinterpret_cast<Callback*>(data))(b);
+		}, &callback);
+	}
 };
 
 }

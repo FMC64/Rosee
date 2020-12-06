@@ -34,6 +34,18 @@ public:
 		return reinterpret_cast<Component*>(m_comps[Component::id]);
 	}
 
+	template <typename Component>
+	Component* get(cmp_id cmp)
+	{
+		return reinterpret_cast<Component*>(m_comps[cmp]);
+	}
+
+	void* get(cmp_id cmp)
+	{
+		return m_comps[cmp];
+	}
+
+
 	bool cmpIsPres(cmp_id cmp) const
 	{
 		return m_cmp_pres[cmp];

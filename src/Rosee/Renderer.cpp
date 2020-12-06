@@ -913,6 +913,8 @@ void Renderer::Frame::render(Map &map)
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 	{
+		m_cmd.setExtent(m_r.m_swapchain_extent);
+
 		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		{
 			VkRenderPassBeginInfo bi{};
@@ -933,36 +935,7 @@ void Renderer::Frame::render(Map &map)
 			bi.pClearValues = cvs;
 			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 		}
-
-		m_cmd.setExtent(m_r.m_swapchain_extent);
-		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *m_r.pipeline_particle);
-		m_cmd.bindVertexBuffer(0, m_r.model_point->vertexBuffer, 0);
-
-		uint32_t dyn_off[] {
-			0
-		};
-		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.pipeline_particle->pipelineLayout, 0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
-
-		struct PC {
-			glm::vec3 color;
-			float _pad;
-			glm::vec2 pos;
-			float size;
-			float _pad2;
-		} pc;
-		map.query<Point2D>([&](Brush &b){
-			auto points = b.get<Point2D>();
-			for (size_t i = 0; i < b.size(); i++) {
-				pc.color = points[i].color;
-				pc.pos = points[i].pos;
-				pc.size = points[i].size;
-				*(PC*)((uint8_t*)m_dyn_buffer_staging_ptr + m_dyn_buffer_size) = pc;
-				m_dyn_buffer_size += sizeof(PC);
-				//m_cmd.pushConstants(m_r.m_pipeline_layout_empty, Vk::ShaderStage::VertexBit | Vk::ShaderStage::FragmentBit, 0, sizeof(pc), &pc);
-			}
-			m_cmd.draw(m_r.model_point->primitiveCount, b.size(), 0, 0);
-		});
-
+		render_subset(map, OpaqueRender::id);
 		m_cmd.endRenderPass();
 		m_cmd.end();
 	}
@@ -1012,6 +985,63 @@ void Renderer::Frame::render(Map &map)
 	}
 
 	m_ever_submitted = true;
+}
+
+void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
+{
+	Render cur{nullptr, nullptr, nullptr};
+	size_t streak = 0;
+	auto comps = sarray<cmp_id, 1>();
+	comps.data()[0] = render_id;
+
+	map.query(comps, [&](Brush &b){
+		auto r = b.get<Render>(render_id);
+		for (size_t i = 0; i < b.size(); i++) {
+			auto &n = r[i];
+			if (n != cur) {
+				if (streak > 0) {
+					if (cur.model->indexType == VK_INDEX_TYPE_NONE_KHR)
+						m_cmd.draw(cur.model->primitiveCount, streak, 0, 0);
+					else
+						m_cmd.drawIndexed(cur.model->primitiveCount, streak, 0, 0, 0);
+				}
+
+				if (n.pipeline != cur.pipeline)
+					m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *n.pipeline);
+				if (n.material != cur.material) {
+					if (n.pipeline->pushConstantRange > 0)
+						m_cmd.pushConstants(n.pipeline->pipelineLayout, Vk::ShaderStage::FragmentBit, 0, n.pipeline->pushConstantRange, cur.material);
+				}
+				if (n.model != cur.model) {
+					m_cmd.bindVertexBuffer(0, n.model->vertexBuffer, 0);
+					if (n.model->indexType != VK_INDEX_TYPE_NONE_KHR)
+						m_cmd.bindIndexBuffer(n.model->indexBuffer, 0, n.model->indexType);
+				}
+				{
+					uint32_t dyn_off[] {static_cast<uint32_t>(m_dyn_buffer_size)};
+					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, n.pipeline->pipelineLayout,
+						0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
+				}
+				cur = n;
+			}
+
+			auto &cur = r[i];
+			auto &pip = *cur.pipeline;
+			for (size_t j = 0; j < pip.dynamicCount; j++) {
+				auto dyn = pip.dynamics[i];
+				auto size = Cmp::size[dyn];
+				std::memcpy(m_dyn_buffer_staging_ptr, reinterpret_cast<const uint8_t*>(b.get(dyn)) + size * i, size);
+				m_dyn_buffer_size += size;
+			}
+		}
+	});
+
+	if (streak > 0) {
+		if (cur.model->indexType == VK_INDEX_TYPE_NONE_KHR)
+			m_cmd.draw(cur.model->primitiveCount, streak, 0, 0);
+		else
+			m_cmd.drawIndexed(cur.model->primitiveCount, streak, 0, 0, 0);
+	}
 }
 
 }

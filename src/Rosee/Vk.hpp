@@ -184,6 +184,16 @@ public:
 	{
 		vkCmdBindDescriptorSets(*this, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
 	}
+
+	void bindIndexBuffer(VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType)
+	{
+		vkCmdBindIndexBuffer(*this, buffer, offset, indexType);
+	}
+
+	void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
+	{
+		vkCmdDrawIndexed(*this, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+	}
 };
 
 class Queue : public Handle<VkQueue>

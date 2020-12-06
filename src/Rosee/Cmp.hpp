@@ -75,6 +75,16 @@ struct Render
 	Pipeline *pipeline;
 	Material *material;
 	Model *model;
+
+	inline bool operator==(const Render &other) const
+	{
+		return model == other.model && material == other.material && pipeline == other.pipeline;
+	}
+
+	inline bool operator!=(const Render &other) const
+	{
+		return !(*this == other);
+	}
 };
 
 struct OpaqueRender : public Render, public Cmp::Id_t<OpaqueRender>
