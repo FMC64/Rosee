@@ -564,12 +564,17 @@ VkPipelineShaderStageCreateInfo Renderer::initPipelineStage(VkShaderStageFlagBit
 	return res;
 }
 
-void Renderer::Pipeline::pushShaderModule(VkShaderModule module)
+void Pipeline::pushShaderModule(VkShaderModule module)
 {
 	shaderModules[shaderModuleCount++] = module;
 }
 
-void Renderer::Pipeline::destroy(Vk::Device device)
+void Pipeline::pushDynamic(cmp_id cmp)
+{
+	dynamics[dynamicCount++] = cmp;
+}
+
+void Pipeline::destroy(Vk::Device device)
 {
 	device.destroy(*this);
 	device.destroy(pipelineLayout);
@@ -577,7 +582,14 @@ void Renderer::Pipeline::destroy(Vk::Device device)
 		device.destroy(shaderModules[i]);
 }
 
-Renderer::Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantRange)
+void Model::destroy(Vk::Allocator allocator)
+{
+	allocator.destroy(vertexBuffer);
+	if (indexType != VK_INDEX_TYPE_NONE_KHR)
+		allocator.destroy(indexBuffer);
+}
+
+Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantRange)
 {
 	Pipeline res;
 
@@ -663,6 +675,7 @@ Renderer::Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pus
 			ci.pPushConstantRanges = ranges;
 		}
 		res.pipelineLayout = m_device.createPipelineLayout(ci);
+		res.pushConstantRange = pushConstantRange;
 	}
 	ci.layout = res.pipelineLayout;
 	ci.renderPass = m_opaque_pass;
@@ -671,13 +684,12 @@ Renderer::Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pus
 	return res;
 }
 
-Vk::BufferAllocation Renderer::createPointBuffer(void)
+Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 {
 	VkBufferCreateInfo bci{};
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bci.size = sizeof(glm::vec2);
+	bci.size = size;
 	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	return m_allocator.createBuffer(bci, aci);
@@ -705,20 +717,28 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_descriptor_pool_dynamic(createDescriptorPoolDynamic()),
 	m_frames(createFrames()),
-	m_particle_pipeline(createPipeline("sha/particle", 0)),
-	m_point_buffer(createPointBuffer())
+	m_pipeline_pool(64),
+	m_model_pool(64)
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
+
+	pipeline_particle = m_pipeline_pool.allocate();
+	*pipeline_particle = createPipeline("sha/particle", 0);
+	pipeline_particle->pushDynamic<Point2D>();
+
+	model_point = m_model_pool.allocate();
+	model_point->primitiveCount = 1;
+	model_point->vertexBuffer = createVertexBuffer(sizeof(glm::vec2));
+	model_point->indexType = VK_INDEX_TYPE_NONE_KHR;
 }
 
 Renderer::~Renderer(void)
 {
 	m_queue.waitIdle();
 
-	m_allocator.destroy(m_point_buffer);
-
-	m_particle_pipeline.destroy(m_device);
+	m_model_pool.destroy(m_allocator);
+	m_pipeline_pool.destroy(m_device);
 
 	m_frames.clear();
 
@@ -915,13 +935,13 @@ void Renderer::Frame::render(Map &map)
 		}
 
 		m_cmd.setExtent(m_r.m_swapchain_extent);
-		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_particle_pipeline);
-		m_cmd.bindVertexBuffer(0, m_r.m_point_buffer, 0);
+		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *m_r.pipeline_particle);
+		m_cmd.bindVertexBuffer(0, m_r.model_point->vertexBuffer, 0);
 
 		uint32_t dyn_off[] {
 			0
 		};
-		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_particle_pipeline.pipelineLayout, 0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.pipeline_particle->pipelineLayout, 0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
 
 		struct PC {
 			glm::vec3 color;
@@ -940,7 +960,7 @@ void Renderer::Frame::render(Map &map)
 				m_dyn_buffer_size += sizeof(PC);
 				//m_cmd.pushConstants(m_r.m_pipeline_layout_empty, Vk::ShaderStage::VertexBit | Vk::ShaderStage::FragmentBit, 0, sizeof(pc), &pc);
 			}
-			m_cmd.draw(1, b.size(), 0, 0);
+			m_cmd.draw(m_r.model_point->primitiveCount, b.size(), 0, 0);
 		});
 
 		m_cmd.endRenderPass();

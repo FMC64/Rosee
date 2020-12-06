@@ -1,12 +1,16 @@
 #pragma once
 
+#include <mutex>
+#include <condition_variable>
 #include "vector.hpp"
 #include "Vk.hpp"
 #include "Map.hpp"
-#include <GLFW/glfw3.h>
 #include "math.hpp"
-#include <mutex>
-#include <condition_variable>
+#include "Pipeline.hpp"
+#include "Material.hpp"
+#include "Model.hpp"
+#include "Pool.hpp"
+#include <GLFW/glfw3.h>
 
 namespace Rosee {
 
@@ -106,37 +110,19 @@ class Renderer
 	Vk::ShaderModule loadShaderModule(VkShaderStageFlagBits stage, const char *path) const;
 	static VkPipelineShaderStageCreateInfo initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module);
 
-	struct Pipeline : public Vk::Handle<VkPipeline>
-	{
-		uint32_t shaderModuleCount = 0;
-		VkShaderModule shaderModules[8];
-		VkPipelineLayout pipelineLayout;
-
-		void pushShaderModule(VkShaderModule module);
-
-		using Vk::Handle<VkPipeline>::operator=;
-
-		void destroy(Vk::Device device);
-	};
-	/*struct AttrDesc {
-		VkFormat fmt;
-		size_t offset;
-	};*/
-	/*Pipeline createPipeline(const char *stagesPath, VkShaderStageFlags stages,
-		uint32_t vertexStride, uint32_t vertexAttrCount, const AttrDesc *pVertexAttrs,
-		VkPrimitiveTopology topology, bool primitiveRestartEnable,
-		VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace frontFace,
-		VkSampleCountFlagBits rasterizationSamples,
-		const VkPipelineDepthStencilStateCreateInfo *pDepthStencilState,
-		uint32_t colorAttachmentCount,
-		VkPipelineLayout layout, VkRenderPass renderPass, uint32_t subpass);*/
 	Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
 
-	Pipeline m_particle_pipeline;
-	Pipeline createParticlePipeline(void);
+	Pool<Pipeline> m_pipeline_pool;
 
-	Vk::BufferAllocation m_point_buffer;
-	Vk::BufferAllocation createPointBuffer(void);
+public:
+	Pipeline *pipeline_particle;
+
+private:
+	Pool<Model> m_model_pool;
+	Vk::BufferAllocation createVertexBuffer(size_t size);
+
+public:
+	Model *model_point;
 
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];
