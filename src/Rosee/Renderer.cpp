@@ -725,7 +725,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	pipeline_particle = m_pipeline_pool.allocate();
 	*pipeline_particle = createPipeline("sha/particle", 0);
-	pipeline_particle->pushDynamic<Point2D>();
+	pipeline_particle->pushDynamic<Point2DGPU>();
 
 	model_point = m_model_pool.allocate();
 	model_point->primitiveCount = 1;
@@ -913,9 +913,8 @@ void Renderer::Frame::render(Map &map)
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 	{
-		m_cmd.setExtent(m_r.m_swapchain_extent);
-
 		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		m_cmd.setExtent(m_r.m_swapchain_extent);
 		{
 			VkRenderPassBeginInfo bi{};
 			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1004,6 +1003,7 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 						m_cmd.draw(cur.model->primitiveCount, streak, 0, 0);
 					else
 						m_cmd.drawIndexed(cur.model->primitiveCount, streak, 0, 0, 0);
+					streak = 0;
 				}
 
 				if (n.pipeline != cur.pipeline)
@@ -1025,14 +1025,15 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 				cur = n;
 			}
 
-			auto &cur = r[i];
-			auto &pip = *cur.pipeline;
+			auto &pip = *r[i].pipeline;
 			for (size_t j = 0; j < pip.dynamicCount; j++) {
-				auto dyn = pip.dynamics[i];
+				auto dyn = pip.dynamics[j];
 				auto size = Cmp::size[dyn];
-				std::memcpy(m_dyn_buffer_staging_ptr, reinterpret_cast<const uint8_t*>(b.get(dyn)) + size * i, size);
+				std::memcpy(reinterpret_cast<uint8_t*>(m_dyn_buffer_staging_ptr) + m_dyn_buffer_size,
+					reinterpret_cast<const uint8_t*>(b.get(dyn)) + size * i, size);
 				m_dyn_buffer_size += size;
 			}
+			streak++;
 		}
 	});
 

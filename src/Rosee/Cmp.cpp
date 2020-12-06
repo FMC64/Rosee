@@ -27,6 +27,14 @@ void Point2D::destr(void*, size_t)
 {
 }
 
+void Point2DGPU::init(void*, size_t)
+{
+}
+
+void Point2DGPU::destr(void*, size_t)
+{
+}
+
 void Render::init(void*, size_t)
 {
 }
