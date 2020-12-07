@@ -36,7 +36,7 @@ endif
 SRCD = src
 ROSEED = $(SRCD)/Rosee
 ROSEE_SRC = $(ROSEED)/Brush.cpp $(ROSEED)/Cmp.cpp $(ROSEED)/Map.cpp $(ROSEED)/Renderer.cpp $(ROSEED)/Vk.cpp
-OBJ_DEP = $(ROSEED)/Vma.o
+OBJ_DEP = $(ROSEED)/Vma.o $(ROSEED)/tinyobjloader.o $(ROSEED)/stb_image.o
 SRC = $(SRCD)/main.cpp $(ROSEE_SRC)
 OBJ = $(SRC:.cpp=.o)
 
@@ -61,6 +61,10 @@ $(TARGET): $(OBJ) $(OBJ_DEP)
 
 $(ROSEED)/Vma.o:
 	$(CXX) $(CXXFLAGS_BASE) -Wno-nullability-completeness $(ROSEED)/Vma.cpp -c -o $(ROSEED)/Vma.o
+$(ROSEED)/tinyobjloader.o:
+	$(CXX) $(CXXFLAGS_BASE) $(ROSEED)/tinyobjloader.cpp -c -o $(ROSEED)/tinyobjloader.o
+$(ROSEED)/stb_image.o:
+	$(CXX) $(CXXFLAGS_BASE) $(ROSEED)/stb_image.cpp -c -o $(ROSEED)/stb_image.o
 
 clean:
 	rm -f $(OBJ) $(TARGET)
