@@ -27,45 +27,19 @@ class Game
 
 	void render(void)
 	{
-		std::mt19937_64 m_rand_gen(time(nullptr));
-		auto zrand = [&](void) -> double {
+		//std::mt19937_64 m_rand_gen(time(nullptr));
+		/*auto zrand = [&](void) -> double {
 			return static_cast<double>(m_rand_gen()) / static_cast<double>(std::numeric_limits<decltype(m_rand_gen())>::max());
-		};
-		auto nrand = [&](void) -> double {
+		};*/
+		/*auto nrand = [&](void) -> double {
 			return zrand() * 2.0 - 1.0;
-		};
-
-		size_t p_count = 64;
-		auto [b, n] = m_m.addBrush<Id, Point2D, OpaqueRender>(p_count);
-		auto points = b.get<Point2D>();
-		auto render = b.get<OpaqueRender>();
-		auto id = *b.get<Id>();
+		};*/
 
 		auto pipeline_pool = PipelinePool(64);
 		auto model_pool = ModelPool(64);
 
-		auto pipeline_particle = pipeline_pool.allocate();
-		*pipeline_particle = m_r.createPipeline("sha/particle", 0);
-		pipeline_particle->pushDynamic<Point2D>();
-
-		auto model_point = model_pool.allocate();
-		model_point->primitiveCount = 1;
-		model_point->vertexBuffer = m_r.createVertexBuffer(sizeof(glm::vec2));
-		model_point->indexType = VK_INDEX_TYPE_NONE_KHR;
-
 		auto model_world = model_pool.allocate();
 		*model_world = m_r.loadModel("res/mod/vokselia_spawn.obj");
-
-		for (size_t i = 0; i < p_count; i++) {
-			auto &p = points[n + i];
-			p.color = glm::vec3(zrand(), zrand(), zrand());
-			p.pos = glm::vec2(nrand(), nrand());
-			p.base_pos = p.pos;
-			p.size = zrand() * 16.0f;
-			render[i].pipeline = pipeline_particle;
-			render[i].material = nullptr;
-			render[i].model = model_point;
-		}
 
 		auto pipeline_opaque = pipeline_pool.allocate();
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", 0);
@@ -94,22 +68,13 @@ class Game
 			auto delta = static_cast<std::chrono::duration<double>>(now - bef).count();
 			bef = now;
 			t += delta;
-			auto st = std::sin(t);
-			auto [b, n] = m_m.find(id);
-			if (b) {
-				auto points = b->get<Point2D>();
-				for (size_t i = 0; i < p_count; i++) {
-					auto &p = points[n + i];
-					p.pos = glm::vec2(p.base_pos.x * st, p.base_pos.y * st);
-				}
-			}
 			{
 				const double ang_rad = pi / 180.0;
 
 				const double near = 0.1, far = 1000.0,
 				ratio = static_cast<double>(m_r.swapchainExtent().width) / static_cast<double>(m_r.swapchainExtent().height),
 				fov = 70.0 * ang_rad;
-				auto proj = glm::perspectiveLH_ZO<float>(fov, ratio, near, far);
+				auto proj = glm::perspectiveLH_ZO<float>(fov, ratio, far, near);
 				proj[1][1] *= -1.0;
 
 				//auto view = glm::lookAtLH(glm::vec3(0.0, 0.0, -7.0), glm::vec3(0.0), glm::vec3(0.0, 1.0, 0.0));
