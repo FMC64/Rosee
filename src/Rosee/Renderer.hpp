@@ -148,6 +148,7 @@ private:
 
 public:
 	Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
+	Pipeline createPipeline3D(const char *stagesPath, uint32_t pushConstantRange);
 
 private:
 	Pool<Pipeline> m_pipeline_pool;

@@ -7,6 +7,7 @@
 #include <random>
 #include <ctime>
 #include <cmath>
+#include <glm/gtx/transform.hpp>
 
 #ifdef DEBUG
 static inline constexpr bool is_debug = true;
@@ -34,7 +35,7 @@ class Game
 			return zrand() * 2.0 - 1.0;
 		};
 
-		size_t p_count = 512000;
+		size_t p_count = 64;
 		auto [b, n] = m_m.addBrush<Id, Point2D, OpaqueRender>(p_count);
 		auto points = b.get<Point2D>();
 		auto render = b.get<OpaqueRender>();
@@ -65,6 +66,19 @@ class Game
 			render[i].material = nullptr;
 			render[i].model = model_point;
 		}
+
+		auto pipeline_opaque = pipeline_pool.allocate();
+		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", 0);
+		pipeline_opaque->pushDynamic<MVP>();
+
+		/*{
+			auto [b, n] = m_m.addBrush<Id, Transform, MVP, OpaqueRender>(1);
+			b.get<Transform>()[n] = glm::scale(glm::vec3(100.0f));
+			auto &r = b.get<OpaqueRender>()[n];
+			r.pipeline = pipeline_opaque;
+			r.model = model_world;
+		}*/
+
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
 		while (true) {

@@ -18,10 +18,11 @@ struct Id;
 struct Transform;
 struct Point2D;
 struct OpaqueRender;
+struct MVP;
 
 namespace Cmp {
 
-using list = List<Id, Transform, Point2D, OpaqueRender>;
+using list = List<Id, Transform, Point2D, OpaqueRender, MVP>;
 
 #include "Cmp/Id_t.hpp"
 
@@ -48,12 +49,12 @@ struct Id : public Cmp::Id_t<Id>
 	}
 };
 
-struct Transform : public Cmp::Id_t<Transform>
+struct Transform : public Cmp::Id_t<Transform>, public glm::mat4
 {
 	static Cmp::init_fun_t init;
 	static Cmp::destr_fun_t destr;
 
-	glm::mat4 mat;
+	using glm::mat4::operator=;
 };
 
 struct Point2D : public Cmp::Id_t<Point2D>
@@ -67,6 +68,14 @@ struct Point2D : public Cmp::Id_t<Point2D>
 	glm::vec2 base_pos;
 	float size;
 	float _pad2[3];
+};
+
+struct MVP : public Cmp::Id_t<MVP>, public glm::mat4
+{
+	static Cmp::init_fun_t init;
+	static Cmp::destr_fun_t destr;
+
+	using glm::mat4::operator=;
 };
 
 struct Render

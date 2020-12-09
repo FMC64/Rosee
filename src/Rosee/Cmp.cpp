@@ -35,6 +35,14 @@ void Render::destr(void*, size_t)
 {
 }
 
+void MVP::init(void*, size_t)
+{
+}
+
+void MVP::destr(void*, size_t)
+{
+}
+
 namespace Cmp {
 
 static constexpr sarray<size_t, max> get_sizes(void)
