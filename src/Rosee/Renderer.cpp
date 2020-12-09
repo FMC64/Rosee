@@ -1235,9 +1235,10 @@ void Renderer::Frame::render(Map &map)
 	{
 		auto pres_res = m_r.m_queue.present(pi);
 		if (pres_res != VK_SUCCESS) {
-			if (pres_res == VK_SUBOPTIMAL_KHR || pres_res == VK_ERROR_OUT_OF_DATE_KHR)
+			if (pres_res == VK_SUBOPTIMAL_KHR || pres_res == VK_ERROR_OUT_OF_DATE_KHR) {
 				m_r.recreateSwapchain();
-			else
+				return;
+			} else
 				vkAssert(pres_res);
 		}
 	}
