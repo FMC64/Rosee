@@ -318,7 +318,7 @@ Vk::Allocator Renderer::createAllocator(void)
 	VmaAllocatorCreateInfo ci{};
 	ci.vulkanApiVersion = VK_API_VERSION_1_0;
 	ci.physicalDevice = m_physical_device;
-	ci.device = m_device;
+	ci.device = device;
 	ci.instance = m_instance;
 	return Vk::createAllocator(ci);
 }
@@ -362,7 +362,7 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	ci.presentMode = m_present_mode;
 	ci.clipped = VK_TRUE;
 
-	return m_device.createSwapchainKHR(ci);
+	return device.createSwapchainKHR(ci);
 }
 
 vector<Vk::ImageView> Renderer::createSwapchainImageViews(void)
@@ -384,7 +384,7 @@ vector<Vk::ImageView> Renderer::createSwapchainImageViews(void)
 		ci.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 		ci.subresourceRange.baseArrayLayer = 0;
 		ci.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-		res.emplace(m_device.createImageView(ci));
+		res.emplace(device.createImageView(ci));
 	}
 	return res;
 }
@@ -413,7 +413,7 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.subpassCount = array_size(subpasses);
 	ci.pSubpasses = subpasses;
 
-	return m_device.createRenderPass(ci);
+	return device.createRenderPass(ci);
 }
 
 vector<Vk::Framebuffer> Renderer::createOpaqueFbs(void)
@@ -432,7 +432,7 @@ vector<Vk::Framebuffer> Renderer::createOpaqueFbs(void)
 		ci.width = sex.width;
 		ci.height = sex.height;
 		ci.layers = 1;
-		res.emplace(m_device.createFramebuffer(ci));
+		res.emplace(device.createFramebuffer(ci));
 	}
 	return res;
 }
@@ -446,7 +446,7 @@ Vk::DescriptorSetLayout Renderer::createDescriptorSetLayoutDynamic(void)
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
-	return m_device.createDescriptorSetLayout(ci);
+	return device.createDescriptorSetLayout(ci);
 }
 
 Vk::DescriptorPool Renderer::createDescriptorPoolDynamic(void)
@@ -459,18 +459,18 @@ Vk::DescriptorPool Renderer::createDescriptorPoolDynamic(void)
 	};
 	ci.poolSizeCount = array_size(pool_sizes);
 	ci.pPoolSizes = pool_sizes;
-	return m_device.createDescriptorPool(ci);
+	return device.createDescriptorPool(ci);
 }
 
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
 	VkCommandBuffer cmds[m_frame_count * 2];
-	m_device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * 2, cmds);
+	device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * 2, cmds);
 	VkDescriptorSet sets[m_frame_count];
 	VkDescriptorSetLayout set_layouts[m_frame_count];
 	for (uint32_t i = 0; i < m_frame_count; i++)
 		set_layouts[i] = m_descriptor_set_layout_dynamic;
-	m_device.allocateDescriptorSets(m_descriptor_pool_dynamic, m_frame_count, set_layouts, sets);
+	device.allocateDescriptorSets(m_descriptor_pool_dynamic, m_frame_count, set_layouts, sets);
 
 	Vk::BufferAllocation dyn_buffers[m_frame_count];
 	for (uint32_t i = 0; i < m_frame_count; i++) {
@@ -480,7 +480,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 		bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 		VmaAllocationCreateInfo aci{};
 		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		dyn_buffers[i] = m_allocator.createBuffer(bci, aci);
+		dyn_buffers[i] = allocator.createBuffer(bci, aci);
 	}
 
 	VkWriteDescriptorSet desc_writes[m_frame_count];
@@ -500,7 +500,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 		cur.pBufferInfo = &cbi;
 		desc_writes[i] = cur;
 	}
-	m_device.updateDescriptorSets(m_frame_count, desc_writes, 0, nullptr);
+	device.updateDescriptorSets(m_frame_count, desc_writes, 0, nullptr);
 
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
@@ -551,7 +551,7 @@ Vk::ShaderModule Renderer::loadShaderModule(VkShaderStageFlagBits stage, const c
 	ci.codeSize = str.size();
 	ci.pCode = reinterpret_cast<const uint32_t*>(str.data());
 
-	return m_device.createShaderModule(ci);
+	return device.createShaderModule(ci);
 }
 
 VkPipelineShaderStageCreateInfo Renderer::initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module)
@@ -674,13 +674,13 @@ Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantR
 			ci.pushConstantRangeCount = array_size(ranges);
 			ci.pPushConstantRanges = ranges;
 		}
-		res.pipelineLayout = m_device.createPipelineLayout(ci);
+		res.pipelineLayout = device.createPipelineLayout(ci);
 		res.pushConstantRange = pushConstantRange;
 	}
 	ci.layout = res.pipelineLayout;
 	ci.renderPass = m_opaque_pass;
 
-	res = m_device.createGraphicsPipeline(m_pipeline_cache, ci);
+	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
 	return res;
 }
 
@@ -692,7 +692,7 @@ Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	return m_allocator.createBuffer(bci, aci);
+	return allocator.createBuffer(bci, aci);
 }
 
 Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
@@ -703,57 +703,48 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_instance(createInstance()),
 	m_debug_messenger(createDebugMessenger()),
 	m_surface(createSurface()),
-	m_device(createDevice()),
+	device(createDevice()),
 	m_pipeline_cache(VK_NULL_HANDLE),
-	m_allocator(createAllocator()),
-	m_queue(m_device.getQueue(m_queue_family_graphics, 0)),
+	allocator(createAllocator()),
+	m_queue(device.getQueue(m_queue_family_graphics, 0)),
 	m_swapchain(createSwapchain()),
-	m_swapchain_images(m_device.getSwapchainImages(m_swapchain)),
+	m_swapchain_images(device.getSwapchainImages(m_swapchain)),
 	m_swapchain_image_views(createSwapchainImageViews()),
 	m_opaque_pass(createOpaquePass()),
 	m_opaque_fbs(createOpaqueFbs()),
-	m_command_pool(m_device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+	m_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_descriptor_pool_dynamic(createDescriptorPoolDynamic()),
 	m_frames(createFrames()),
-	m_pipeline_pool(64),
-	m_model_pool(64)
+	m_pipeline_pool(4),
+	m_model_pool(4)
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
-
-	pipeline_particle = m_pipeline_pool.allocate();
-	*pipeline_particle = createPipeline("sha/particle", 0);
-	pipeline_particle->pushDynamic<Point2D>();
-
-	model_point = m_model_pool.allocate();
-	model_point->primitiveCount = 1;
-	model_point->vertexBuffer = createVertexBuffer(sizeof(glm::vec2));
-	model_point->indexType = VK_INDEX_TYPE_NONE_KHR;
 }
 
 Renderer::~Renderer(void)
 {
 	m_queue.waitIdle();
 
-	m_model_pool.destroy(m_allocator);
-	m_pipeline_pool.destroy(m_device);
+	m_model_pool.destroy(allocator);
+	m_pipeline_pool.destroy(device);
 
 	m_frames.clear();
 
-	m_device.destroy(m_descriptor_pool_dynamic);
-	m_device.destroy(m_descriptor_set_layout_dynamic);
+	device.destroy(m_descriptor_pool_dynamic);
+	device.destroy(m_descriptor_set_layout_dynamic);
 
-	m_device.destroy(m_command_pool);
+	device.destroy(m_command_pool);
 	for (auto &f : m_opaque_fbs)
-		m_device.destroy(f);
-	m_device.destroy(m_opaque_pass);
+		device.destroy(f);
+	device.destroy(m_opaque_pass);
 	for (auto &v : m_swapchain_image_views)
-		m_device.destroy(v);
-	m_device.destroy(m_swapchain);
-	m_allocator.destroy();
-	m_device.destroy();
+		device.destroy(v);
+	device.destroy(m_swapchain);
+	allocator.destroy();
+	device.destroy();
 	m_instance.destroy(m_surface);
 	if (m_debug_messenger)
 		m_instance.getProcAddr<PFN_vkDestroyDebugUtilsMessengerEXT>("vkDestroyDebugUtilsMessengerEXT")(m_instance, m_debug_messenger, nullptr);
@@ -766,13 +757,13 @@ void Renderer::recreateSwapchain(void)
 {
 	m_queue.waitIdle();
 	for (auto &f : m_opaque_fbs)
-		m_device.destroy(f);
+		device.destroy(f);
 	for (auto &i : m_swapchain_image_views)
-		m_device.destroy(i);
-	m_device.destroy(m_swapchain);
+		device.destroy(i);
+	device.destroy(m_swapchain);
 
 	m_swapchain = createSwapchain();
-	m_swapchain_images = m_device.getSwapchainImages(m_swapchain);
+	m_swapchain_images = device.getSwapchainImages(m_swapchain);
 	m_swapchain_image_views = createSwapchainImageViews();
 	m_opaque_fbs = createOpaqueFbs();
 }
@@ -861,16 +852,16 @@ Vk::BufferAllocation Renderer::Frame::createDynBufferStaging(void)
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 	aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-	return m_r.m_allocator.createBuffer(bci, aci, &m_dyn_buffer_staging_ptr);
+	return m_r.allocator.createBuffer(bci, aci, &m_dyn_buffer_staging_ptr);
 }
 
 Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
 	m_r(r),
 	m_transfer_cmd(transferCmd),
 	m_cmd(cmd),
-	m_frame_done(r.m_device.createFence(0)),
-	m_render_done(r.m_device.createSemaphore()),
-	m_image_ready(r.m_device.createSemaphore()),
+	m_frame_done(r.device.createFence(0)),
+	m_render_done(r.device.createSemaphore()),
+	m_image_ready(r.device.createSemaphore()),
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
 	m_dyn_buffer(dynBuffer)
@@ -879,12 +870,12 @@ Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer
 
 Renderer::Frame::~Frame(void)
 {
-	m_r.m_allocator.destroy(m_dyn_buffer);
-	m_r.m_allocator.destroy(m_dyn_buffer_staging);
+	m_r.allocator.destroy(m_dyn_buffer);
+	m_r.allocator.destroy(m_dyn_buffer_staging);
 
-	m_r.m_device.destroy(m_frame_done);
-	m_r.m_device.destroy(m_render_done);
-	m_r.m_device.destroy(m_image_ready);
+	m_r.device.destroy(m_frame_done);
+	m_r.device.destroy(m_render_done);
+	m_r.device.destroy(m_image_ready);
 }
 
 void Renderer::Frame::reset(void)
@@ -896,8 +887,8 @@ void Renderer::Frame::reset(void)
 	m_r.m_next_input_cv.notify_one();
 
 	if (m_ever_submitted) {
-		m_r.m_device.wait(m_frame_done);
-		m_r.m_device.reset(m_frame_done);
+		m_r.device.wait(m_frame_done);
+		m_r.device.reset(m_frame_done);
 	}
 }
 
@@ -907,7 +898,7 @@ void Renderer::Frame::render(Map &map)
 	auto &sex = m_r.m_swapchain_extent;
 
 	uint32_t swapchain_index;
-	vkAssert(vkAcquireNextImageKHR(m_r.m_device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
+	vkAssert(vkAcquireNextImageKHR(m_r.device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
 
 	m_dyn_buffer_size = 0;
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -939,7 +930,7 @@ void Renderer::Frame::render(Map &map)
 		m_cmd.end();
 	}
 
-	m_r.m_allocator.flushAllocation(m_dyn_buffer_staging, 0, m_dyn_buffer_size);
+	m_r.allocator.flushAllocation(m_dyn_buffer_staging, 0, m_dyn_buffer_size);
 	{
 		VkBufferCopy region {0, 0, m_dyn_buffer_size};
 		if (region.size > 0)

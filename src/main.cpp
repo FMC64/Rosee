@@ -39,15 +39,28 @@ class Game
 		auto points = b.get<Point2D>();
 		auto render = b.get<OpaqueRender>();
 		auto id = *b.get<Id>();
+
+		auto pipeline_pool = PipelinePool(64);
+		auto model_pool = ModelPool(64);
+
+		auto pipeline_particle = pipeline_pool.allocate();
+		*pipeline_particle = m_r.createPipeline("sha/particle", 0);
+		pipeline_particle->pushDynamic<Point2D>();
+
+		auto model_point = model_pool.allocate();
+		model_point->primitiveCount = 1;
+		model_point->vertexBuffer = m_r.createVertexBuffer(sizeof(glm::vec2));
+		model_point->indexType = VK_INDEX_TYPE_NONE_KHR;
+
 		for (size_t i = 0; i < p_count; i++) {
 			auto &p = points[n + i];
 			p.color = glm::vec3(zrand(), zrand(), zrand());
 			p.pos = glm::vec2(nrand(), nrand());
 			p.base_pos = p.pos;
 			p.size = zrand() * 16.0f;
-			render[i].pipeline = m_r.pipeline_particle;
+			render[i].pipeline = pipeline_particle;
 			render[i].material = nullptr;
-			render[i].model = m_r.model_point;
+			render[i].model = model_point;
 		}
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
@@ -73,6 +86,10 @@ class Game
 			}
 			m_r.render(m_m);
 		}
+
+		m_r.waitIdle();
+		pipeline_pool.destroy(m_r.device);
+		model_pool.destroy(m_r.allocator);
 	}
 
 public:

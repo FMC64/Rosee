@@ -546,7 +546,7 @@ public:
 	{
 	}
 
-	BufferAllocation createBuffer(const VkBufferCreateInfo &bci, const VmaAllocationCreateInfo &aci)
+	BufferAllocation createBuffer(const VkBufferCreateInfo &bci, const VmaAllocationCreateInfo &aci) const
 	{
 		VkBuffer buffer;
 		VmaAllocation allocation;
@@ -554,7 +554,7 @@ public:
 		return BufferAllocation(buffer, allocation);
 	}
 
-	BufferAllocation createBuffer(const VkBufferCreateInfo &bci, const VmaAllocationCreateInfo &aci, void **ppMappedData)
+	BufferAllocation createBuffer(const VkBufferCreateInfo &bci, const VmaAllocationCreateInfo &aci, void **ppMappedData) const
 	{
 		VkBuffer buffer;
 		VmaAllocation allocation;
@@ -564,7 +564,7 @@ public:
 		return BufferAllocation(buffer, allocation);
 	}
 
-	void destroy(BufferAllocation &bufferAllocation)
+	void destroy(BufferAllocation &bufferAllocation) const
 	{
 		vmaDestroyBuffer(*this, bufferAllocation, bufferAllocation);
 	}
@@ -574,12 +574,12 @@ public:
 		vmaDestroyAllocator(*this);
 	}
 
-	void flushAllocation(VmaAllocation allocation, VkDeviceSize offset, VkDeviceSize size)
+	void flushAllocation(VmaAllocation allocation, VkDeviceSize offset, VkDeviceSize size) const
 	{
 		vkAssert(vmaFlushAllocation(*this, allocation, offset, size));
 	}
 
-	void invalidateAllocation(VmaAllocation allocation, VkDeviceSize offset, VkDeviceSize size)
+	void invalidateAllocation(VmaAllocation allocation, VkDeviceSize offset, VkDeviceSize size) const
 	{
 		vkAssert(vmaInvalidateAllocation(*this, allocation, offset, size));
 	}

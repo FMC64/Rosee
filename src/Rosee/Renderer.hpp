@@ -14,6 +14,10 @@
 
 namespace Rosee {
 
+using PipelinePool = Pool<Pipeline>;
+using MaterialPool = Pool<Material>;
+using ModelPool = Pool<Model>;
+
 class Renderer
 {
 	uint32_t m_frame_count;
@@ -43,12 +47,28 @@ class Renderer
 	VkSurfaceCapabilitiesKHR m_surface_capabilities;
 	uint32_t m_queue_family_graphics = ~0U;
 	VkPhysicalDevice m_physical_device;
-	Vk::Device m_device;
+
+public:
+	Vk::Device device;
+
+private:
 	Vk::Device createDevice(void);
 	Vk::PipelineCache m_pipeline_cache;
-	Vk::Allocator m_allocator;
+
+public:
+	Vk::Allocator allocator;
+
+private:
 	Vk::Allocator createAllocator(void);
 	Vk::Queue m_queue;
+
+public:
+	void waitIdle(void)
+	{
+		m_queue.waitIdle();
+	}
+
+private:
 	VkExtent2D m_swapchain_extent;
 	struct PipelineViewportState {
 		VkViewport viewport;
@@ -113,19 +133,15 @@ class Renderer
 	Vk::ShaderModule loadShaderModule(VkShaderStageFlagBits stage, const char *path) const;
 	static VkPipelineShaderStageCreateInfo initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module);
 
+public:
 	Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
 
-	Pool<Pipeline> m_pipeline_pool;
-
-public:
-	Pipeline *pipeline_particle;
-
 private:
+	Pool<Pipeline> m_pipeline_pool;
 	Pool<Model> m_model_pool;
-	Vk::BufferAllocation createVertexBuffer(size_t size);
 
 public:
-	Model *model_point;
+	Vk::BufferAllocation createVertexBuffer(size_t size);
 
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];
