@@ -247,6 +247,7 @@ using ShaderModule = Handle<VkShaderModule>;
 using PipelineLayout = Handle<VkPipelineLayout>;
 using Pipeline = Handle<VkPipeline>;
 using Buffer = Handle<VkBuffer>;
+using Image = Handle<VkImage>;
 
 class Device : public Handle<VkDevice>
 {
@@ -539,6 +540,17 @@ public:
 	}
 };
 
+class ImageAllocation : public Image, public Allocation
+{
+public:
+	ImageAllocation(void) = default;
+	ImageAllocation(VkImage image, VmaAllocation allocation) :
+		Image(image),
+		Allocation(allocation)
+	{
+	}
+};
+
 class Allocator : public Handle<VmaAllocator>
 {
 public:
@@ -565,9 +577,22 @@ public:
 		return BufferAllocation(buffer, allocation);
 	}
 
+	ImageAllocation createImage(const VkImageCreateInfo &ici, const VmaAllocationCreateInfo &aci) const
+	{
+		VkImage image;
+		VmaAllocation allocation;
+		vkAssert(vmaCreateImage(*this, &ici, &aci, &image, &allocation, nullptr));
+		return ImageAllocation(image, allocation);
+	}
+
 	void destroy(BufferAllocation &bufferAllocation) const
 	{
 		vmaDestroyBuffer(*this, bufferAllocation, bufferAllocation);
+	}
+
+	void destroy(ImageAllocation &imageAllocation) const
+	{
+		vmaDestroyImage(*this, imageAllocation, imageAllocation);
 	}
 
 	void destroy(void)

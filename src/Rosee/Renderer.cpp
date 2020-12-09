@@ -1076,6 +1076,23 @@ Vk::BufferAllocation Renderer::Frame::createDynBufferStaging(void)
 	return m_r.allocator.createBuffer(bci, aci, &m_dyn_buffer_staging_ptr);
 }
 
+Vk::ImageAllocation Renderer::Frame::createDepthBuffer(void)
+{
+	VkImageCreateInfo ici{};
+	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	ici.imageType = VK_IMAGE_TYPE_2D;
+	ici.format = VK_FORMAT_X8_D24_UNORM_PACK32;
+	ici.extent = VkExtent3D{m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1};
+	ici.mipLevels = 1;
+	ici.arrayLayers = 1;
+	ici.samples = VK_SAMPLE_COUNT_1_BIT;
+	ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	return m_r.allocator.createImage(ici, aci);
+}
+
 Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
 	m_r(r),
 	m_transfer_cmd(transferCmd),
@@ -1085,12 +1102,15 @@ Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer
 	m_image_ready(r.device.createSemaphore()),
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
-	m_dyn_buffer(dynBuffer)
+	m_dyn_buffer(dynBuffer),
+	m_depth_buffer(createDepthBuffer())
 {
 }
 
 Renderer::Frame::~Frame(void)
 {
+	m_r.allocator.destroy(m_depth_buffer);
+
 	m_r.allocator.destroy(m_dyn_buffer);
 	m_r.allocator.destroy(m_dyn_buffer_staging);
 

@@ -131,6 +131,9 @@ private:
 
 		friend class Renderer;
 
+		Vk::ImageAllocation m_depth_buffer;
+		Vk::ImageAllocation createDepthBuffer(void);
+
 	public:
 		Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
 		~Frame(void);
