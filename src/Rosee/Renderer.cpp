@@ -497,7 +497,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 		auto &cbi = bi[i];
 		cbi.buffer = dyn_buffers[i];
 		cbi.offset = 0;
-		cbi.range = Frame::dyn_buffer_size;
+		cbi.range = VK_WHOLE_SIZE;
 		cur.pBufferInfo = &cbi;
 		desc_writes[i] = cur;
 	}
@@ -968,7 +968,12 @@ void Renderer::recreateSwapchain(void)
 }
 
 size_t Renderer::m_keys_update[Renderer::key_update_count] {
-	GLFW_KEY_F11
+	GLFW_KEY_F11,
+	GLFW_KEY_W,
+	GLFW_KEY_A,
+	GLFW_KEY_S,
+	GLFW_KEY_D,
+	GLFW_KEY_LEFT_SHIFT
 };
 
 void Renderer::pollEvents(void)
@@ -987,6 +992,11 @@ void Renderer::pollEvents(void)
 		for (size_t i = 0; i < key_update_count; i++) {
 			auto glfw_key = m_keys_update[i];
 			m_keys[glfw_key] = glfwGetKey(m_window, glfw_key);
+		}
+		glfwGetCursorPos(m_window, &m_cursor.x, &m_cursor.y);
+		if (m_pending_cursor_mode != ~0ULL) {
+			glfwSetInputMode(m_window, GLFW_CURSOR, m_pending_cursor_mode);
+			m_pending_cursor_mode = ~0ULL;
 		}
 	}
 	if (keyReleased(GLFW_KEY_F11)) {
@@ -1029,6 +1039,18 @@ bool Renderer::keyReleased(int glfw_key)
 {
 	std::lock_guard l(m_input_mutex);
 	return m_keys_prev[glfw_key] && !m_keys[glfw_key];
+}
+
+glm::dvec2 Renderer::cursor(void)
+{
+	std::lock_guard l(m_input_mutex);
+	return m_cursor;
+}
+
+void Renderer::setCursorMode(bool show)
+{
+	std::lock_guard l(m_input_mutex);
+	m_pending_cursor_mode = show ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED;
 }
 
 void Renderer::resetFrame(void)
@@ -1185,7 +1207,8 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 
 	map.query(comps, [&](Brush &b){
 		auto r = b.get<Render>(render_id);
-		for (size_t i = 0; i < b.size(); i++) {
+		auto size = b.size();
+		for (size_t i = 0; i < size; i++) {
 			auto &n = r[i];
 			if (n != cur) {
 				if (streak > 0) {

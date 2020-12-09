@@ -23,5 +23,6 @@ T clamp(const T &val, const T &mn, const T &mx)
 }
 
 using svec2 = glm::vec<2, size_t>;
+static inline constexpr double pi = 3.141592653589793238462643383279502884;
 
 }

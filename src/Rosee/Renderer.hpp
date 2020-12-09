@@ -81,6 +81,11 @@ public:
 
 private:
 	VkExtent2D m_swapchain_extent;
+
+public:
+	const VkExtent2D& swapchainExtent(void) const { return m_swapchain_extent; }
+
+private:
 	struct PipelineViewportState {
 		VkViewport viewport;
 		VkRect2D scissor;
@@ -161,9 +166,11 @@ public:
 private:
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];
-	static inline constexpr size_t key_update_count = 1;
+	glm::dvec2 m_cursor = glm::dvec2(0.0, 0.0);
+	static inline constexpr size_t key_update_count = 6;
 	static size_t m_keys_update[key_update_count];
 	size_t m_next_input = 0;
+	size_t m_pending_cursor_mode = ~0ULL;
 	std::mutex m_next_input_mutex;
 	std::condition_variable m_next_input_cv;
 	std::mutex m_input_mutex;
@@ -178,6 +185,9 @@ public:
 	bool keyState(int glfw_key);
 	bool keyPressed(int glfw_key);
 	bool keyReleased(int glfw_key);
+	glm::dvec2 cursor(void);
+
+	void setCursorMode(bool show);
 
 	void resetFrame(void);
 	void render(Map &map);

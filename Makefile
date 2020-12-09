@@ -3,8 +3,8 @@
 WINDOWS = true
 #LINUX = true
 
-#RELEASE = true
-DEBUG = true
+RELEASE = true
+#DEBUG = true
 #SANITIZE = true
 
 ##################
