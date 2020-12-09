@@ -195,6 +195,7 @@ public:
 		for (size_t i = 0; i < m_size; i++)
 			m_buf[i].~T();
 		m_size = 0;
+		m_allocated = 0;
 		std::free(m_buf);
 		m_buf = nullptr;
 	}

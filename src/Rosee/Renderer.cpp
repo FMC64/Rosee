@@ -924,7 +924,8 @@ Renderer::~Renderer(void)
 	m_model_pool.destroy(allocator);
 	m_pipeline_pool.destroy(device);
 
-	m_frames.clear();
+	for (auto &f : m_frames)
+		f.destroy(true);
 
 	device.destroy(m_descriptor_pool_dynamic);
 	device.destroy(m_descriptor_set_layout_dynamic);
@@ -948,6 +949,12 @@ Renderer::~Renderer(void)
 void Renderer::recreateSwapchain(void)
 {
 	m_queue.waitIdle();
+	for (auto &f : m_frames)
+		f.destroy();
+	size_t frame_count = m_frames.size();
+	uint8_t frames[frame_count * sizeof(Frame)];
+	std::memcpy(frames, m_frames.data(), frame_count * sizeof(Frame));
+	m_frames.clear();
 	for (auto &i : m_swapchain_image_views)
 		device.destroy(i);
 	device.destroy(m_swapchain);
@@ -955,6 +962,10 @@ void Renderer::recreateSwapchain(void)
 	m_swapchain = createSwapchain();
 	m_swapchain_images = device.getSwapchainImages(m_swapchain);
 	m_swapchain_image_views = createSwapchainImageViews();
+	for (size_t i = 0; i < frame_count; i++) {
+		auto &f = reinterpret_cast<Frame*>(frames)[i];
+		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd, f.m_descriptor_set_dynamic, f.m_dyn_buffer);
+	}
 }
 
 size_t Renderer::m_keys_update[Renderer::key_update_count] {
@@ -1117,13 +1128,14 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 {
 }
 
-Renderer::Frame::~Frame(void)
+void Renderer::Frame::destroy(bool with_ext_res)
 {
 	m_r.device.destroy(m_opaque_fb);
 	m_r.device.destroy(m_depth_buffer_view);
 	m_r.allocator.destroy(m_depth_buffer);
 
-	m_r.allocator.destroy(m_dyn_buffer);
+	if (with_ext_res)
+		m_r.allocator.destroy(m_dyn_buffer);
 	m_r.allocator.destroy(m_dyn_buffer_staging);
 
 	m_r.device.destroy(m_frame_done);

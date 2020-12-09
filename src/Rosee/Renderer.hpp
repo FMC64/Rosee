@@ -139,10 +139,10 @@ private:
 
 	public:
 		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
-		~Frame(void);
 
 		void reset(void);
 		void render(Map &map);
+		void destroy(bool with_ext_res = false);
 
 	private:
 		void render_subset(Map &map, cmp_id render_id);
