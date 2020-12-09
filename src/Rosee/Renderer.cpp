@@ -6,6 +6,7 @@
 #include <thread>
 #include <fstream>
 #include <sstream>
+#include "../../dep/tinyobjloader/tiny_obj_loader.h"
 
 namespace Rosee {
 
@@ -689,10 +690,106 @@ Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 	VkBufferCreateInfo bci{};
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bci.size = size;
-	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	return allocator.createBuffer(bci, aci);
+}
+
+Model Renderer::loadModel(const char *path)
+{
+	std::ifstream file(path);
+	if (!file.good())
+		throw std::runtime_error(path);
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn;
+	std::string err;
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, &file)) {
+		if (err.size() > 0)
+			std::cerr << "ERROR: " << path << ": " << err << std::endl;
+		throw std::runtime_error(path);
+	}
+	//if (warn.size() > 0)
+	//	std::cout << "WARNING: " << path << ": " << warn << std::endl;
+	if (err.size() > 0)
+		std::cerr << "ERROR: " << path << ": " << err << std::endl;
+	std::vector<Vertex::pnu> vertices;
+	for (auto &shape : shapes) {
+		size_t ndx = 0;
+		for (auto &vert_count : shape.mesh.num_face_vertices) {
+			std::vector<glm::vec3> pos;
+			std::vector<glm::vec3> normal;
+			std::vector<glm::vec2> uv;
+			for (size_t i = 0; i < vert_count; i++) {
+				auto indices = shape.mesh.indices.at(ndx++);
+				if (indices.vertex_index >= 0)
+					pos.emplace_back(attrib.vertices.at(indices.vertex_index * 3), attrib.vertices.at(indices.vertex_index * 3 + 1), attrib.vertices.at(indices.vertex_index * 3 + 2));
+				if (indices.normal_index >= 0)
+					normal.emplace_back(attrib.normals.at(indices.normal_index * 3), attrib.normals.at(indices.normal_index * 3 + 1), attrib.normals.at(indices.normal_index * 3 + 2));
+				if (indices.texcoord_index >= 0)
+					uv.emplace_back(attrib.texcoords.at(indices.texcoord_index * 2), attrib.texcoords.at(indices.texcoord_index * 2 + 1));
+			}
+
+			while (pos.size() < 3)
+				pos.emplace_back(0.0);
+
+			if (normal.size() != 3) {
+				normal.clear();
+				glm::vec3 comp_normal = glm::normalize(glm::cross(pos.at(1) - pos.at(0), pos.at(2) - pos.at(0)));
+				for (size_t i = 0; i < 3; i++)
+					normal.emplace_back(comp_normal);
+			}
+
+			while (uv.size() < 3)
+				uv.emplace_back(0.0);
+
+			for (size_t i = 0; i < pos.size(); i++) {
+				decltype(vertices)::value_type vertex;
+				vertex.p = pos.at(i);
+				vertex.n = normal.at(i);
+				vertex.u = uv.at(i);
+				vertices.emplace_back(vertex);
+			}
+		}
+	}
+	Model res;
+	res.primitiveCount = vertices.size();
+	size_t buf_size = vertices.size() * sizeof(decltype(vertices)::value_type);
+	res.vertexBuffer = createVertexBuffer(buf_size);
+	res.indexType = VK_INDEX_TYPE_NONE_KHR;
+	{
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = buf_size;
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+		aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		void *data;
+		auto s = allocator.createBuffer(bci, aci, &data);
+		std::memcpy(data, vertices.data(), buf_size);
+		allocator.invalidateAllocation(s, 0, buf_size);
+
+		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		VkBufferCopy region;
+		region.srcOffset = 0;
+		region.dstOffset = 0;
+		region.size = buf_size;
+		m_transfer_cmd.copyBuffer(s, res.vertexBuffer, 1, &region);
+		m_transfer_cmd.end();
+
+		VkSubmitInfo submit{};
+		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submit.commandBufferCount = 1;
+		submit.pCommandBuffers = m_transfer_cmd.ptr();
+		m_queue.submit(1, &submit, VK_NULL_HANDLE);
+		m_queue.waitIdle();
+
+		allocator.destroy(s);
+	}
+	return res;
 }
 
 Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
@@ -714,6 +811,8 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_opaque_fbs(createOpaqueFbs()),
 	m_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
+	m_transfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		m_queue_family_graphics)),
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_descriptor_pool_dynamic(createDescriptorPoolDynamic()),
 	m_frames(createFrames()),
@@ -722,6 +821,8 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
+
+	device.allocateCommandBuffers(m_transfer_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, m_transfer_cmd.ptr());
 }
 
 Renderer::~Renderer(void)
@@ -736,6 +837,7 @@ Renderer::~Renderer(void)
 	device.destroy(m_descriptor_pool_dynamic);
 	device.destroy(m_descriptor_set_layout_dynamic);
 
+	device.destroy(m_transfer_command_pool);
 	device.destroy(m_command_pool);
 	for (auto &f : m_opaque_fbs)
 		device.destroy(f);

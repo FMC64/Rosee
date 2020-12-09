@@ -103,6 +103,7 @@ public:
 class CommandBuffer : public Handle<VkCommandBuffer>
 {
 public:
+	CommandBuffer(void) = default;
 	CommandBuffer(VkCommandBuffer commandBuffer) :
 		Handle<VkCommandBuffer>(commandBuffer)
 	{

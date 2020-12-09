@@ -18,6 +18,17 @@ using PipelinePool = Pool<Pipeline>;
 using MaterialPool = Pool<Material>;
 using ModelPool = Pool<Model>;
 
+namespace Vertex {
+
+struct pnu
+{
+	glm::vec3 p;
+	glm::vec3 n;
+	glm::vec2 u;
+};
+
+}
+
 class Renderer
 {
 	uint32_t m_frame_count;
@@ -86,6 +97,8 @@ private:
 	vector<Vk::Framebuffer> m_opaque_fbs;
 	vector<Vk::Framebuffer> createOpaqueFbs(void);
 	Vk::CommandPool m_command_pool;
+	Vk::CommandPool m_transfer_command_pool;
+	Vk::CommandBuffer m_transfer_cmd;
 
 	Vk::DescriptorSetLayout m_descriptor_set_layout_dynamic;
 	Vk::DescriptorSetLayout createDescriptorSetLayoutDynamic(void);
@@ -142,7 +155,9 @@ private:
 
 public:
 	Vk::BufferAllocation createVertexBuffer(size_t size);
+	Model loadModel(const char *path);
 
+private:
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];
 	static inline constexpr size_t key_update_count = 1;

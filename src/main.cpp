@@ -52,6 +52,9 @@ class Game
 		model_point->vertexBuffer = m_r.createVertexBuffer(sizeof(glm::vec2));
 		model_point->indexType = VK_INDEX_TYPE_NONE_KHR;
 
+		auto model_world = model_pool.allocate();
+		*model_world = m_r.loadModel("res/mod/vokselia_spawn.obj");
+
 		for (size_t i = 0; i < p_count; i++) {
 			auto &p = points[n + i];
 			p.color = glm::vec3(zrand(), zrand(), zrand());
