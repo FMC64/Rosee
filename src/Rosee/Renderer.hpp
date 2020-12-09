@@ -95,12 +95,11 @@ private:
 	Vk::SwapchainKHR createSwapchain(void);
 	vector<VkImage> m_swapchain_images;
 	vector<Vk::ImageView> m_swapchain_image_views;
+	Vk::ImageView createImageView(VkImage image, VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspect);
 	vector<Vk::ImageView> createSwapchainImageViews(void);
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
-	vector<Vk::Framebuffer> m_opaque_fbs;
-	vector<Vk::Framebuffer> createOpaqueFbs(void);
 	Vk::CommandPool m_command_pool;
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
@@ -113,6 +112,7 @@ private:
 	class Frame
 	{
 		Renderer &m_r;
+		size_t m_i;
 		Vk::CommandBuffer m_transfer_cmd;
 		Vk::CommandBuffer m_cmd;
 		Vk::Fence m_frame_done;
@@ -133,9 +133,12 @@ private:
 
 		Vk::ImageAllocation m_depth_buffer;
 		Vk::ImageAllocation createDepthBuffer(void);
+		Vk::ImageView m_depth_buffer_view;
+		Vk::Framebuffer m_opaque_fb;
+		Vk::Framebuffer createOpaqueFb(void);
 
 	public:
-		Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
+		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
 		~Frame(void);
 
 		void reset(void);

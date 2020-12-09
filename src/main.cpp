@@ -135,8 +135,8 @@ class Game
 	}
 
 public:
-	Game(void) :
-		m_r(3, is_debug, false),
+	Game(bool validate) :
+		m_r(3, validate, false),
 		m_rt([this](){
 			render();
 		})
@@ -160,9 +160,14 @@ public:
 	}
 };
 
-int main(void)
+int main(int argc, char **argv)
 {
-	auto g = Game();
+	bool validate = false;
+	for (int i = 1; i < argc; i++)
+		if (std::strcmp(argv[i], "-v") == 0)
+			validate = true;
+
+	auto g = Game(validate || is_debug);
 	g.run();
 	return 0;
 }

@@ -366,27 +366,31 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	return device.createSwapchainKHR(ci);
 }
 
+Vk::ImageView Renderer::createImageView(VkImage image, VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspect)
+{
+	VkImageViewCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	ci.image = image;
+	ci.viewType = viewType;
+	ci.format = format;
+	ci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.subresourceRange.aspectMask = aspect;
+	ci.subresourceRange.baseMipLevel = 0;
+	ci.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+	ci.subresourceRange.baseArrayLayer = 0;
+	ci.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+	return device.createImageView(ci);
+}
+
 vector<Vk::ImageView> Renderer::createSwapchainImageViews(void)
 {
 	vector<Vk::ImageView> res;
 	res.reserve(m_swapchain_images.size());
-	for (auto &i : m_swapchain_images) {
-		VkImageViewCreateInfo ci{};
-		ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		ci.image = i;
-		ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		ci.format = m_surface_format.format;
-		ci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		ci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		ci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		ci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		ci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		ci.subresourceRange.baseMipLevel = 0;
-		ci.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-		ci.subresourceRange.baseArrayLayer = 0;
-		ci.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-		res.emplace(device.createImageView(ci));
-	}
+	for (auto &i : m_swapchain_images)
+		res.emplace(createImageView(i, VK_IMAGE_VIEW_TYPE_2D, m_surface_format.format, VK_IMAGE_ASPECT_COLOR_BIT));
 	return res;
 }
 
@@ -396,16 +400,20 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	VkAttachmentDescription atts[] {
-		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// wsi 0
+		{0, VK_FORMAT_X8_D24_UNORM_PACK32, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
+		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// wsi 1
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::PresentSrcKhr}
 	};
-	VkAttachmentReference wsi {0, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
+	VkAttachmentReference wsi {1, Vk::ImageLayout::ColorAttachmentOptimal};
 	VkSubpassDescription subpasses[] {
 		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
 			0, nullptr,		// input
 			1, &wsi, nullptr,	// color, resolve
-			nullptr,		// depth
+			&depth,			// depth
 			0, nullptr}		// preserve
 	};
 
@@ -415,27 +423,6 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.pSubpasses = subpasses;
 
 	return device.createRenderPass(ci);
-}
-
-vector<Vk::Framebuffer> Renderer::createOpaqueFbs(void)
-{
-	vector<Vk::Framebuffer> res;
-	res.reserve(m_swapchain_image_views.size());
-
-	auto &sex = m_swapchain_extent;
-
-	for (auto &i : m_swapchain_image_views) {
-		VkFramebufferCreateInfo ci{};
-		ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		ci.renderPass = m_opaque_pass;
-		ci.attachmentCount = 1;
-		ci.pAttachments = i.ptr();
-		ci.width = sex.width;
-		ci.height = sex.height;
-		ci.layers = 1;
-		res.emplace(device.createFramebuffer(ci));
-	}
-	return res;
 }
 
 Vk::DescriptorSetLayout Renderer::createDescriptorSetLayoutDynamic(void)
@@ -506,7 +493,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
-		res.emplace(*this, cmds[i * 2], cmds[i * 2 + 1], sets[i], dyn_buffers[i]);
+		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1], sets[i], dyn_buffers[i]);
 	return res;
 }
 
@@ -738,6 +725,15 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 	ci.pMultisampleState = &multisample;
 
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
+	depthStencil.minDepthBounds = 0.0f;
+	depthStencil.maxDepthBounds = 1.0f;
+	ci.pDepthStencilState = &depthStencil;
+
 	VkPipelineColorBlendStateCreateInfo color_blend{};
 	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	VkPipelineColorBlendAttachmentState color_blend_attachment{};
@@ -905,7 +901,6 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_swapchain_images(device.getSwapchainImages(m_swapchain)),
 	m_swapchain_image_views(createSwapchainImageViews()),
 	m_opaque_pass(createOpaquePass()),
-	m_opaque_fbs(createOpaqueFbs()),
 	m_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
 	m_transfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -936,8 +931,6 @@ Renderer::~Renderer(void)
 
 	device.destroy(m_transfer_command_pool);
 	device.destroy(m_command_pool);
-	for (auto &f : m_opaque_fbs)
-		device.destroy(f);
 	device.destroy(m_opaque_pass);
 	for (auto &v : m_swapchain_image_views)
 		device.destroy(v);
@@ -955,8 +948,6 @@ Renderer::~Renderer(void)
 void Renderer::recreateSwapchain(void)
 {
 	m_queue.waitIdle();
-	for (auto &f : m_opaque_fbs)
-		device.destroy(f);
 	for (auto &i : m_swapchain_image_views)
 		device.destroy(i);
 	device.destroy(m_swapchain);
@@ -964,7 +955,6 @@ void Renderer::recreateSwapchain(void)
 	m_swapchain = createSwapchain();
 	m_swapchain_images = device.getSwapchainImages(m_swapchain);
 	m_swapchain_image_views = createSwapchainImageViews();
-	m_opaque_fbs = createOpaqueFbs();
 }
 
 size_t Renderer::m_keys_update[Renderer::key_update_count] {
@@ -1093,8 +1083,26 @@ Vk::ImageAllocation Renderer::Frame::createDepthBuffer(void)
 	return m_r.allocator.createImage(ici, aci);
 }
 
-Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
+Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
+{
+	VkFramebufferCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	ci.renderPass = m_r.m_opaque_pass;
+	VkImageView atts[] {
+		m_depth_buffer_view,
+		m_r.m_swapchain_image_views[m_i]
+	};
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.width = m_r.m_swapchain_extent.width;
+	ci.height = m_r.m_swapchain_extent.height;
+	ci.layers = 1;
+	return m_r.device.createFramebuffer(ci);
+}
+
+Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
 	m_r(r),
+	m_i(i),
 	m_transfer_cmd(transferCmd),
 	m_cmd(cmd),
 	m_frame_done(r.device.createFence(0)),
@@ -1103,12 +1111,16 @@ Renderer::Frame::Frame(Renderer &r, VkCommandBuffer transferCmd, VkCommandBuffer
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
 	m_dyn_buffer(dynBuffer),
-	m_depth_buffer(createDepthBuffer())
+	m_depth_buffer(createDepthBuffer()),
+	m_depth_buffer_view(m_r.createImageView(m_depth_buffer, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_X8_D24_UNORM_PACK32, VK_IMAGE_ASPECT_DEPTH_BIT)),
+	m_opaque_fb(createOpaqueFb())
 {
 }
 
 Renderer::Frame::~Frame(void)
 {
+	m_r.device.destroy(m_opaque_fb);
+	m_r.device.destroy(m_depth_buffer_view);
 	m_r.allocator.destroy(m_depth_buffer);
 
 	m_r.allocator.destroy(m_dyn_buffer);
@@ -1151,7 +1163,7 @@ void Renderer::Frame::render(Map &map)
 			VkRenderPassBeginInfo bi{};
 			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			bi.renderPass = m_r.m_opaque_pass;
-			bi.framebuffer = m_r.m_opaque_fbs[swapchain_index];
+			bi.framebuffer = m_r.m_frames[swapchain_index].m_opaque_fb;
 			bi.renderArea = VkRect2D{{0, 0}, sex};
 
 			VkClearColorValue cv0;
@@ -1159,7 +1171,10 @@ void Renderer::Frame::render(Map &map)
 			cv0.float32[1] = 0.5f;
 			cv0.float32[2] = 0.5f;
 			cv0.float32[3] = 1.0f;
+			VkClearDepthStencilValue d0;
+			d0.depth = 0.0f;
 			VkClearValue cvs[] {
+				{ .depthStencil = d0, },
 				{ .color = cv0 }
 			};
 			bi.clearValueCount = array_size(cvs);
