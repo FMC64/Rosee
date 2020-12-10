@@ -56,6 +56,7 @@ public:
 	}
 	vector& operator=(vector &&other)
 	{
+		clear();
 		m_size = other.m_size;
 		m_allocated = other.m_allocated;
 		m_buf = other.m_buf;
