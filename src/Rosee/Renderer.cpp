@@ -266,11 +266,18 @@ Vk::Device Renderer::createDevice(void)
 		VkPresentModeKHR present_modes[present_mode_count];
 		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, present_modes));
 		m_present_mode = present_modes[0];
-		for (size_t i = 0; i < present_mode_count; i++)
-			if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-				m_present_mode = present_modes[i];
-				break;
-			}
+		bool has_mailbox = false;
+		bool has_immediate = false;
+		for (size_t i = 0; i < present_mode_count; i++) {
+			if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+				has_mailbox = true;
+			if (present_modes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR)
+				has_immediate = true;
+		}
+		if (has_mailbox)
+			m_present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+		else if (has_immediate)
+			m_present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
 		uint32_t surface_format_count;
 		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, nullptr));
