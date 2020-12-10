@@ -56,7 +56,11 @@ class Game
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
 		auto camera_pos = glm::vec3(0.0f);
+		bool cursor_mode = false;
 		m_r.setCursorMode(false);
+		auto base_cursor = glm::dvec2(0.0);
+		bool esc_prev = false;
+		bool esc = false;
 		while (true) {
 			{
 				std::lock_guard l(m_done_mtx);
@@ -78,9 +82,21 @@ class Game
 				proj[1][1] *= -1.0;
 
 				//auto view = glm::lookAtLH(glm::vec3(0.0, 0.0, -7.0), glm::vec3(0.0), glm::vec3(0.0, 1.0, 0.0));
-				auto cursor = m_r.cursor();
-				//if (!disable_cam_rot)
-				//	cursor = m_r.cursor() - base_cursor;
+				auto cursor = base_cursor;
+				if (!cursor_mode)
+					cursor = m_r.cursor() - base_cursor;
+				{
+					esc_prev = esc;
+					esc = m_r.keyState(GLFW_KEY_ESCAPE);
+				}
+				if (esc && !esc_prev) {
+					if (!cursor_mode)
+						base_cursor = cursor;
+					else
+						base_cursor = m_r.cursor() - base_cursor;
+					cursor_mode = !cursor_mode;
+					m_r.setCursorMode(cursor_mode);
+				}
 				const float sensi = 0.1;
 				float move = m_r.keyState(GLFW_KEY_LEFT_SHIFT) ? 20.0 : 2.0;
 				auto view_rot = glm::rotate(static_cast<float>(-cursor.x * ang_rad) * sensi, glm::vec3(0.0, 1.0, 0.0));

@@ -173,7 +173,7 @@ private:
 	bool m_keys_prev[GLFW_KEY_LAST];
 	bool m_keys[GLFW_KEY_LAST];
 	glm::dvec2 m_cursor = glm::dvec2(0.0, 0.0);
-	static inline constexpr size_t key_update_count = 6;
+	static inline constexpr size_t key_update_count = 7;
 	static size_t m_keys_update[key_update_count];
 	size_t m_next_input = 0;
 	size_t m_pending_cursor_mode = ~0ULL;
