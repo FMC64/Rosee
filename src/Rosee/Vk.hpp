@@ -545,6 +545,32 @@ static inline constexpr auto All = VK_SHADER_STAGE_ALL;
 
 }
 
+namespace ImageUsage {
+
+static inline constexpr auto TransferSrc = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+static inline constexpr auto TransferDst = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+static inline constexpr auto SampledBit = VK_IMAGE_USAGE_SAMPLED_BIT;
+static inline constexpr auto StorageBit = VK_IMAGE_USAGE_STORAGE_BIT;
+static inline constexpr auto ColorAttachmentBit = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+static inline constexpr auto DepthStencilAttachmentBit = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+static inline constexpr auto TransientAttachmentBit = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+static inline constexpr auto InputAttachmentBit = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+
+}
+
+namespace ImageAspect {
+
+static inline constexpr auto ColorBit = VK_IMAGE_ASPECT_COLOR_BIT;
+static inline constexpr auto DepthBit = VK_IMAGE_ASPECT_DEPTH_BIT;
+static inline constexpr auto StencilBit = VK_IMAGE_ASPECT_STENCIL_BIT;
+static inline constexpr auto MetadataBit = VK_IMAGE_ASPECT_METADATA_BIT;
+static inline constexpr auto Plane0Bit = VK_IMAGE_ASPECT_PLANE_0_BIT;
+static inline constexpr auto Plane1Bit = VK_IMAGE_ASPECT_PLANE_1_BIT;
+static inline constexpr auto Plane2Bit = VK_IMAGE_ASPECT_PLANE_2_BIT;
+
+}
+
+
 using Allocation = Handle<VmaAllocation>;
 
 class BufferAllocation : public Buffer, public Allocation

@@ -48,6 +48,7 @@ class Game
 		auto pipeline_opaque = pipeline_pool.allocate();
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", 0);
 		pipeline_opaque->pushDynamic<MVP>();
+		pipeline_opaque->pushDynamic<MV_normal>();
 
 		auto sampler_norm_n = m_r.device.createSampler(VkSamplerCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -72,7 +73,7 @@ class Game
 		}
 
 		{
-			auto [b, n] = m_m.addBrush<Id, Transform, MVP, OpaqueRender>(1);
+			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender>(1);
 			b.get<Transform>()[n] = glm::scale(glm::vec3(100.0f));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
@@ -146,9 +147,14 @@ class Game
 				m_m.query<MVP>([&](Brush &b){
 					auto size = b.size();
 					auto mvp = b.get<MVP>();
+					auto mv_normal = b.get<MV_normal>();
 					auto trans = b.get<Transform>();
-					for (size_t i = 0; i < size; i++)
+					for (size_t i = 0; i < size; i++) {
 						mvp[i] = vp * trans[i];
+						mv_normal[i] = view * trans[i];
+						for (size_t j = 0; j < 3; j++)
+							mv_normal[i][3][j] = 0.0f;
+					}
 				});
 
 				/*camera.size = glm::vec2(1.0) / glm::vec2(m_instance.swapchain->extent());

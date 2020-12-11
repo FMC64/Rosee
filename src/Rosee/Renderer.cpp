@@ -482,17 +482,91 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 		{0, format_depth, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
-		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// wsi 1
+		{0, VK_FORMAT_R8G8B8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 1
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-			Vk::ImageLayout::Undefined, Vk::ImageLayout::PresentSrcKhr}
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 2
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
 	};
 	VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
-	VkAttachmentReference wsi {1, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference albedo {1, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference normal {2, Vk::ImageLayout::ColorAttachmentOptimal};
+
+	VkAttachmentReference color_atts[] {
+		albedo,
+		normal
+	};
+
 	VkSubpassDescription subpasses[] {
 		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
 			0, nullptr,		// input
-			1, &wsi, nullptr,	// color, resolve
+			array_size(color_atts), color_atts, nullptr,	// color, resolve
 			&depth,			// depth
+			0, nullptr}		// preserve
+	};
+
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.subpassCount = array_size(subpasses);
+	ci.pSubpasses = subpasses;
+
+	return device.createRenderPass(ci);
+}
+
+Vk::RenderPass Renderer::createIlluminationPass(void)
+{
+	VkRenderPassCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+
+	VkAttachmentDescription atts[] {
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// output 0
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
+	};
+	VkAttachmentReference output {0, Vk::ImageLayout::ColorAttachmentOptimal};
+
+	VkAttachmentReference color_atts[] {
+		output
+	};
+
+	VkSubpassDescription subpasses[] {
+		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			0, nullptr,		// input
+			array_size(color_atts), color_atts, nullptr,	// color, resolve
+			nullptr,			// depth
+			0, nullptr}		// preserve
+	};
+
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.subpassCount = array_size(subpasses);
+	ci.pSubpasses = subpasses;
+
+	return device.createRenderPass(ci);
+}
+
+Vk::RenderPass Renderer::createWsiPass(void)
+{
+	VkRenderPassCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+
+	VkAttachmentDescription atts[] {
+		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// wsi 0
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::PresentSrcKhr}
+	};
+	VkAttachmentReference wsi {0, Vk::ImageLayout::ColorAttachmentOptimal};
+
+	VkAttachmentReference color_atts[] {
+		wsi
+	};
+
+	VkSubpassDescription subpasses[] {
+		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			0, nullptr,		// input
+			array_size(color_atts), color_atts, nullptr,	// color, resolve
+			nullptr,			// depth
 			0, nullptr}		// preserve
 	};
 
@@ -800,6 +874,7 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 	color_blend_attachment.blendEnable = VK_FALSE;
 	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment,
 		color_blend_attachment
 	};
 	color_blend.attachmentCount = array_size(color_blend_attachments);
@@ -1069,6 +1144,8 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_descriptor_pool(createDescriptorPool()),
 
 	m_opaque_pass(createOpaquePass()),
+	m_illumination_pass(createIlluminationPass()),
+	m_wsi_pass(createWsiPass()),
 
 	m_frames(createFrames()),
 	m_pipeline_pool(4),
@@ -1090,6 +1167,8 @@ Renderer::~Renderer(void)
 	for (auto &f : m_frames)
 		f.destroy(true);
 
+	device.destroy(m_wsi_pass);
+	device.destroy(m_illumination_pass);
 	device.destroy(m_opaque_pass);
 
 	device.destroy(m_descriptor_pool);
@@ -1244,21 +1323,22 @@ Vk::BufferAllocation Renderer::Frame::createDynBufferStaging(void)
 	return m_r.allocator.createBuffer(bci, aci, &m_dyn_buffer_staging_ptr);
 }
 
-Vk::ImageAllocation Renderer::Frame::createDepthBuffer(void)
+Vk::ImageView Renderer::Frame::createFbImage(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation)
 {
 	VkImageCreateInfo ici{};
 	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	ici.imageType = VK_IMAGE_TYPE_2D;
-	ici.format = m_r.format_depth;
+	ici.format = format;
 	ici.extent = VkExtent3D{m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1};
 	ici.mipLevels = 1;
 	ici.arrayLayers = 1;
 	ici.samples = VK_SAMPLE_COUNT_1_BIT;
 	ici.tiling = VK_IMAGE_TILING_OPTIMAL;
-	ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	ici.usage = usage;
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	return m_r.allocator.createImage(ici, aci);
+	*pAllocation = m_r.allocator.createImage(ici, aci);
+	return m_r.createImageView(*pAllocation, VK_IMAGE_VIEW_TYPE_2D, format, aspect);
 }
 
 Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
@@ -1268,6 +1348,39 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 	ci.renderPass = m_r.m_opaque_pass;
 	VkImageView atts[] {
 		m_depth_buffer_view,
+		m_albedo_view,
+		m_normal_view
+	};
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.width = m_r.m_swapchain_extent.width;
+	ci.height = m_r.m_swapchain_extent.height;
+	ci.layers = 1;
+	return m_r.device.createFramebuffer(ci);
+}
+
+Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
+{
+	VkFramebufferCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	ci.renderPass = m_r.m_illumination_pass;
+	VkImageView atts[] {
+		m_output_view
+	};
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.width = m_r.m_swapchain_extent.width;
+	ci.height = m_r.m_swapchain_extent.height;
+	ci.layers = 1;
+	return m_r.device.createFramebuffer(ci);
+}
+
+Vk::Framebuffer Renderer::Frame::createWsiFb(void)
+{
+	VkFramebufferCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	ci.renderPass = m_r.m_wsi_pass;
+	VkImageView atts[] {
 		m_r.m_swapchain_image_views[m_i]
 	};
 	ci.attachmentCount = array_size(atts);
@@ -1291,15 +1404,33 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
 	m_dyn_buffer(dynBuffer),
-	m_depth_buffer(createDepthBuffer()),
-	m_depth_buffer_view(m_r.createImageView(m_depth_buffer, VK_IMAGE_VIEW_TYPE_2D, m_r.format_depth, VK_IMAGE_ASPECT_DEPTH_BIT)),
-	m_opaque_fb(createOpaqueFb())
+	m_depth_buffer_view(createFbImage(m_r.format_depth, Vk::ImageAspect::DepthBit,
+		Vk::ImageUsage::DepthStencilAttachmentBit | Vk::ImageUsage::SampledBit, &m_depth_buffer)),
+	m_albedo_view(createFbImage(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_albedo)),
+	m_normal_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_normal)),
+	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_output)),
+	m_opaque_fb(createOpaqueFb()),
+	m_illumination_fb(createIlluminationFb()),
+	m_wsi_fb(createWsiFb())
 {
 }
 
 void Renderer::Frame::destroy(bool with_ext_res)
 {
+	m_r.device.destroy(m_wsi_fb);
+	m_r.device.destroy(m_illumination_fb);
 	m_r.device.destroy(m_opaque_fb);
+
+	m_r.device.destroy(m_output_view);
+	m_r.allocator.destroy(m_output);
+
+	m_r.device.destroy(m_normal_view);
+	m_r.allocator.destroy(m_normal);
+	m_r.device.destroy(m_albedo_view);
+	m_r.allocator.destroy(m_albedo);
 	m_r.device.destroy(m_depth_buffer_view);
 	m_r.allocator.destroy(m_depth_buffer);
 
@@ -1337,6 +1468,17 @@ void Renderer::Frame::render(Map &map)
 	m_dyn_buffer_size = 0;
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
+	VkClearColorValue cv_grey;
+	cv_grey.float32[0] = 0.5f;
+	cv_grey.float32[1] = 0.5f;
+	cv_grey.float32[2] = 0.5f;
+	cv_grey.float32[3] = 1.0f;
+	VkClearDepthStencilValue cv_d0;
+	cv_d0.depth = 0.0f;
+	VkClearColorValue cv_zero;
+	for (size_t i = 0; i < 4; i++)
+		cv_zero.float32[i] = 0.0f;
+
 	{
 		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		m_cmd.setExtent(m_r.m_swapchain_extent);
@@ -1346,19 +1488,13 @@ void Renderer::Frame::render(Map &map)
 			VkRenderPassBeginInfo bi{};
 			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			bi.renderPass = m_r.m_opaque_pass;
-			bi.framebuffer = m_r.m_frames[swapchain_index].m_opaque_fb;
+			bi.framebuffer = m_opaque_fb;
 			bi.renderArea = VkRect2D{{0, 0}, sex};
 
-			VkClearColorValue cv0;
-			cv0.float32[0] = 0.5f;
-			cv0.float32[1] = 0.5f;
-			cv0.float32[2] = 0.5f;
-			cv0.float32[3] = 1.0f;
-			VkClearDepthStencilValue d0;
-			d0.depth = 0.0f;
 			VkClearValue cvs[] {
-				{ .depthStencil = d0, },
-				{ .color = cv0 }
+				{ .depthStencil = cv_d0, },
+				{ .color = cv_grey },
+				{ .color = cv_zero }
 			};
 			bi.clearValueCount = array_size(cvs);
 			bi.pClearValues = cvs;
@@ -1366,6 +1502,40 @@ void Renderer::Frame::render(Map &map)
 		}
 		render_subset(map, OpaqueRender::id);
 		m_cmd.endRenderPass();
+
+		{
+			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+				Vk::Access::ColorAttachmentWriteBit | Vk::Access::DepthStencilAttachmentWriteBit, Vk::Access::ShaderReadBit };
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+				1, &barrier, 0, nullptr, 0, nullptr);
+		}
+
+		{
+			VkRenderPassBeginInfo bi{};
+			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			bi.renderPass = m_r.m_illumination_pass;
+			bi.framebuffer = m_illumination_fb;
+			bi.renderArea = VkRect2D{{0, 0}, sex};
+			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+		}
+		m_cmd.endRenderPass();
+
+		{
+			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+				1, &barrier, 0, nullptr, 0, nullptr);
+		}
+
+		{
+			VkRenderPassBeginInfo bi{};
+			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			bi.renderPass = m_r.m_wsi_pass;
+			bi.framebuffer = m_r.m_frames[swapchain_index].m_wsi_fb;
+			bi.renderArea = VkRect2D{{0, 0}, sex};
+			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+		}
+		m_cmd.endRenderPass();
+
 		m_cmd.end();
 	}
 

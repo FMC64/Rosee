@@ -43,6 +43,14 @@ void MVP::destr(void*, size_t)
 {
 }
 
+void MV_normal::init(void*, size_t)
+{
+}
+
+void MV_normal::destr(void*, size_t)
+{
+}
+
 namespace Cmp {
 
 static constexpr sarray<size_t, max> get_sizes(void)

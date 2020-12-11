@@ -126,6 +126,10 @@ private:
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
+	Vk::RenderPass m_illumination_pass;
+	Vk::RenderPass createIlluminationPass(void);
+	Vk::RenderPass m_wsi_pass;
+	Vk::RenderPass createWsiPass(void);
 
 	class Frame
 	{
@@ -150,11 +154,24 @@ private:
 
 		friend class Renderer;
 
+		Vk::ImageView createFbImage(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
+
 		Vk::ImageAllocation m_depth_buffer;
-		Vk::ImageAllocation createDepthBuffer(void);
 		Vk::ImageView m_depth_buffer_view;
+		Vk::ImageAllocation m_albedo;
+		Vk::ImageView m_albedo_view;
+		Vk::ImageAllocation m_normal;
+		Vk::ImageView m_normal_view;
+
+		Vk::ImageAllocation m_output;
+		Vk::ImageView m_output_view;
+
 		Vk::Framebuffer m_opaque_fb;
 		Vk::Framebuffer createOpaqueFb(void);
+		Vk::Framebuffer m_illumination_fb;
+		Vk::Framebuffer createIlluminationFb(void);
+		Vk::Framebuffer m_wsi_fb;
+		Vk::Framebuffer createWsiFb(void);
 
 	public:
 		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
