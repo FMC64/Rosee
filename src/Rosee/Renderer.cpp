@@ -322,6 +322,26 @@ Vk::Device Renderer::createDevice(void)
 	return Vk::createDevice(physical_devices[chosen], ci);
 }
 
+VkFormat Renderer::getFormatDepth(void)
+{
+	VkFormatProperties d24_props;
+	vkGetPhysicalDeviceFormatProperties(m_physical_device, VK_FORMAT_X8_D24_UNORM_PACK32, &d24_props);
+	auto d24_support = (d24_props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) &&
+	(d24_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+
+	VkFormatProperties d32_props;
+	vkGetPhysicalDeviceFormatProperties(m_physical_device, VK_FORMAT_D32_SFLOAT, &d32_props);
+	auto d32_support = (d32_props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) &&
+	(d24_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+
+	if (d24_support)
+		return VK_FORMAT_X8_D24_UNORM_PACK32;
+	else if (d32_support)
+		return VK_FORMAT_D32_SFLOAT;
+	else
+		throw std::runtime_error("No compatible depth format found");
+}
+
 Vk::Allocator Renderer::createAllocator(void)
 {
 	VmaAllocatorCreateInfo ci{};
@@ -408,7 +428,7 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	VkAttachmentDescription atts[] {
-		{0, VK_FORMAT_X8_D24_UNORM_PACK32, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
+		{0, format_depth, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
 		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// wsi 1
@@ -613,7 +633,7 @@ void Model::destroy(Vk::Allocator allocator)
 		allocator.destroy(indexBuffer);
 }
 
-Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantRange)
+/*Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantRange)
 {
 	Pipeline res;
 
@@ -710,7 +730,7 @@ Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantR
 
 	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
 	return res;
-}
+}*/
 
 Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstantRange)
 {
@@ -1032,6 +1052,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_debug_messenger(createDebugMessenger()),
 	m_surface(createSurface()),
 	device(createDevice()),
+	format_depth(getFormatDepth()),
 	m_pipeline_cache(VK_NULL_HANDLE),
 	allocator(createAllocator()),
 	m_queue(device.getQueue(m_queue_family_graphics, 0)),
@@ -1225,7 +1246,7 @@ Vk::ImageAllocation Renderer::Frame::createDepthBuffer(void)
 	VkImageCreateInfo ici{};
 	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	ici.imageType = VK_IMAGE_TYPE_2D;
-	ici.format = VK_FORMAT_X8_D24_UNORM_PACK32;
+	ici.format = m_r.format_depth;
 	ici.extent = VkExtent3D{m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1};
 	ici.mipLevels = 1;
 	ici.arrayLayers = 1;
@@ -1268,7 +1289,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_dyn_buffer_staging(createDynBufferStaging()),
 	m_dyn_buffer(dynBuffer),
 	m_depth_buffer(createDepthBuffer()),
-	m_depth_buffer_view(m_r.createImageView(m_depth_buffer, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_X8_D24_UNORM_PACK32, VK_IMAGE_ASPECT_DEPTH_BIT)),
+	m_depth_buffer_view(m_r.createImageView(m_depth_buffer, VK_IMAGE_VIEW_TYPE_2D, m_r.format_depth, VK_IMAGE_ASPECT_DEPTH_BIT)),
 	m_opaque_fb(createOpaqueFb())
 {
 }

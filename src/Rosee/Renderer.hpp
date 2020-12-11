@@ -64,6 +64,13 @@ public:
 
 private:
 	Vk::Device createDevice(void);
+
+public:
+	const VkFormat format_depth;
+private:
+	VkFormat getFormatDepth(void);
+
+private:
 	Vk::PipelineCache m_pipeline_cache;
 
 public:
@@ -170,7 +177,7 @@ private:
 	static VkPipelineShaderStageCreateInfo initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module);
 
 public:
-	Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
+	//Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
 	Pipeline createPipeline3D(const char *stagesPath, uint32_t pushConstantRange);
 
 private:
