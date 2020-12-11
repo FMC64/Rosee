@@ -463,10 +463,14 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 {
 	VkDescriptorPoolCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	ci.maxSets = m_frame_count * 2;
+	ci.maxSets = m_frame_count * sets_per_frame;
 	VkDescriptorPoolSize pool_sizes[] {
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * s0_samplers_size}
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
+			s0_samplers_size +	// s0
+			2 +			// deferred
+			1			// wsi
+		)}
 	};
 	ci.poolSizeCount = array_size(pool_sizes);
 	ci.pPoolSizes = pool_sizes;
@@ -546,6 +550,19 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 	return device.createRenderPass(ci);
 }
 
+Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
+{
+	VkDescriptorSetLayoutCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayoutBinding bindings[] {
+		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
+		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}	// normal
+	};
+	ci.bindingCount = array_size(bindings);
+	ci.pBindings = bindings;
+	return device.createDescriptorSetLayout(ci);
+}
+
 Vk::RenderPass Renderer::createWsiPass(void)
 {
 	VkRenderPassCreateInfo ci{};
@@ -578,17 +595,45 @@ Vk::RenderPass Renderer::createWsiPass(void)
 	return device.createRenderPass(ci);
 }
 
+Vk::DescriptorSetLayout Renderer::createWsiSetLayout(void)
+{
+	VkDescriptorSetLayoutCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayoutBinding bindings[] {
+		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
+	};
+	ci.bindingCount = array_size(bindings);
+	ci.pBindings = bindings;
+	return device.createDescriptorSetLayout(ci);
+}
+
+Vk::Sampler Renderer::createSamplerFb(void)
+{
+	return device.createSampler(VkSamplerCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = VK_FILTER_NEAREST,
+		.minFilter = VK_FILTER_NEAREST,
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.unnormalizedCoordinates = true
+	});
+}
+
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
-	VkCommandBuffer cmds[m_frame_count * 2];
-	device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * 2, cmds);
-	VkDescriptorSet sets[m_frame_count * 2];
-	VkDescriptorSetLayout set_layouts[m_frame_count * 2];
+	VkCommandBuffer cmds[m_frame_count * sets_per_frame];
+	device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * sets_per_frame, cmds);
+	VkDescriptorSet sets[m_frame_count * sets_per_frame];
+	VkDescriptorSetLayout set_layouts[m_frame_count * sets_per_frame];
 	for (uint32_t i = 0; i < m_frame_count; i++) {
-		set_layouts[i * 2] = m_descriptor_set_layout_0;
-		set_layouts[i * 2 + 1] = m_descriptor_set_layout_dynamic;
+		set_layouts[i * sets_per_frame] = m_descriptor_set_layout_0;
+		set_layouts[i * sets_per_frame + 1] = m_descriptor_set_layout_dynamic;
+		set_layouts[i * sets_per_frame + 2] = m_illumination_set_layout;
+		set_layouts[i * sets_per_frame + 3] = m_wsi_set_layout;
 	}
-	device.allocateDescriptorSets(m_descriptor_pool, m_frame_count * 2, set_layouts, sets);
+	device.allocateDescriptorSets(m_descriptor_pool, m_frame_count * sets_per_frame, set_layouts, sets);
 
 	Vk::BufferAllocation dyn_buffers[m_frame_count];
 	for (uint32_t i = 0; i < m_frame_count; i++) {
@@ -606,7 +651,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	for (uint32_t i = 0; i < m_frame_count; i++) {
 		VkWriteDescriptorSet cur{};
 		cur.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		cur.dstSet = sets[i * 2 + 1];
+		cur.dstSet = sets[i * sets_per_frame + 1];
 		cur.dstBinding = 0;
 		cur.dstArrayElement = 0;
 		cur.descriptorCount = 1;
@@ -623,7 +668,9 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
-		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1], sets[i * 2], sets[i * 2 + 1], dyn_buffers[i]);
+		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1],
+			sets[i * sets_per_frame], sets[i * sets_per_frame + 1], sets[i * sets_per_frame + 2], sets[i * sets_per_frame + 3],
+			dyn_buffers[i]);
 	return res;
 }
 
@@ -1145,7 +1192,10 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	m_opaque_pass(createOpaquePass()),
 	m_illumination_pass(createIlluminationPass()),
+	m_illumination_set_layout(createIlluminationSetLayout()),
 	m_wsi_pass(createWsiPass()),
+	m_wsi_set_layout(createWsiSetLayout()),
+	m_sampler_fb(createSamplerFb()),
 
 	m_frames(createFrames()),
 	m_pipeline_pool(4),
@@ -1155,6 +1205,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
 
 	device.allocateCommandBuffers(m_transfer_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, m_transfer_cmd.ptr());
+	bindFrameDescriptors();
 }
 
 Renderer::~Renderer(void)
@@ -1167,7 +1218,11 @@ Renderer::~Renderer(void)
 	for (auto &f : m_frames)
 		f.destroy(true);
 
+	device.destroy(m_sampler_fb);
+
+	device.destroy(m_wsi_set_layout);
 	device.destroy(m_wsi_pass);
+	device.destroy(m_illumination_set_layout);
 	device.destroy(m_illumination_pass);
 	device.destroy(m_opaque_pass);
 
@@ -1191,6 +1246,48 @@ Renderer::~Renderer(void)
 	glfwTerminate();
 }
 
+void Renderer::bindFrameDescriptors(void)
+{
+	static constexpr size_t writes_per_frame =
+		2 +	// illum: albedo, normal
+		1;	// wsi: output
+
+	VkDescriptorImageInfo image_infos[m_frame_count * writes_per_frame];
+	VkWriteDescriptorSet writes[m_frame_count * writes_per_frame];
+	for (size_t i = 0; i < m_frame_count; i++) {
+		auto &cur_frame = m_frames[i];
+
+		struct WriteDesc {
+			VkDescriptorSet descriptorSet;
+			uint32_t binding;
+			VkSampler sampler;
+			VkImageView imageView;
+		} write_desc[writes_per_frame] {
+			{cur_frame.m_illumination_set, 0, m_sampler_fb, cur_frame.m_albedo_view},
+			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_normal_view},
+			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view},
+		};
+
+		for (size_t j = 0; j < writes_per_frame; j++) {
+			auto &ii = image_infos[i * writes_per_frame];
+			ii.sampler = write_desc[j].sampler;
+			ii.imageView = write_desc[j].imageView;
+			ii.imageLayout = Vk::ImageLayout::ShaderReadOnlyOptimal;
+
+			VkWriteDescriptorSet w{};
+			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			w.dstSet = write_desc[j].descriptorSet;
+			w.dstBinding = write_desc[j].binding;
+			w.dstArrayElement = 0;
+			w.descriptorCount = 1;
+			w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			w.pImageInfo = &ii;
+			writes[i * writes_per_frame + j] = w;
+		}
+	}
+	vkUpdateDescriptorSets(device, m_frame_count * writes_per_frame, writes, 0, nullptr);
+}
+
 void Renderer::recreateSwapchain(void)
 {
 	m_queue.waitIdle();
@@ -1209,8 +1306,12 @@ void Renderer::recreateSwapchain(void)
 	m_swapchain_image_views = createSwapchainImageViews();
 	for (size_t i = 0; i < frame_count; i++) {
 		auto &f = reinterpret_cast<Frame*>(frames)[i];
-		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd, f.m_descriptor_set_0, f.m_descriptor_set_dynamic, f.m_dyn_buffer);
+		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd,
+			f.m_descriptor_set_0, f.m_descriptor_set_dynamic,
+			f.m_illumination_set, f.m_wsi_set,
+			f.m_dyn_buffer);
 	}
+	bindFrameDescriptors();
 }
 
 size_t Renderer::m_keys_update[Renderer::key_update_count] {
@@ -1392,7 +1493,9 @@ Vk::Framebuffer Renderer::Frame::createWsiFb(void)
 }
 
 Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
-	VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
+	VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
+	VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
+	Vk::BufferAllocation dynBuffer) :
 	m_r(r),
 	m_i(i),
 	m_transfer_cmd(transferCmd),
@@ -1414,7 +1517,9 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_output)),
 	m_opaque_fb(createOpaqueFb()),
 	m_illumination_fb(createIlluminationFb()),
-	m_wsi_fb(createWsiFb())
+	m_illumination_set(descriptorSetIllum),
+	m_wsi_fb(createWsiFb()),
+	m_wsi_set(descriptorSetWsi)
 {
 }
 
@@ -1506,7 +1611,8 @@ void Renderer::Frame::render(Map &map)
 		{
 			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
 				Vk::Access::ColorAttachmentWriteBit | Vk::Access::DepthStencilAttachmentWriteBit, Vk::Access::ShaderReadBit };
-			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
+				Vk::PipelineStage::FragmentShaderBit, 0,
 				1, &barrier, 0, nullptr, 0, nullptr);
 		}
 

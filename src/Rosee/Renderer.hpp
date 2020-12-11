@@ -114,6 +114,7 @@ private:
 	Vk::CommandBuffer m_transfer_cmd;
 
 	static inline constexpr uint32_t s0_samplers_size = 1;
+	static constexpr size_t sets_per_frame = 4;
 
 	Vk::DescriptorSetLayout m_descriptor_set_layout_0;
 	Vk::DescriptorSetLayout createDescriptorSetLayout0(void);
@@ -128,8 +129,15 @@ private:
 	Vk::RenderPass createOpaquePass(void);
 	Vk::RenderPass m_illumination_pass;
 	Vk::RenderPass createIlluminationPass(void);
+	Vk::DescriptorSetLayout m_illumination_set_layout;
+	Vk::DescriptorSetLayout createIlluminationSetLayout(void);
 	Vk::RenderPass m_wsi_pass;
 	Vk::RenderPass createWsiPass(void);
+	Vk::DescriptorSetLayout m_wsi_set_layout;
+	Vk::DescriptorSetLayout createWsiSetLayout(void);
+
+	Vk::Sampler m_sampler_fb;
+	Vk::Sampler createSamplerFb(void);
 
 	class Frame
 	{
@@ -145,7 +153,7 @@ private:
 		VkDescriptorSet m_descriptor_set_0;
 		VkDescriptorSet m_descriptor_set_dynamic;
 
-		static inline constexpr size_t dyn_buffer_size = 64000000;	// large for now, to eventually reduce to 2MB
+		static inline constexpr size_t dyn_buffer_size = 2000000;	// large for now, to eventually reduce to 2MB
 		size_t m_dyn_buffer_size;
 		void *m_dyn_buffer_staging_ptr;
 		Vk::BufferAllocation m_dyn_buffer_staging;
@@ -170,12 +178,16 @@ private:
 		Vk::Framebuffer createOpaqueFb(void);
 		Vk::Framebuffer m_illumination_fb;
 		Vk::Framebuffer createIlluminationFb(void);
+		VkDescriptorSet m_illumination_set;
 		Vk::Framebuffer m_wsi_fb;
 		Vk::Framebuffer createWsiFb(void);
+		VkDescriptorSet m_wsi_set;
 
 	public:
 		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
-			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
+			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
+			VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
+			Vk::BufferAllocation dynBuffer);
 
 		void reset(void);
 		void render(Map &map);
@@ -189,6 +201,7 @@ private:
 	vector<Frame> createFrames(void);
 	size_t m_current_frame = 0;
 
+	void bindFrameDescriptors(void);
 	void recreateSwapchain(void);
 
 	Vk::ShaderModule loadShaderModule(VkShaderStageFlagBits stage, const char *path) const;
