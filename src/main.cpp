@@ -99,13 +99,14 @@ class Game
 			auto delta = static_cast<std::chrono::duration<double>>(now - bef).count();
 			bef = now;
 			t += delta;
+			glm::mat4 view, proj;
 			{
 				const double ang_rad = pi / 180.0;
 
 				const double near = 0.1, far = 1000.0,
 				ratio = static_cast<double>(m_r.swapchainExtent().width) / static_cast<double>(m_r.swapchainExtent().height),
 				fov = 70.0 * ang_rad;
-				auto proj = glm::perspectiveLH_ZO<float>(fov, ratio, far, near);
+				proj = glm::perspectiveLH_ZO<float>(fov, ratio, far, near);
 				proj[1][1] *= -1.0;
 
 				//auto view = glm::lookAtLH(glm::vec3(0.0, 0.0, -7.0), glm::vec3(0.0), glm::vec3(0.0, 1.0, 0.0));
@@ -141,7 +142,7 @@ class Game
 					camera_pos -= dir_side * move * static_cast<float>(delta);
 				if (m_r.keyState(GLFW_KEY_D))
 					camera_pos += dir_side * move * static_cast<float>(delta);
-				auto view = view_rot * glm::translate(-camera_pos);
+				view = view_rot * glm::translate(-camera_pos);
 				auto vp = proj * view;
 
 				m_m.query<MVP>([&](Brush &b){
@@ -174,7 +175,7 @@ class Game
 				camera.b = -(far * near) / (far - near);
 				camera.ratio = glm::vec2(ratio, -1.0) * glm::vec2(std::tan(fov / 2.0));*/
 			}
-			m_r.render(m_m);
+			m_r.render(m_m, Camera{view, proj});
 		}
 
 		m_r.waitIdle();

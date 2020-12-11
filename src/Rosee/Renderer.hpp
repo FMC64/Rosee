@@ -18,6 +18,11 @@ using PipelinePool = Pool<Pipeline>;
 using MaterialPool = Pool<Material>;
 using ModelPool = Pool<Model>;
 
+struct Camera {
+	glm::mat4 view;
+	glm::mat4 proj;
+};
+
 namespace Vertex {
 
 struct p2
@@ -210,7 +215,7 @@ private:
 			Vk::BufferAllocation dynBuffer);
 
 		void reset(void);
-		void render(Map &map);
+		void render(Map &map, const Camera &camera);
 		void destroy(bool with_ext_res = false);
 
 	private:
@@ -269,7 +274,7 @@ public:
 	void setCursorMode(bool show);
 
 	void resetFrame(void);
-	void render(Map &map);
+	void render(Map &map, const Camera &camera);
 };
 
 }

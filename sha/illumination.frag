@@ -13,6 +13,6 @@ void main(void)
 {
 	vec3 alb = texture(albedo, gl_FragCoord.xy).xyz;
 	vec3 norm = normalize(texture(normal, gl_FragCoord.xy).xyz);
-	float illum = 1.0;//max(dot(norm, -il.sun), 0.0);
+	float illum = max(dot(norm, il.sun), 0.0);
 	out_output = alb * illum * 1.5;
 }

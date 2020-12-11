@@ -1667,9 +1667,9 @@ void Renderer::resetFrame(void)
 	m_frames[m_current_frame].reset();
 }
 
-void Renderer::render(Map &map)
+void Renderer::render(Map &map, const Camera &camera)
 {
-	m_frames[m_current_frame].render(map);
+	m_frames[m_current_frame].render(map, camera);
 	m_current_frame = (m_current_frame + 1) % m_frame_count;
 }
 
@@ -1836,7 +1836,7 @@ void Renderer::Frame::reset(void)
 	}
 }
 
-void Renderer::Frame::render(Map &map)
+void Renderer::Frame::render(Map &map, const Camera &camera)
 {
 	std::lock_guard l(m_r.m_render_mutex);
 	auto &sex = m_r.m_swapchain_extent;
@@ -1893,7 +1893,7 @@ void Renderer::Frame::render(Map &map)
 		{
 			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
 				Vk::Access::ColorAttachmentWriteBit | Vk::Access::DepthStencilAttachmentWriteBit, Vk::Access::ShaderReadBit };
-			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
+			m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
 				Vk::PipelineStage::FragmentShaderBit, 0,
 				1, &barrier, 0, nullptr, 0, nullptr);
 		}
@@ -1908,11 +1908,15 @@ void Renderer::Frame::render(Map &map)
 		}
 		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline);
 		{
+			auto view_norm = camera.view;
+			for (size_t i = 0; i < 3; i++)
+				view_norm[3][i] = 0.0f;
+
 			Illumination illum;
-			illum.sun = glm::normalize(glm::vec3(1.3, 3.0, 1.0));
+			illum.sun = view_norm * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
 
 
-			*reinterpret_cast<Illumination*>(m_dyn_buffer_staging_ptr) = illum;
+			*reinterpret_cast<Illumination*>(reinterpret_cast<uint8_t*>(m_dyn_buffer_staging_ptr) + m_dyn_buffer_size) = illum;
 			{
 				VkBufferCopy region {m_dyn_buffer_size, 0, sizeof(Illumination)};
 				m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_illumination_buffer, 1, &region);
@@ -1927,7 +1931,7 @@ void Renderer::Frame::render(Map &map)
 
 		{
 			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
-			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+			m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
 				1, &barrier, 0, nullptr, 0, nullptr);
 		}
 
