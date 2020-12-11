@@ -8,6 +8,7 @@
 #include <ctime>
 #include <cmath>
 #include <glm/gtx/transform.hpp>
+#include "Rosee/c.hpp"
 
 #ifdef DEBUG
 static inline constexpr bool is_debug = true;
@@ -37,7 +38,9 @@ class Game
 
 		auto pipeline_pool = PipelinePool(64);
 		auto model_pool = ModelPool(64);
-		auto image_pool = Pool<Vk::ImageAllocation>(1);
+		size_t image_count = 1;
+		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
+		auto image_view_pool = Pool<Vk::ImageView>(image_count);
 
 		auto model_world = model_pool.allocate();
 		*model_world = m_r.loadModel("res/mod/vokselia_spawn.obj");
@@ -46,9 +49,26 @@ class Game
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", 0);
 		pipeline_opaque->pushDynamic<MVP>();
 
+		auto sampler_norm_n = m_r.device.createSampler(VkSamplerCreateInfo{
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.magFilter = VK_FILTER_NEAREST,
+			.minFilter = VK_FILTER_NEAREST,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		});
+
 		{
-			auto img = image_pool.allocate();
-			*img = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false);
+			auto img0 = image_pool.allocate();
+			*img0 = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false);
+			auto view0 = image_view_pool.allocate();
+			*view0 = m_r.createImageView(*img0, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+
+			VkDescriptorImageInfo image_infos[] {
+				{sampler_norm_n, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
+			};
+			m_r.bindCombinedImageSamplers(0, array_size(image_infos), image_infos);
 		}
 
 		{
@@ -152,8 +172,10 @@ class Game
 		}
 
 		m_r.waitIdle();
+		m_r.device.destroy(sampler_norm_n);
 		pipeline_pool.destroy(m_r.device);
 		model_pool.destroy(m_r.allocator);
+		image_view_pool.destroyUsing(m_r.device);
 		image_pool.destroyUsing(m_r.allocator);
 	}
 

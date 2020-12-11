@@ -95,7 +95,11 @@ private:
 	Vk::SwapchainKHR createSwapchain(void);
 	vector<VkImage> m_swapchain_images;
 	vector<Vk::ImageView> m_swapchain_image_views;
+
+public:
 	Vk::ImageView createImageView(VkImage image, VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspect);
+
+private:
 	vector<Vk::ImageView> createSwapchainImageViews(void);
 
 	Vk::RenderPass m_opaque_pass;
@@ -104,10 +108,16 @@ private:
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
 
+	static inline constexpr uint32_t s0_samplers_size = 1;
+
+	Vk::DescriptorSetLayout m_descriptor_set_layout_0;
+	Vk::DescriptorSetLayout createDescriptorSetLayout0(void);
 	Vk::DescriptorSetLayout m_descriptor_set_layout_dynamic;
 	Vk::DescriptorSetLayout createDescriptorSetLayoutDynamic(void);
-	Vk::DescriptorPool m_descriptor_pool_dynamic;
-	Vk::DescriptorPool createDescriptorPoolDynamic(void);
+	Vk::PipelineLayout m_pipeline_layout_desciptor_set;
+	Vk::PipelineLayout createPipelineLayoutDescriptorSet(void);
+	Vk::DescriptorPool m_descriptor_pool;
+	Vk::DescriptorPool createDescriptorPool(void);
 
 	class Frame
 	{
@@ -120,6 +130,7 @@ private:
 		Vk::Semaphore m_image_ready;
 		bool m_ever_submitted = false;
 
+		VkDescriptorSet m_descriptor_set_0;
 		VkDescriptorSet m_descriptor_set_dynamic;
 
 		static inline constexpr size_t dyn_buffer_size = 64000000;	// large for now, to eventually reduce to 2MB
@@ -138,7 +149,8 @@ private:
 		Vk::Framebuffer createOpaqueFb(void);
 
 	public:
-		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
+		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
+			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer);
 
 		void reset(void);
 		void render(Map &map);
@@ -169,6 +181,8 @@ public:
 	Vk::BufferAllocation createVertexBuffer(size_t size);
 	Model loadModel(const char *path);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
+
+	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);
 
 private:
 	bool m_keys_prev[GLFW_KEY_LAST];

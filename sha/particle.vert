@@ -9,7 +9,7 @@ struct Frame {
 	float size;
 };
 
-layout(set = 0, binding = 0) readonly buffer Dyn {
+layout(set = 1, binding = 0) readonly buffer Dyn {
 	Frame f[];
 } d;
 

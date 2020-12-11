@@ -433,6 +433,18 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	return device.createRenderPass(ci);
 }
 
+Vk::DescriptorSetLayout Renderer::createDescriptorSetLayout0(void)
+{
+	VkDescriptorSetLayoutCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayoutBinding bindings[] {
+		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, s0_samplers_size, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
+	};
+	ci.bindingCount = array_size(bindings);
+	ci.pBindings = bindings;
+	return device.createDescriptorSetLayout(ci);
+}
+
 Vk::DescriptorSetLayout Renderer::createDescriptorSetLayoutDynamic(void)
 {
 	VkDescriptorSetLayoutCreateInfo ci{};
@@ -445,13 +457,27 @@ Vk::DescriptorSetLayout Renderer::createDescriptorSetLayoutDynamic(void)
 	return device.createDescriptorSetLayout(ci);
 }
 
-Vk::DescriptorPool Renderer::createDescriptorPoolDynamic(void)
+Vk::PipelineLayout Renderer::createPipelineLayoutDescriptorSet(void)
+{
+	VkPipelineLayoutCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayout set_layouts[] {
+		m_descriptor_set_layout_0,
+		m_descriptor_set_layout_dynamic
+	};
+	ci.setLayoutCount = array_size(set_layouts);
+	ci.pSetLayouts = set_layouts;
+	return device.createPipelineLayout(ci);
+}
+
+Vk::DescriptorPool Renderer::createDescriptorPool(void)
 {
 	VkDescriptorPoolCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	ci.maxSets = m_frame_count;
+	ci.maxSets = m_frame_count * 2;
 	VkDescriptorPoolSize pool_sizes[] {
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count}
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * s0_samplers_size}
 	};
 	ci.poolSizeCount = array_size(pool_sizes);
 	ci.pPoolSizes = pool_sizes;
@@ -462,11 +488,13 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 {
 	VkCommandBuffer cmds[m_frame_count * 2];
 	device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * 2, cmds);
-	VkDescriptorSet sets[m_frame_count];
-	VkDescriptorSetLayout set_layouts[m_frame_count];
-	for (uint32_t i = 0; i < m_frame_count; i++)
-		set_layouts[i] = m_descriptor_set_layout_dynamic;
-	device.allocateDescriptorSets(m_descriptor_pool_dynamic, m_frame_count, set_layouts, sets);
+	VkDescriptorSet sets[m_frame_count * 2];
+	VkDescriptorSetLayout set_layouts[m_frame_count * 2];
+	for (uint32_t i = 0; i < m_frame_count; i++) {
+		set_layouts[i * 2] = m_descriptor_set_layout_0;
+		set_layouts[i * 2 + 1] = m_descriptor_set_layout_dynamic;
+	}
+	device.allocateDescriptorSets(m_descriptor_pool, m_frame_count * 2, set_layouts, sets);
 
 	Vk::BufferAllocation dyn_buffers[m_frame_count];
 	for (uint32_t i = 0; i < m_frame_count; i++) {
@@ -484,7 +512,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	for (uint32_t i = 0; i < m_frame_count; i++) {
 		VkWriteDescriptorSet cur{};
 		cur.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		cur.dstSet = sets[i];
+		cur.dstSet = sets[i * 2 + 1];
 		cur.dstBinding = 0;
 		cur.dstArrayElement = 0;
 		cur.descriptorCount = 1;
@@ -501,7 +529,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
-		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1], sets[i], dyn_buffers[i]);
+		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1], sets[i * 2], sets[i * 2 + 1], dyn_buffers[i]);
 	return res;
 }
 
@@ -661,8 +689,12 @@ Pipeline Renderer::createPipeline(const char *stagesPath, uint32_t pushConstantR
 	{
 		VkPipelineLayoutCreateInfo ci{};
 		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		ci.setLayoutCount = 1;
-		ci.pSetLayouts = m_descriptor_set_layout_dynamic.ptr();
+		VkDescriptorSetLayout set_layouts[] {
+			m_descriptor_set_layout_0,
+			m_descriptor_set_layout_dynamic
+		};
+		ci.setLayoutCount = array_size(set_layouts);
+		ci.pSetLayouts = set_layouts;
 		VkPushConstantRange ranges[] {
 			{VK_SHADER_STAGE_FRAGMENT_BIT, 0, pushConstantRange}
 		};
@@ -767,8 +799,12 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 	{
 		VkPipelineLayoutCreateInfo ci{};
 		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		ci.setLayoutCount = 1;
-		ci.pSetLayouts = m_descriptor_set_layout_dynamic.ptr();
+		VkDescriptorSetLayout set_layouts[] {
+			m_descriptor_set_layout_0,
+			m_descriptor_set_layout_dynamic
+		};
+		ci.setLayoutCount = array_size(set_layouts);
+		ci.pSetLayouts = set_layouts;
 		VkPushConstantRange ranges[] {
 			{VK_SHADER_STAGE_FRAGMENT_BIT, 0, pushConstantRange}
 		};
@@ -970,6 +1006,23 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 	return res;
 }
 
+void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos)
+{
+	VkWriteDescriptorSet writes[m_frame_count];
+	for (size_t i = 0; i < m_frame_count; i++) {
+		VkWriteDescriptorSet w{};
+		w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		w.dstSet = m_frames[i].m_descriptor_set_0;
+		w.dstBinding = 0;
+		w.dstArrayElement = firstSampler;
+		w.descriptorCount = imageInfoCount;
+		w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		w.pImageInfo = pImageInfos;
+		writes[i] = w;
+	}
+	vkUpdateDescriptorSets(device, m_frame_count, writes, 0, nullptr);
+}
+
 Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_frame_count(frameCount),
 	m_validate(validate),
@@ -990,8 +1043,10 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 		m_queue_family_graphics)),
 	m_transfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
+	m_descriptor_set_layout_0(createDescriptorSetLayout0()),
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
-	m_descriptor_pool_dynamic(createDescriptorPoolDynamic()),
+	m_pipeline_layout_desciptor_set(createPipelineLayoutDescriptorSet()),
+	m_descriptor_pool(createDescriptorPool()),
 	m_frames(createFrames()),
 	m_pipeline_pool(4),
 	m_model_pool(4)
@@ -1012,8 +1067,10 @@ Renderer::~Renderer(void)
 	for (auto &f : m_frames)
 		f.destroy(true);
 
-	device.destroy(m_descriptor_pool_dynamic);
+	device.destroy(m_descriptor_pool);
+	device.destroy(m_pipeline_layout_desciptor_set);
 	device.destroy(m_descriptor_set_layout_dynamic);
+	device.destroy(m_descriptor_set_layout_0);
 
 	device.destroy(m_transfer_command_pool);
 	device.destroy(m_command_pool);
@@ -1049,7 +1106,7 @@ void Renderer::recreateSwapchain(void)
 	m_swapchain_image_views = createSwapchainImageViews();
 	for (size_t i = 0; i < frame_count; i++) {
 		auto &f = reinterpret_cast<Frame*>(frames)[i];
-		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd, f.m_descriptor_set_dynamic, f.m_dyn_buffer);
+		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd, f.m_descriptor_set_0, f.m_descriptor_set_dynamic, f.m_dyn_buffer);
 	}
 }
 
@@ -1197,7 +1254,8 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 	return m_r.device.createFramebuffer(ci);
 }
 
-Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
+Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
+	VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic, Vk::BufferAllocation dynBuffer) :
 	m_r(r),
 	m_i(i),
 	m_transfer_cmd(transferCmd),
@@ -1205,6 +1263,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_frame_done(r.device.createFence(0)),
 	m_render_done(r.device.createSemaphore()),
 	m_image_ready(r.device.createSemaphore()),
+	m_descriptor_set_0(descriptorSet0),
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
 	m_dyn_buffer(dynBuffer),
@@ -1257,6 +1316,8 @@ void Renderer::Frame::render(Map &map)
 	{
 		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		m_cmd.setExtent(m_r.m_swapchain_extent);
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_desciptor_set,
+			0, 1, &m_descriptor_set_0, 0, nullptr);
 		{
 			VkRenderPassBeginInfo bi{};
 			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1367,7 +1428,7 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 				{
 					uint32_t dyn_off[] {static_cast<uint32_t>(m_dyn_buffer_size)};
 					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, n.pipeline->pipelineLayout,
-						0, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
+						1, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
 				}
 				cur = n;
 			}

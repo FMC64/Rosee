@@ -253,6 +253,7 @@ using PipelineLayout = Handle<VkPipelineLayout>;
 using Pipeline = Handle<VkPipeline>;
 using Buffer = Handle<VkBuffer>;
 using Image = Handle<VkImage>;
+using Sampler = Handle<VkSampler>;
 
 class Device : public Handle<VkDevice>
 {
@@ -359,6 +360,13 @@ public:
 		vkUpdateDescriptorSets(*this, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount, pDescriptorCopies);
 	}
 
+	Sampler createSampler(const VkSamplerCreateInfo &ci) const
+	{
+		VkSampler res;
+		vkAssert(vkCreateSampler(*this, &ci, nullptr, &res));
+		return res;
+	}
+
 	void destroy(VkRenderPass renderPass) const
 	{
 		vkDestroyRenderPass(*this, renderPass, nullptr);
@@ -422,6 +430,11 @@ public:
 	void destroy(VkDescriptorPool descriptorPool) const
 	{
 		vkDestroyDescriptorPool(*this, descriptorPool, nullptr);
+	}
+
+	void destroy(VkSampler sampler) const
+	{
+		vkDestroySampler(*this, sampler, nullptr);
 	}
 
 	void destroy(void)
