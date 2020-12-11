@@ -422,37 +422,6 @@ vector<Vk::ImageView> Renderer::createSwapchainImageViews(void)
 	return res;
 }
 
-Vk::RenderPass Renderer::createOpaquePass(void)
-{
-	VkRenderPassCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-
-	VkAttachmentDescription atts[] {
-		{0, format_depth, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
-			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
-		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// wsi 1
-			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-			Vk::ImageLayout::Undefined, Vk::ImageLayout::PresentSrcKhr}
-	};
-	VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
-	VkAttachmentReference wsi {1, Vk::ImageLayout::ColorAttachmentOptimal};
-	VkSubpassDescription subpasses[] {
-		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			0, nullptr,		// input
-			1, &wsi, nullptr,	// color, resolve
-			&depth,			// depth
-			0, nullptr}		// preserve
-	};
-
-	ci.attachmentCount = array_size(atts);
-	ci.pAttachments = atts;
-	ci.subpassCount = array_size(subpasses);
-	ci.pSubpasses = subpasses;
-
-	return device.createRenderPass(ci);
-}
-
 Vk::DescriptorSetLayout Renderer::createDescriptorSetLayout0(void)
 {
 	VkDescriptorSetLayoutCreateInfo ci{};
@@ -502,6 +471,37 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 	ci.poolSizeCount = array_size(pool_sizes);
 	ci.pPoolSizes = pool_sizes;
 	return device.createDescriptorPool(ci);
+}
+
+Vk::RenderPass Renderer::createOpaquePass(void)
+{
+	VkRenderPassCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+
+	VkAttachmentDescription atts[] {
+		{0, format_depth, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
+		{0, VK_FORMAT_B8G8R8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// wsi 1
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::PresentSrcKhr}
+	};
+	VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
+	VkAttachmentReference wsi {1, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkSubpassDescription subpasses[] {
+		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			0, nullptr,		// input
+			1, &wsi, nullptr,	// color, resolve
+			&depth,			// depth
+			0, nullptr}		// preserve
+	};
+
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.subpassCount = array_size(subpasses);
+	ci.pSubpasses = subpasses;
+
+	return device.createRenderPass(ci);
 }
 
 vector<Renderer::Frame> Renderer::createFrames(void)
@@ -1059,7 +1059,6 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_swapchain(createSwapchain()),
 	m_swapchain_images(device.getSwapchainImages(m_swapchain)),
 	m_swapchain_image_views(createSwapchainImageViews()),
-	m_opaque_pass(createOpaquePass()),
 	m_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
 	m_transfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -1068,6 +1067,9 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_pipeline_layout_desciptor_set(createPipelineLayoutDescriptorSet()),
 	m_descriptor_pool(createDescriptorPool()),
+
+	m_opaque_pass(createOpaquePass()),
+
 	m_frames(createFrames()),
 	m_pipeline_pool(4),
 	m_model_pool(4)
@@ -1088,6 +1090,8 @@ Renderer::~Renderer(void)
 	for (auto &f : m_frames)
 		f.destroy(true);
 
+	device.destroy(m_opaque_pass);
+
 	device.destroy(m_descriptor_pool);
 	device.destroy(m_pipeline_layout_desciptor_set);
 	device.destroy(m_descriptor_set_layout_dynamic);
@@ -1095,7 +1099,6 @@ Renderer::~Renderer(void)
 
 	device.destroy(m_transfer_command_pool);
 	device.destroy(m_command_pool);
-	device.destroy(m_opaque_pass);
 	for (auto &v : m_swapchain_image_views)
 		device.destroy(v);
 	device.destroy(m_swapchain);

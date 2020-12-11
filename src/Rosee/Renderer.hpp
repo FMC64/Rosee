@@ -109,8 +109,6 @@ public:
 private:
 	vector<Vk::ImageView> createSwapchainImageViews(void);
 
-	Vk::RenderPass m_opaque_pass;
-	Vk::RenderPass createOpaquePass(void);
 	Vk::CommandPool m_command_pool;
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
@@ -125,6 +123,9 @@ private:
 	Vk::PipelineLayout createPipelineLayoutDescriptorSet(void);
 	Vk::DescriptorPool m_descriptor_pool;
 	Vk::DescriptorPool createDescriptorPool(void);
+
+	Vk::RenderPass m_opaque_pass;
+	Vk::RenderPass createOpaquePass(void);
 
 	class Frame
 	{
