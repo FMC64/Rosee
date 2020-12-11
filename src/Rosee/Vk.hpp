@@ -195,6 +195,11 @@ public:
 	{
 		vkCmdDrawIndexed(*this, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
 	}
+
+	void copyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkBufferImageCopy *pRegions)
+	{
+		vkCmdCopyBufferToImage(*this, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions);
+	}
 };
 
 class Queue : public Handle<VkQueue>

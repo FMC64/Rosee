@@ -168,6 +168,7 @@ private:
 public:
 	Vk::BufferAllocation createVertexBuffer(size_t size);
 	Model loadModel(const char *path);
+	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
 
 private:
 	bool m_keys_prev[GLFW_KEY_LAST];

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include "../../dep/tinyobjloader/tiny_obj_loader.h"
+#include "../../dep/stb/stb_image.h"
 
 namespace Rosee {
 
@@ -878,6 +879,83 @@ Model Renderer::loadModel(const char *path)
 		region.dstOffset = 0;
 		region.size = buf_size;
 		m_transfer_cmd.copyBuffer(s, res.vertexBuffer, 1, &region);
+		m_transfer_cmd.end();
+
+		VkSubmitInfo submit{};
+		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submit.commandBufferCount = 1;
+		submit.pCommandBuffers = m_transfer_cmd.ptr();
+		m_queue.submit(1, &submit, VK_NULL_HANDLE);
+		m_queue.waitIdle();
+
+		allocator.destroy(s);
+	}
+	return res;
+}
+
+Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
+{
+	int x, y, chan;
+	auto data = stbi_load(path, &x, &y, &chan, 4);
+	if (data == nullptr)
+		throw std::runtime_error(path);
+	if (chan != 4)
+		throw std::runtime_error(path);
+
+	VkImageCreateInfo ici{};
+	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	ici.imageType = VK_IMAGE_TYPE_2D;
+	ici.format = VK_FORMAT_R8G8B8A8_SRGB;
+	auto extent = VkExtent3D{static_cast<uint32_t>(x), static_cast<uint32_t>(y), 1};
+	ici.extent = extent;
+	if (gen_mips)
+		throw std::runtime_error("not supported yet");
+	ici.mipLevels = 1;
+	ici.arrayLayers = 1;
+	ici.samples = VK_SAMPLE_COUNT_1_BIT;
+	ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	auto res = allocator.createImage(ici, aci);
+
+	{
+		size_t buf_size = x * y * chan;
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = buf_size;
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+		aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		void *bdata;
+		auto s = allocator.createBuffer(bci, aci, &bdata);
+		std::memcpy(bdata, data, buf_size);
+		stbi_image_free(data);
+		allocator.invalidateAllocation(s, 0, buf_size);
+
+		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		{
+			VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::TransferReadBit,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::TransferDstOptimal, 0, 0, res,
+				{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::TransferBit, 0,
+				0, nullptr, 0, nullptr, 1, &ibarrier);
+		}
+		{
+			VkBufferImageCopy region{};
+			region.imageSubresource = VkImageSubresourceLayers { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+			region.imageOffset = VkOffset3D{0, 0, 0};
+			region.imageExtent = extent;
+			m_transfer_cmd.copyBufferToImage(s, res, Vk::ImageLayout::TransferDstOptimal, 1, &region);
+		}
+		{
+			VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::MemoryReadBit,
+				Vk::ImageLayout::TransferDstOptimal, Vk::ImageLayout::ShaderReadOnlyOptimal, 0, 0, res,
+				{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::AllGraphicsBit, 0,
+				0, nullptr, 0, nullptr, 1, &ibarrier);
+		}
 		m_transfer_cmd.end();
 
 		VkSubmitInfo submit{};

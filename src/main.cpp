@@ -37,6 +37,7 @@ class Game
 
 		auto pipeline_pool = PipelinePool(64);
 		auto model_pool = ModelPool(64);
+		auto image_pool = Pool<Vk::ImageAllocation>(1);
 
 		auto model_world = model_pool.allocate();
 		*model_world = m_r.loadModel("res/mod/vokselia_spawn.obj");
@@ -44,6 +45,11 @@ class Game
 		auto pipeline_opaque = pipeline_pool.allocate();
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", 0);
 		pipeline_opaque->pushDynamic<MVP>();
+
+		{
+			auto img = image_pool.allocate();
+			*img = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false);
+		}
 
 		{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, OpaqueRender>(1);
@@ -148,6 +154,7 @@ class Game
 		m_r.waitIdle();
 		pipeline_pool.destroy(m_r.device);
 		model_pool.destroy(m_r.allocator);
+		image_pool.destroyUsing(m_r.allocator);
 	}
 
 public:

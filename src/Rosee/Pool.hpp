@@ -29,6 +29,13 @@ public:
 		for (size_t i = 0; i < size; i++)
 			data[i].destroy(std::forward<Args>(args)...);
 	}
+
+	template <typename Destroyer>
+	void destroyUsing(Destroyer &&destroyer)
+	{
+		for (size_t i = 0; i < size; i++)
+			destroyer.destroy(data[i]);
+	}
 };
 
 }
