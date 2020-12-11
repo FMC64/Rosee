@@ -481,8 +481,8 @@ Vk::BufferAllocation Renderer::createScreenVertexBuffer(void)
 {
 	Vertex::p2 vertices[] {
 		{{-1.0f, -1.0f}},
-		{{1.0f, -1.0f}},
-		{{-1.0f, 1.0f}}
+		{{3.0f, -1.0f}},
+		{{-1.0f, 3.0f}}
 	};
 	auto res = createVertexBuffer(sizeof(vertices));
 	{
@@ -1499,7 +1499,7 @@ void Renderer::bindFrameDescriptors(void)
 		};
 
 		for (size_t j = 0; j < writes_per_frame; j++) {
-			auto &ii = image_infos[i * writes_per_frame];
+			auto &ii = image_infos[i * writes_per_frame + j];
 			ii.sampler = write_desc[j].sampler;
 			ii.imageView = write_desc[j].imageView;
 			ii.imageLayout = Vk::ImageLayout::ShaderReadOnlyOptimal;

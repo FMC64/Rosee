@@ -1,9 +1,11 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 
+layout(set = 0, binding = 0) uniform sampler2D outp;
+
 layout(location = 0) out vec4 out_wsi;
 
 void main(void)
 {
-	out_wsi = vec4(0.5, 0.0, 0.0, 1.0);
+	out_wsi = vec4(texture(outp, gl_FragCoord.xy).xyz, 1.0);
 }
