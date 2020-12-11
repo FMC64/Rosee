@@ -192,9 +192,16 @@ private:
 		Vk::Framebuffer m_illumination_fb;
 		Vk::Framebuffer createIlluminationFb(void);
 		VkDescriptorSet m_illumination_set;
+		Vk::BufferAllocation m_illumination_buffer;
+		Vk::BufferAllocation createIlluminationBuffer(void);
 		Vk::Framebuffer m_wsi_fb;
 		Vk::Framebuffer createWsiFb(void);
 		VkDescriptorSet m_wsi_set;
+
+		struct Illumination {
+			glm::vec3 sun;
+			float _pad;
+		};
 
 	public:
 		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,

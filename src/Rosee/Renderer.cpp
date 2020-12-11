@@ -466,6 +466,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 	ci.maxSets = m_frame_count * sets_per_frame;
 	VkDescriptorPoolSize pool_sizes[] {
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_samplers_size +	// s0
 			2 +			// deferred
@@ -596,8 +597,9 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	VkDescriptorSetLayoutCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	VkDescriptorSetLayoutBinding bindings[] {
-		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
-		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}	// normal
+		{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
+		{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}	// normal
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -1478,41 +1480,70 @@ Renderer::~Renderer(void)
 
 void Renderer::bindFrameDescriptors(void)
 {
-	static constexpr size_t writes_per_frame =
+	static constexpr size_t img_writes_per_frame =
 		2 +	// illum: albedo, normal
 		1;	// wsi: output
+	static constexpr size_t buf_writes_per_frame =
+		1;	// illum: buffer
+	static constexpr size_t writes_per_frame = img_writes_per_frame + buf_writes_per_frame;
 
-	VkDescriptorImageInfo image_infos[m_frame_count * writes_per_frame];
+	VkDescriptorImageInfo image_infos[m_frame_count * img_writes_per_frame];
+	VkDescriptorBufferInfo buffer_infos[m_frame_count * buf_writes_per_frame];
 	VkWriteDescriptorSet writes[m_frame_count * writes_per_frame];
 	for (size_t i = 0; i < m_frame_count; i++) {
 		auto &cur_frame = m_frames[i];
 
-		struct WriteDesc {
+		struct WriteImgDesc {
 			VkDescriptorSet descriptorSet;
 			uint32_t binding;
 			VkSampler sampler;
 			VkImageView imageView;
-		} write_desc[writes_per_frame] {
-			{cur_frame.m_illumination_set, 0, m_sampler_fb, cur_frame.m_albedo_view},
-			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_normal_view},
+		} write_img_descs[img_writes_per_frame] {
+			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_albedo_view},
+			{cur_frame.m_illumination_set, 2, m_sampler_fb, cur_frame.m_normal_view},
 			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view},
 		};
 
-		for (size_t j = 0; j < writes_per_frame; j++) {
-			auto &ii = image_infos[i * writes_per_frame + j];
-			ii.sampler = write_desc[j].sampler;
-			ii.imageView = write_desc[j].imageView;
+		for (size_t j = 0; j < img_writes_per_frame; j++) {
+			auto &ii = image_infos[i * img_writes_per_frame + j];
+			ii.sampler = write_img_descs[j].sampler;
+			ii.imageView = write_img_descs[j].imageView;
 			ii.imageLayout = Vk::ImageLayout::ShaderReadOnlyOptimal;
 
 			VkWriteDescriptorSet w{};
 			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			w.dstSet = write_desc[j].descriptorSet;
-			w.dstBinding = write_desc[j].binding;
+			w.dstSet = write_img_descs[j].descriptorSet;
+			w.dstBinding = write_img_descs[j].binding;
 			w.dstArrayElement = 0;
 			w.descriptorCount = 1;
 			w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			w.pImageInfo = &ii;
 			writes[i * writes_per_frame + j] = w;
+		}
+
+		struct WriteBufDesc {
+			VkDescriptorSet descriptorSet;
+			uint32_t binding;
+			VkBuffer buffer;
+		} write_buf_descs[buf_writes_per_frame] {
+			{cur_frame.m_illumination_set, 0, cur_frame.m_illumination_buffer}
+		};
+
+		for (size_t j = 0; j < buf_writes_per_frame; j++) {
+			auto &bi = buffer_infos[i * buf_writes_per_frame + j];
+			bi.buffer = write_buf_descs[j].buffer;
+			bi.offset = 0;
+			bi.range = VK_WHOLE_SIZE;
+
+			VkWriteDescriptorSet w{};
+			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			w.dstSet = write_buf_descs[j].descriptorSet;
+			w.dstBinding = write_buf_descs[j].binding;
+			w.dstArrayElement = 0;
+			w.descriptorCount = 1;
+			w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			w.pBufferInfo = &bi;
+			writes[i * writes_per_frame + img_writes_per_frame + j] = w;
 		}
 	}
 	vkUpdateDescriptorSets(device, m_frame_count * writes_per_frame, writes, 0, nullptr);
@@ -1706,6 +1737,17 @@ Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 	return m_r.device.createFramebuffer(ci);
 }
 
+Vk::BufferAllocation Renderer::Frame::createIlluminationBuffer(void)
+{
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = sizeof(Illumination);
+	bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	return m_r.allocator.createBuffer(bci, aci);
+}
+
 Vk::Framebuffer Renderer::Frame::createWsiFb(void)
 {
 	VkFramebufferCreateInfo ci{};
@@ -1748,6 +1790,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_opaque_fb(createOpaqueFb()),
 	m_illumination_fb(createIlluminationFb()),
 	m_illumination_set(descriptorSetIllum),
+	m_illumination_buffer(createIlluminationBuffer()),
 	m_wsi_fb(createWsiFb()),
 	m_wsi_set(descriptorSetWsi)
 {
@@ -1756,6 +1799,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 void Renderer::Frame::destroy(bool with_ext_res)
 {
 	m_r.device.destroy(m_wsi_fb);
+	m_r.allocator.destroy(m_illumination_buffer);
 	m_r.device.destroy(m_illumination_fb);
 	m_r.device.destroy(m_opaque_fb);
 
@@ -1837,6 +1881,14 @@ void Renderer::Frame::render(Map &map)
 		}
 		render_subset(map, OpaqueRender::id);
 		m_cmd.endRenderPass();
+		{
+			m_r.allocator.flushAllocation(m_dyn_buffer_staging, 0, m_dyn_buffer_size);
+			{
+				VkBufferCopy region {0, 0, m_dyn_buffer_size};
+				if (region.size > 0)
+					m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_dyn_buffer, 1, &region);
+			}
+		}
 
 		{
 			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
@@ -1855,6 +1907,18 @@ void Renderer::Frame::render(Map &map)
 			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 		}
 		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline);
+		{
+			Illumination illum;
+			illum.sun = glm::normalize(glm::vec3(1.3, 3.0, 1.0));
+
+
+			*reinterpret_cast<Illumination*>(m_dyn_buffer_staging_ptr) = illum;
+			{
+				VkBufferCopy region {m_dyn_buffer_size, 0, sizeof(Illumination)};
+				m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_illumination_buffer, 1, &region);
+			}
+			m_dyn_buffer_size += sizeof(Illumination);
+		}
 		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline.pipelineLayout,
 			0, 1, &m_illumination_set, 0, nullptr);
 		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
@@ -1885,12 +1949,6 @@ void Renderer::Frame::render(Map &map)
 		m_cmd.end();
 	}
 
-	m_r.allocator.flushAllocation(m_dyn_buffer_staging, 0, m_dyn_buffer_size);
-	{
-		VkBufferCopy region {0, 0, m_dyn_buffer_size};
-		if (region.size > 0)
-			m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_dyn_buffer, 1, &region);
-	}
 	{
 		VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::MemoryReadBit };
 		m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::AllGraphicsBit, 0,
