@@ -20,6 +20,11 @@ using ModelPool = Pool<Model>;
 
 namespace Vertex {
 
+struct p2
+{
+	glm::vec2 p;
+};
+
 struct pnu
 {
 	glm::vec3 p;
@@ -125,16 +130,24 @@ private:
 	Vk::DescriptorPool m_descriptor_pool;
 	Vk::DescriptorPool createDescriptorPool(void);
 
+	Vk::ShaderModule m_fwd_p2_module;
+	Vk::BufferAllocation m_screen_vertex_buffer;
+	Vk::BufferAllocation createScreenVertexBuffer(void);
+
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
 	Vk::RenderPass m_illumination_pass;
 	Vk::RenderPass createIlluminationPass(void);
 	Vk::DescriptorSetLayout m_illumination_set_layout;
 	Vk::DescriptorSetLayout createIlluminationSetLayout(void);
+	Pipeline m_illumination_pipeline;
+	Pipeline createIlluminationPipeline(void);
 	Vk::RenderPass m_wsi_pass;
 	Vk::RenderPass createWsiPass(void);
 	Vk::DescriptorSetLayout m_wsi_set_layout;
 	Vk::DescriptorSetLayout createWsiSetLayout(void);
+	Pipeline m_wsi_pipeline;
+	Pipeline createWsiPipeline(void);
 
 	Vk::Sampler m_sampler_fb;
 	Vk::Sampler createSamplerFb(void);

@@ -477,6 +477,47 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 	return device.createDescriptorPool(ci);
 }
 
+Vk::BufferAllocation Renderer::createScreenVertexBuffer(void)
+{
+	Vertex::p2 vertices[] {
+		{{-1.0f, -1.0f}},
+		{{1.0f, -1.0f}},
+		{{-1.0f, 1.0f}}
+	};
+	auto res = createVertexBuffer(sizeof(vertices));
+	{
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = sizeof(vertices);
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+		aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		void *data;
+		auto s = allocator.createBuffer(bci, aci, &data);
+		std::memcpy(data, vertices, sizeof(vertices));
+		allocator.invalidateAllocation(s, 0, sizeof(vertices));
+
+		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		VkBufferCopy region;
+		region.srcOffset = 0;
+		region.dstOffset = 0;
+		region.size = sizeof(vertices);
+		m_transfer_cmd.copyBuffer(s, res, 1, &region);
+		m_transfer_cmd.end();
+
+		VkSubmitInfo submit{};
+		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submit.commandBufferCount = 1;
+		submit.pCommandBuffers = m_transfer_cmd.ptr();
+		m_queue.submit(1, &submit, VK_NULL_HANDLE);
+		m_queue.waitIdle();
+
+		allocator.destroy(s);
+	}
+	return res;
+}
+
 Vk::RenderPass Renderer::createOpaquePass(void)
 {
 	VkRenderPassCreateInfo ci{};
@@ -563,6 +604,94 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	return device.createDescriptorSetLayout(ci);
 }
 
+Pipeline Renderer::createIlluminationPipeline(void)
+{
+	Pipeline res;
+
+	VkGraphicsPipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, "sha/illumination");
+	res.pushShaderModule(frag);
+	VkPipelineShaderStageCreateInfo stages[] {
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
+		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, frag)
+	};
+	ci.stageCount = array_size(stages);
+	ci.pStages = stages;
+
+	VkPipelineVertexInputStateCreateInfo vertex_input{};
+	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	VkVertexInputBindingDescription vertex_input_bindings[] {
+		{0, sizeof(Vertex::p2), VK_VERTEX_INPUT_RATE_VERTEX}
+	};
+	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+	VkVertexInputAttributeDescription vertex_input_attributes[] {
+		{0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::p2, p)}
+	};
+	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+	ci.pVertexInputState = &vertex_input;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	ci.pInputAssemblyState = &input_assembly;
+
+	ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+	VkPipelineRasterizationStateCreateInfo rasterization{};
+	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterization.lineWidth = 1.0f;
+	ci.pRasterizationState = &rasterization;
+
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ci.pMultisampleState = &multisample;
+
+	VkPipelineColorBlendStateCreateInfo color_blend{};
+	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment,
+	};
+	color_blend.attachmentCount = array_size(color_blend_attachments);
+	color_blend.pAttachments = color_blend_attachments;
+	ci.pColorBlendState = &color_blend;
+
+	VkPipelineDynamicStateCreateInfo dynamic{};
+	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	VkDynamicState dynamic_states[] {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	dynamic.dynamicStateCount = array_size(dynamic_states);
+	dynamic.pDynamicStates = dynamic_states;
+	ci.pDynamicState = &dynamic;
+
+	{
+		VkPipelineLayoutCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		VkDescriptorSetLayout set_layouts[] {
+			m_illumination_set_layout
+		};
+		ci.setLayoutCount = array_size(set_layouts);
+		ci.pSetLayouts = set_layouts;
+		res.pipelineLayout = device.createPipelineLayout(ci);
+	}
+	ci.layout = res.pipelineLayout;
+	ci.renderPass = m_illumination_pass;
+
+	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
+	return res;
+}
+
 Vk::RenderPass Renderer::createWsiPass(void)
 {
 	VkRenderPassCreateInfo ci{};
@@ -605,6 +734,94 @@ Vk::DescriptorSetLayout Renderer::createWsiSetLayout(void)
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
 	return device.createDescriptorSetLayout(ci);
+}
+
+Pipeline Renderer::createWsiPipeline(void)
+{
+	Pipeline res;
+
+	VkGraphicsPipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, "sha/wsi");
+	res.pushShaderModule(frag);
+	VkPipelineShaderStageCreateInfo stages[] {
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
+		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, frag)
+	};
+	ci.stageCount = array_size(stages);
+	ci.pStages = stages;
+
+	VkPipelineVertexInputStateCreateInfo vertex_input{};
+	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	VkVertexInputBindingDescription vertex_input_bindings[] {
+		{0, sizeof(Vertex::p2), VK_VERTEX_INPUT_RATE_VERTEX}
+	};
+	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+	VkVertexInputAttributeDescription vertex_input_attributes[] {
+		{0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::p2, p)}
+	};
+	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+	ci.pVertexInputState = &vertex_input;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	ci.pInputAssemblyState = &input_assembly;
+
+	ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+	VkPipelineRasterizationStateCreateInfo rasterization{};
+	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterization.lineWidth = 1.0f;
+	ci.pRasterizationState = &rasterization;
+
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ci.pMultisampleState = &multisample;
+
+	VkPipelineColorBlendStateCreateInfo color_blend{};
+	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment,
+	};
+	color_blend.attachmentCount = array_size(color_blend_attachments);
+	color_blend.pAttachments = color_blend_attachments;
+	ci.pColorBlendState = &color_blend;
+
+	VkPipelineDynamicStateCreateInfo dynamic{};
+	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	VkDynamicState dynamic_states[] {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	dynamic.dynamicStateCount = array_size(dynamic_states);
+	dynamic.pDynamicStates = dynamic_states;
+	ci.pDynamicState = &dynamic;
+
+	{
+		VkPipelineLayoutCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		VkDescriptorSetLayout set_layouts[] {
+			m_wsi_set_layout
+		};
+		ci.setLayoutCount = array_size(set_layouts);
+		ci.pSetLayouts = set_layouts;
+		res.pipelineLayout = device.createPipelineLayout(ci);
+	}
+	ci.layout = res.pipelineLayout;
+	ci.renderPass = m_wsi_pass;
+
+	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
+	return res;
 }
 
 Vk::Sampler Renderer::createSamplerFb(void)
@@ -1185,16 +1402,25 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 		m_queue_family_graphics)),
 	m_transfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
-	m_descriptor_set_layout_0(createDescriptorSetLayout0()),
+	m_descriptor_set_layout_0(
+		(device.allocateCommandBuffers(m_transfer_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, m_transfer_cmd.ptr()),
+		createDescriptorSetLayout0())
+		),
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_pipeline_layout_desciptor_set(createPipelineLayoutDescriptorSet()),
 	m_descriptor_pool(createDescriptorPool()),
 
+	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
+	m_screen_vertex_buffer(createScreenVertexBuffer()),
+
 	m_opaque_pass(createOpaquePass()),
 	m_illumination_pass(createIlluminationPass()),
 	m_illumination_set_layout(createIlluminationSetLayout()),
+	m_illumination_pipeline(createIlluminationPipeline()),
 	m_wsi_pass(createWsiPass()),
 	m_wsi_set_layout(createWsiSetLayout()),
+	m_wsi_pipeline(createWsiPipeline()),
+
 	m_sampler_fb(createSamplerFb()),
 
 	m_frames(createFrames()),
@@ -1204,7 +1430,6 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
 
-	device.allocateCommandBuffers(m_transfer_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, m_transfer_cmd.ptr());
 	bindFrameDescriptors();
 }
 
@@ -1220,11 +1445,16 @@ Renderer::~Renderer(void)
 
 	device.destroy(m_sampler_fb);
 
+	m_wsi_pipeline.destroy(device);
 	device.destroy(m_wsi_set_layout);
 	device.destroy(m_wsi_pass);
+	m_illumination_pipeline.destroy(device);
 	device.destroy(m_illumination_set_layout);
 	device.destroy(m_illumination_pass);
 	device.destroy(m_opaque_pass);
+
+	allocator.destroy(m_screen_vertex_buffer);
+	device.destroy(m_fwd_p2_module);
 
 	device.destroy(m_descriptor_pool);
 	device.destroy(m_pipeline_layout_desciptor_set);
@@ -1624,6 +1854,11 @@ void Renderer::Frame::render(Map &map)
 			bi.renderArea = VkRect2D{{0, 0}, sex};
 			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 		}
+		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline);
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline.pipelineLayout,
+			0, 1, &m_illumination_set, 0, nullptr);
+		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+		m_cmd.draw(3, 1, 0, 0);
 		m_cmd.endRenderPass();
 
 		{
@@ -1640,6 +1875,11 @@ void Renderer::Frame::render(Map &map)
 			bi.renderArea = VkRect2D{{0, 0}, sex};
 			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 		}
+		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_wsi_pipeline);
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_wsi_pipeline.pipelineLayout,
+			0, 1, &m_wsi_set, 0, nullptr);
+		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+		m_cmd.draw(3, 1, 0, 0);
 		m_cmd.endRenderPass();
 
 		m_cmd.end();
