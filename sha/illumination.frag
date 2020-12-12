@@ -22,7 +22,23 @@ void main(void)
 	//int its = 0;
 	for (int i = 0; i < sample_count; i++)
 		sample_done[i] = 0;
-	for (int i = 0; i < (sample_count + 1); i++) {
+	int i = 0;
+	for (int k = 0; k < sample_count; k++) {
+		float d = texelFetch(cdepth, pos, i).x;
+		vec3 alb = texelFetch(albedo, pos, i).xyz;
+		vec3 norm = normalize(texelFetch(normal, pos, i).xyz);
+		float illum = max(dot(norm, il.sun), 0.05);
+		vec3 outp = alb * illum * 1.5;
+
+		float count = 0;
+		for (int j = 0; j < sample_count; j++) {
+			bool same = texelFetch(cdepth, pos, j).x == d;
+			sample_done[j] += same ? 1 : 0;
+			count += same ? 1.0 : 0.0;
+		}
+		out_output += outp * count;
+		//its++;
+
 		for (int j = 0; j < sample_count; j++) {
 			if (sample_done[i] == 0)
 				break;
@@ -33,18 +49,5 @@ void main(void)
 				return;
 			}
 		}
-		float d = texelFetch(cdepth, pos, i).x;
-		vec3 alb = texelFetch(albedo, pos, i).xyz;
-		vec3 norm = normalize(texelFetch(normal, pos, i).xyz);
-		float illum = max(dot(norm, il.sun), 0.05);
-		vec3 outp = alb * illum * 1.5;
-		int count = 0;
-		for (int j = 0; j < sample_count; j++) {
-			int same = texelFetch(cdepth, pos, j).x == d ? 1 : 0;
-			sample_done[j] += same;
-			count += same;
-		}
-		out_output += outp * float(count);
-		//its++;
 	}
 }
