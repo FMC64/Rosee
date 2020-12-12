@@ -1,6 +1,9 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 
+layout(constant_id = 0) const int sample_count = 0;
+layout(constant_id = 1) const float sample_factor = 0.0;
+
 layout(set = 0, binding = 0) uniform Illum {
 	vec3 sun;
 } il;
@@ -13,11 +16,11 @@ void main(void)
 {
 	out_output = vec3(0.0);
 
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < sample_count; i++) {
 		vec3 alb = texelFetch(albedo, ivec2(gl_FragCoord.xy), i).xyz;
 		vec3 norm = normalize(texelFetch(normal, ivec2(gl_FragCoord.xy), i).xyz);
 		float illum = max(dot(norm, il.sun), 0.05);
 		out_output += alb * illum * 1.5;
 	}
-	out_output *= 0.125;
+	out_output *= sample_factor;
 }

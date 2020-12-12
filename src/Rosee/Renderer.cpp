@@ -614,9 +614,23 @@ Pipeline Renderer::createIlluminationPipeline(void)
 	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, "sha/illumination");
 	res.pushShaderModule(frag);
+	struct FragSpec {
+		int32_t sample_count;
+		float sample_factor;
+	} frag_spec_data{static_cast<int32_t>(m_sample_count), 1.0f / static_cast<float>(m_sample_count)};
+	VkSpecializationMapEntry frag_spec_entries[] {
+		{0, offsetof(FragSpec, sample_count), sizeof(FragSpec::sample_count)},
+		{1, offsetof(FragSpec, sample_factor), sizeof(FragSpec::sample_factor)}
+	};
+	VkSpecializationInfo frag_spec;
+	frag_spec.mapEntryCount = array_size(frag_spec_entries);
+	frag_spec.pMapEntries = frag_spec_entries;
+	frag_spec.dataSize = sizeof(FragSpec);
+	frag_spec.pData = &frag_spec_data;
 	VkPipelineShaderStageCreateInfo stages[] {
 		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
-		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, frag)
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
 	};
 	ci.stageCount = array_size(stages);
 	ci.pStages = stages;
