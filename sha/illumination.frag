@@ -28,7 +28,7 @@ void main(void)
 		vec3 alb = texelFetch(albedo, pos, i).xyz;
 		vec3 norm = normalize(texelFetch(normal, pos, i).xyz);
 		float illum = max(dot(norm, il.sun), 0.05);
-		vec3 outp = alb * illum * 1.5;
+		vec3 outp = alb * illum * 2.5;
 
 		float count = 0;
 		for (int j = 0; j < sample_count; j++) {
