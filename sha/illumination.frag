@@ -7,7 +7,7 @@ layout(constant_id = 1) const float sample_factor = 1.0;
 layout(set = 0, binding = 0) uniform Illum {
 	vec3 sun;
 } il;
-layout(set = 0, binding = 1) uniform sampler2DMS depth_buffer;
+layout(set = 0, binding = 1) uniform sampler2DMS cdepth;
 layout(set = 0, binding = 2) uniform sampler2D depth;
 layout(set = 0, binding = 3) uniform sampler2DMS albedo;
 layout(set = 0, binding = 4) uniform sampler2DMS normal;
@@ -19,6 +19,7 @@ void main(void)
 	ivec2 pos = ivec2(gl_FragCoord.xy);
 	out_output = vec3(0.0);
 	int sample_done[sample_count];
+	//int its = 0;
 	for (int i = 0; i < sample_count; i++)
 		sample_done[i] = 0;
 	for (int i = 0; i < (sample_count + 1); i++) {
@@ -28,20 +29,22 @@ void main(void)
 			i++;
 			if (i >= sample_count) {
 				out_output *= sample_factor;
+				//out_output = vec3(float(its) / float(sample_count));
 				return;
 			}
 		}
-		float d = texelFetch(depth_buffer, pos, i).x;
+		float d = texelFetch(cdepth, pos, i).x;
 		vec3 alb = texelFetch(albedo, pos, i).xyz;
 		vec3 norm = normalize(texelFetch(normal, pos, i).xyz);
 		float illum = max(dot(norm, il.sun), 0.05);
 		vec3 outp = alb * illum * 1.5;
 		int count = 0;
 		for (int j = 0; j < sample_count; j++) {
-			int same = texelFetch(depth_buffer, pos, j).x == d ? 1 : 0;
+			int same = texelFetch(cdepth, pos, j).x == d ? 1 : 0;
 			sample_done[j] += same;
 			count += same;
 		}
 		out_output += outp * float(count);
+		//its++;
 	}
 }
