@@ -17,12 +17,27 @@ layout(location = 0) out vec3 out_output;
 void main(void)
 {
 	out_output = vec3(0.0);
-
-	for (int i = 0; i < sample_count; i++) {
-		vec3 alb = texelFetch(albedo, ivec2(gl_FragCoord.xy), i).xyz;
-		vec3 norm = normalize(texelFetch(normal, ivec2(gl_FragCoord.xy), i).xyz);
+	bool sample_done[sample_count];
+	for (int i = 0; i < sample_count; i++)
+		sample_done[i] = false;
+	int samples_done_count = 0;
+	ivec2 pos = ivec2(gl_FragCoord.xy);
+	while (samples_done_count < sample_count) {
+		int i;
+		for (i = 0; i < sample_count && sample_done[i]; i++);
+		float d = texelFetch(depth_buffer, pos, i).x;
+		vec3 alb = texelFetch(albedo, pos, i).xyz;
+		vec3 norm = normalize(texelFetch(normal, pos, i).xyz);
 		float illum = max(dot(norm, il.sun), 0.05);
-		out_output += alb * illum * 1.5;
+		int count = 1;
+		sample_done[i] = true;
+		for (int j = i + 1; j < sample_count; j++) {
+			bool same = texelFetch(depth_buffer, pos, j).x == d;
+			sample_done[j] = sample_done[j] || same;
+			count += same ? 1 : 0;
+		}
+		out_output += (alb * illum * 1.5) * float(count);
+		samples_done_count += count;
 	}
 	out_output *= sample_factor;
 }
