@@ -124,7 +124,7 @@ private:
 	Vk::CommandBuffer m_transfer_cmd;
 
 	static inline constexpr uint32_t s0_samplers_size = 1;
-	static constexpr size_t sets_per_frame = 4;
+	static inline constexpr size_t sets_per_frame = 4;
 
 	Vk::DescriptorSetLayout m_descriptor_set_layout_0;
 	Vk::DescriptorSetLayout createDescriptorSetLayout0(void);
@@ -138,6 +138,8 @@ private:
 	Vk::ShaderModule m_fwd_p2_module;
 	Vk::BufferAllocation m_screen_vertex_buffer;
 	Vk::BufferAllocation createScreenVertexBuffer(void);
+
+	VkSampleCountFlagBits m_sample_count;
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
@@ -181,6 +183,7 @@ private:
 		friend class Renderer;
 
 		Vk::ImageView createFbImage(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
+		Vk::ImageView createFbImageMs(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
 
 		Vk::ImageAllocation m_depth_buffer;
 		Vk::ImageView m_depth_buffer_view;

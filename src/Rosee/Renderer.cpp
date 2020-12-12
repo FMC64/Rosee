@@ -525,13 +525,13 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	VkAttachmentDescription atts[] {
-		{0, format_depth, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
+		{0, format_depth, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
-		{0, VK_FORMAT_R8G8B8A8_SRGB, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 1
+		{0, VK_FORMAT_R8G8B8A8_SRGB, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 1
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 2
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 2
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
 	};
@@ -1122,7 +1122,7 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 
 	VkPipelineMultisampleStateCreateInfo multisample{};
 	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisample.rasterizationSamples = m_sample_count;
 	ci.pMultisampleState = &multisample;
 
 	VkPipelineDepthStencilStateCreateInfo depthStencil{};
@@ -1415,6 +1415,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
+	m_sample_count(VK_SAMPLE_COUNT_8_BIT),
 	m_opaque_pass(createOpaquePass()),
 	m_illumination_pass(createIlluminationPass()),
 	m_illumination_set_layout(createIlluminationSetLayout()),
@@ -1703,6 +1704,24 @@ Vk::ImageView Renderer::Frame::createFbImage(VkFormat format, VkImageAspectFlags
 	return m_r.createImageView(*pAllocation, VK_IMAGE_VIEW_TYPE_2D, format, aspect);
 }
 
+Vk::ImageView Renderer::Frame::createFbImageMs(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation)
+{
+	VkImageCreateInfo ici{};
+	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	ici.imageType = VK_IMAGE_TYPE_2D;
+	ici.format = format;
+	ici.extent = VkExtent3D{m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1};
+	ici.mipLevels = 1;
+	ici.arrayLayers = 1;
+	ici.samples = m_r.m_sample_count;
+	ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ici.usage = usage;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	*pAllocation = m_r.allocator.createImage(ici, aci);
+	return m_r.createImageView(*pAllocation, VK_IMAGE_VIEW_TYPE_2D, format, aspect);
+}
+
 Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 {
 	VkFramebufferCreateInfo ci{};
@@ -1779,11 +1798,11 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
 	m_dyn_buffer(dynBuffer),
-	m_depth_buffer_view(createFbImage(m_r.format_depth, Vk::ImageAspect::DepthBit,
+	m_depth_buffer_view(createFbImageMs(m_r.format_depth, Vk::ImageAspect::DepthBit,
 		Vk::ImageUsage::DepthStencilAttachmentBit | Vk::ImageUsage::SampledBit, &m_depth_buffer)),
-	m_albedo_view(createFbImage(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
+	m_albedo_view(createFbImageMs(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_albedo)),
-	m_normal_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_normal)),
 	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_output)),

@@ -4,15 +4,20 @@
 layout(set = 0, binding = 0) uniform Illum {
 	vec3 sun;
 } il;
-layout(set = 0, binding = 1) uniform sampler2D albedo;
-layout(set = 0, binding = 2) uniform sampler2D normal;
+layout(set = 0, binding = 1) uniform sampler2DMS albedo;
+layout(set = 0, binding = 2) uniform sampler2DMS normal;
 
 layout(location = 0) out vec3 out_output;
 
 void main(void)
 {
-	vec3 alb = texture(albedo, gl_FragCoord.xy).xyz;
-	vec3 norm = normalize(texture(normal, gl_FragCoord.xy).xyz);
-	float illum = max(dot(norm, il.sun), 0.05);
-	out_output = alb * illum * 1.5;
+	out_output = vec3(0.0);
+
+	for (int i = 0; i < 8; i++) {
+		vec3 alb = texelFetch(albedo, ivec2(gl_FragCoord.xy), i).xyz;
+		vec3 norm = normalize(texelFetch(normal, ivec2(gl_FragCoord.xy), i).xyz);
+		float illum = max(dot(norm, il.sun), 0.05);
+		out_output += alb * illum * 1.5;
+	}
+	out_output *= 0.125;
 }
