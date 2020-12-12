@@ -342,6 +342,38 @@ VkFormat Renderer::getFormatDepth(void)
 		throw std::runtime_error("No compatible depth format found");
 }
 
+VkSampleCountFlags Renderer::getSupportedSampleCounts(void)
+{
+	VkFormat formats[] {
+		VK_FORMAT_X8_D24_UNORM_PACK32,
+		VK_FORMAT_R32_SFLOAT,
+		VK_FORMAT_R8G8B8A8_SRGB,
+		VK_FORMAT_R16G16B16A16_SFLOAT
+	};
+	VkSampleCountFlags res;
+
+	for (size_t i = 0; i < array_size(formats); i++) {
+		auto cur = formats[i];
+		VkImageFormatProperties props;
+		vkGetPhysicalDeviceImageFormatProperties(m_physical_device, cur, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &props);
+		if (i == 0)
+			res = props.sampleCounts;
+		else
+			res &= props.sampleCounts;
+	}
+	return res;
+}
+
+VkSampleCountFlagBits Renderer::fitSampleCount(VkSampleCountFlagBits sampleCount) const
+{
+	while (!(sampleCount & m_supported_sample_counts)) {
+		sampleCount = static_cast<VkSampleCountFlagBits>(sampleCount >> 1);
+		if (sampleCount == 0)
+			throw std::runtime_error("Sample count of 1 unsupported");
+	}
+	return sampleCount;
+}
+
 Vk::Allocator Renderer::createAllocator(void)
 {
 	VmaAllocatorCreateInfo ci{};
@@ -1416,6 +1448,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_surface(createSurface()),
 	device(createDevice()),
 	format_depth(getFormatDepth()),
+	m_supported_sample_counts(getSupportedSampleCounts()),
 	m_pipeline_cache(VK_NULL_HANDLE),
 	allocator(createAllocator()),
 	m_queue(device.getQueue(m_queue_family_graphics, 0)),
@@ -1437,7 +1470,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
-	m_sample_count(VK_SAMPLE_COUNT_8_BIT),
+	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_64_BIT)),
 	m_opaque_pass(createOpaquePass()),
 	m_illumination_pass(createIlluminationPass()),
 	m_illumination_set_layout(createIlluminationSetLayout()),

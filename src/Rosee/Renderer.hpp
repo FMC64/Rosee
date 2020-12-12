@@ -77,8 +77,12 @@ private:
 
 public:
 	const VkFormat format_depth;
+
 private:
 	VkFormat getFormatDepth(void);
+	const VkSampleCountFlags m_supported_sample_counts;
+	VkSampleCountFlags getSupportedSampleCounts(void);
+	VkSampleCountFlagBits fitSampleCount(VkSampleCountFlagBits sampleCount) const;
 
 private:
 	Vk::PipelineCache m_pipeline_cache;
