@@ -68,6 +68,17 @@ $(ROSEED)/tinyobjloader.o:
 $(ROSEED)/stb_image.o:
 	$(CXX) $(CXXFLAGS_BASE) $(ROSEED)/stb_image.cpp -c -o $(ROSEED)/stb_image.o
 
+RELEASE_DIR = ../Rosee_releases
+RELEASE_LATEST_DIR = $(RELEASE_DIR)/latest
+
+release: $(TARGET) $(SHAS)
+	rm -rf $(RELEASE_DIR)/latest
+	cp -r $(RELEASE_DIR)/template $(RELEASE_LATEST_DIR)
+	cp $(TARGET) $(RELEASE_LATEST_DIR)
+	cp -r res $(RELEASE_LATEST_DIR)
+	mkdir -p $(RELEASE_LATEST_DIR)/sha
+	cp $(SHAS) $(RELEASE_LATEST_DIR)/sha
+
 clean:
 	rm -f $(OBJ) $(TARGET)
 
