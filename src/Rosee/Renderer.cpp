@@ -469,7 +469,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_samplers_size +	// s0
-			2 +			// deferred
+			4 +			// illumination
 			1			// wsi
 		)}
 	};
@@ -598,8 +598,10 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	VkDescriptorSetLayoutBinding bindings[] {
 		{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
-		{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}	// normal
+		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth_buffer
+		{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth
+		{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
+		{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}	// normal
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -1496,7 +1498,7 @@ Renderer::~Renderer(void)
 void Renderer::bindFrameDescriptors(void)
 {
 	static constexpr size_t img_writes_per_frame =
-		2 +	// illum: albedo, normal
+		4 +	// illum: depth_buffer, depth, albedo, normal
 		1;	// wsi: output
 	static constexpr size_t buf_writes_per_frame =
 		1;	// illum: buffer
@@ -1513,17 +1515,20 @@ void Renderer::bindFrameDescriptors(void)
 			uint32_t binding;
 			VkSampler sampler;
 			VkImageView imageView;
+			VkImageLayout imageLayout;
 		} write_img_descs[img_writes_per_frame] {
-			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_albedo_view},
-			{cur_frame.m_illumination_set, 2, m_sampler_fb, cur_frame.m_normal_view},
-			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view},
+			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_depth_buffer_view, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 2, m_sampler_fb, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 		};
 
 		for (size_t j = 0; j < img_writes_per_frame; j++) {
 			auto &ii = image_infos[i * img_writes_per_frame + j];
 			ii.sampler = write_img_descs[j].sampler;
 			ii.imageView = write_img_descs[j].imageView;
-			ii.imageLayout = Vk::ImageLayout::ShaderReadOnlyOptimal;
+			ii.imageLayout = write_img_descs[j].imageLayout;
 
 			VkWriteDescriptorSet w{};
 			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1814,6 +1819,8 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_dyn_buffer(dynBuffer),
 	m_depth_buffer_view(createFbImageMs(m_r.format_depth, Vk::ImageAspect::DepthBit,
 		Vk::ImageUsage::DepthStencilAttachmentBit | Vk::ImageUsage::SampledBit, &m_depth_buffer)),
+	m_depth_view(createFbImage(VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_depth)),
 	m_albedo_view(createFbImageMs(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_albedo)),
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
@@ -1843,6 +1850,8 @@ void Renderer::Frame::destroy(bool with_ext_res)
 	m_r.allocator.destroy(m_normal);
 	m_r.device.destroy(m_albedo_view);
 	m_r.allocator.destroy(m_albedo);
+	m_r.device.destroy(m_depth_view);
+	m_r.allocator.destroy(m_depth);
 	m_r.device.destroy(m_depth_buffer_view);
 	m_r.allocator.destroy(m_depth_buffer);
 

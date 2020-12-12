@@ -187,6 +187,8 @@ private:
 
 		Vk::ImageAllocation m_depth_buffer;
 		Vk::ImageView m_depth_buffer_view;
+		Vk::ImageAllocation m_depth;
+		Vk::ImageView m_depth_view;
 		Vk::ImageAllocation m_albedo;
 		Vk::ImageView m_albedo_view;
 		Vk::ImageAllocation m_normal;
