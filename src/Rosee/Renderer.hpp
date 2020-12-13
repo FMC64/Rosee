@@ -105,6 +105,7 @@ private:
 	uint32_t m_swapchain_mip_levels;
 	VkExtent2D m_swapchain_extent_mip;
 	static uint32_t extentLog2(uint32_t val);
+	static uint32_t extentMipLevels(const VkExtent2D &extent);
 
 public:
 	const VkExtent2D& swapchainExtent(void) const { return m_swapchain_extent; }
@@ -122,6 +123,8 @@ private:
 
 public:
 	Vk::ImageView createImageView(VkImage image, VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspect);
+	Vk::ImageView createImageViewMip(VkImage image, VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspect,
+		uint32_t baseMipLevel, uint32_t levelCount);
 
 private:
 	vector<Vk::ImageView> createSwapchainImageViews(void);
@@ -131,7 +134,7 @@ private:
 	Vk::CommandBuffer m_transfer_cmd;
 
 	static inline constexpr uint32_t s0_samplers_size = 1;
-	static inline constexpr size_t sets_per_frame = 4;
+	static inline constexpr size_t sets_per_frame = 5;
 
 	Vk::DescriptorSetLayout m_descriptor_set_layout_0;
 	Vk::DescriptorSetLayout createDescriptorSetLayout0(void);
@@ -152,6 +155,10 @@ private:
 	Vk::RenderPass createOpaquePass(void);
 	Vk::RenderPass m_depth_resolve_pass;
 	Vk::RenderPass createDepthResolvePass(void);
+	Vk::DescriptorSetLayout m_depth_resolve_set_layout;
+	Vk::DescriptorSetLayout createDepthResolveSetLayout(void);
+	Pipeline m_depth_resolve_pipeline;
+	Pipeline createDepthResolvePipeline(void);
 	Vk::RenderPass m_illumination_pass;
 	Vk::RenderPass createIlluminationPass(void);
 	Vk::DescriptorSetLayout m_illumination_set_layout;
@@ -201,6 +208,7 @@ private:
 		Vk::ImageView m_cdepth_view;
 		Vk::ImageAllocation m_depth;
 		Vk::ImageView m_depth_view;
+		Vk::ImageView m_depth_first_mip_view;
 		Vk::ImageAllocation m_albedo;
 		Vk::ImageView m_albedo_view;
 		Vk::ImageAllocation m_normal;
@@ -211,6 +219,9 @@ private:
 
 		Vk::Framebuffer m_opaque_fb;
 		Vk::Framebuffer createOpaqueFb(void);
+		Vk::Framebuffer m_depth_resolve_fb;
+		Vk::Framebuffer createDepthResolveFb(void);
+		VkDescriptorSet m_depth_resolve_set;
 		Vk::Framebuffer m_illumination_fb;
 		Vk::Framebuffer createIlluminationFb(void);
 		VkDescriptorSet m_illumination_set;
@@ -228,6 +239,7 @@ private:
 	public:
 		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
 			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
+			VkDescriptorSet descriptorSetDepthResolve,
 			VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
 			Vk::BufferAllocation dynBuffer);
 

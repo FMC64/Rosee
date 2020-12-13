@@ -391,6 +391,11 @@ uint32_t Renderer::extentLog2(uint32_t val)
 	return i;
 }
 
+uint32_t Renderer::extentMipLevels(const VkExtent2D &extent)
+{
+	return static_cast<uint32_t>(std::floor(std::log2(max(extent.width, extent.height)))) + static_cast<uint32_t>(1);
+}
+
 Vk::SwapchainKHR Renderer::createSwapchain(void)
 {
 	while (true) {
@@ -411,8 +416,8 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 
 	auto wp = extentLog2(m_swapchain_extent.width);
 	auto hp = extentLog2(m_swapchain_extent.height);
-	m_swapchain_mip_levels = max(wp, hp);
 	m_swapchain_extent_mip = VkExtent2D{static_cast<uint32_t>(1) << wp, static_cast<uint32_t>(1) << hp};
+	m_swapchain_mip_levels = extentMipLevels(m_swapchain_extent_mip);
 
 	m_pipeline_viewport_state.viewport = VkViewport{0.0f, 0.0f, static_cast<float>(m_swapchain_extent.width), static_cast<float>(m_swapchain_extent.height), 0.0f, 1.0f};
 	m_pipeline_viewport_state.scissor = VkRect2D{{0, 0}, {m_swapchain_extent.width, m_swapchain_extent.height}};
@@ -457,6 +462,26 @@ Vk::ImageView Renderer::createImageView(VkImage image, VkImageViewType viewType,
 	ci.subresourceRange.aspectMask = aspect;
 	ci.subresourceRange.baseMipLevel = 0;
 	ci.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+	ci.subresourceRange.baseArrayLayer = 0;
+	ci.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+	return device.createImageView(ci);
+}
+
+Vk::ImageView Renderer::createImageViewMip(VkImage image, VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspect,
+	uint32_t baseMipLevel, uint32_t levelCount)
+{
+	VkImageViewCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	ci.image = image;
+	ci.viewType = viewType;
+	ci.format = format;
+	ci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	ci.subresourceRange.aspectMask = aspect;
+	ci.subresourceRange.baseMipLevel = baseMipLevel;
+	ci.subresourceRange.levelCount = levelCount;
 	ci.subresourceRange.baseArrayLayer = 0;
 	ci.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 	return device.createImageView(ci);
@@ -523,7 +548,8 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_samplers_size +	// s0
-			5 +			// illumination
+			1 +			// depth_resolve
+			4 +			// illumination
 			1			// wsi
 		)}
 	};
@@ -625,7 +651,7 @@ Vk::RenderPass Renderer::createDepthResolvePass(void)
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	VkAttachmentDescription atts[] {
-		{0, VK_FORMAT_R32_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// depth 0
+		{0, VK_FORMAT_R32_SFLOAT, VK_SAMPLE_COUNT_1_BIT, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// depth 0
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
 	};
@@ -649,6 +675,120 @@ Vk::RenderPass Renderer::createDepthResolvePass(void)
 	ci.pSubpasses = subpasses;
 
 	return device.createRenderPass(ci);
+}
+
+Vk::DescriptorSetLayout Renderer::createDepthResolveSetLayout(void)
+{
+	VkDescriptorSetLayoutCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayoutBinding bindings[] {
+		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth_buffer
+	};
+	ci.bindingCount = array_size(bindings);
+	ci.pBindings = bindings;
+	return device.createDescriptorSetLayout(ci);
+}
+
+Pipeline Renderer::createDepthResolvePipeline(void)
+{
+	Pipeline res;
+
+	VkGraphicsPipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, "sha/depth_resolve");
+	res.pushShaderModule(frag);
+	struct FragSpec {
+		int32_t sample_count;
+		float sample_factor;
+	} frag_spec_data{static_cast<int32_t>(m_sample_count), 1.0f / static_cast<float>(m_sample_count)};
+	VkSpecializationMapEntry frag_spec_entries[] {
+		{0, offsetof(FragSpec, sample_count), sizeof(FragSpec::sample_count)},
+		{1, offsetof(FragSpec, sample_factor), sizeof(FragSpec::sample_factor)}
+	};
+	VkSpecializationInfo frag_spec;
+	frag_spec.mapEntryCount = array_size(frag_spec_entries);
+	frag_spec.pMapEntries = frag_spec_entries;
+	frag_spec.dataSize = sizeof(FragSpec);
+	frag_spec.pData = &frag_spec_data;
+	VkPipelineShaderStageCreateInfo stages[] {
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
+	};
+	ci.stageCount = array_size(stages);
+	ci.pStages = stages;
+
+	VkPipelineVertexInputStateCreateInfo vertex_input{};
+	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	VkVertexInputBindingDescription vertex_input_bindings[] {
+		{0, sizeof(Vertex::p2), VK_VERTEX_INPUT_RATE_VERTEX}
+	};
+	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+	VkVertexInputAttributeDescription vertex_input_attributes[] {
+		{0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::p2, p)}
+	};
+	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+	ci.pVertexInputState = &vertex_input;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	ci.pInputAssemblyState = &input_assembly;
+
+	ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+	VkPipelineRasterizationStateCreateInfo rasterization{};
+	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterization.lineWidth = 1.0f;
+	ci.pRasterizationState = &rasterization;
+
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ci.pMultisampleState = &multisample;
+
+	VkPipelineColorBlendStateCreateInfo color_blend{};
+	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment
+	};
+	color_blend.attachmentCount = array_size(color_blend_attachments);
+	color_blend.pAttachments = color_blend_attachments;
+	ci.pColorBlendState = &color_blend;
+
+	VkPipelineDynamicStateCreateInfo dynamic{};
+	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	VkDynamicState dynamic_states[] {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	dynamic.dynamicStateCount = array_size(dynamic_states);
+	dynamic.pDynamicStates = dynamic_states;
+	ci.pDynamicState = &dynamic;
+
+	{
+		VkPipelineLayoutCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		VkDescriptorSetLayout set_layouts[] {
+			m_depth_resolve_set_layout
+		};
+		ci.setLayoutCount = array_size(set_layouts);
+		ci.pSetLayouts = set_layouts;
+		res.pipelineLayout = device.createPipelineLayout(ci);
+	}
+	ci.layout = res.pipelineLayout;
+	ci.renderPass = m_depth_resolve_pass;
+
+	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
+	return res;
 }
 
 Vk::RenderPass Renderer::createIlluminationPass(void)
@@ -956,8 +1096,9 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	for (uint32_t i = 0; i < m_frame_count; i++) {
 		set_layouts[i * sets_per_frame] = m_descriptor_set_layout_0;
 		set_layouts[i * sets_per_frame + 1] = m_descriptor_set_layout_dynamic;
-		set_layouts[i * sets_per_frame + 2] = m_illumination_set_layout;
-		set_layouts[i * sets_per_frame + 3] = m_wsi_set_layout;
+		set_layouts[i * sets_per_frame + 2] = m_depth_resolve_set_layout;
+		set_layouts[i * sets_per_frame + 3] = m_illumination_set_layout;
+		set_layouts[i * sets_per_frame + 4] = m_wsi_set_layout;
 	}
 	device.allocateDescriptorSets(m_descriptor_pool, m_frame_count * sets_per_frame, set_layouts, sets);
 
@@ -995,7 +1136,9 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
 		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1],
-			sets[i * sets_per_frame], sets[i * sets_per_frame + 1], sets[i * sets_per_frame + 2], sets[i * sets_per_frame + 3],
+			sets[i * sets_per_frame], sets[i * sets_per_frame + 1],
+			sets[i * sets_per_frame + 2], sets[i * sets_per_frame + 3],
+			sets[i * sets_per_frame + 4],
 			dyn_buffers[i]);
 	return res;
 }
@@ -1511,6 +1654,8 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_64_BIT)),
 	m_opaque_pass(createOpaquePass()),
 	m_depth_resolve_pass(createDepthResolvePass()),
+	m_depth_resolve_set_layout(createDepthResolveSetLayout()),
+	m_depth_resolve_pipeline(createDepthResolvePipeline()),
 	m_illumination_pass(createIlluminationPass()),
 	m_illumination_set_layout(createIlluminationSetLayout()),
 	m_illumination_pipeline(createIlluminationPipeline()),
@@ -1548,6 +1693,8 @@ Renderer::~Renderer(void)
 	m_illumination_pipeline.destroy(device);
 	device.destroy(m_illumination_set_layout);
 	device.destroy(m_illumination_pass);
+	m_depth_resolve_pipeline.destroy(device);
+	device.destroy(m_depth_resolve_set_layout);
 	device.destroy(m_depth_resolve_pass);
 	device.destroy(m_opaque_pass);
 
@@ -1577,6 +1724,7 @@ Renderer::~Renderer(void)
 void Renderer::bindFrameDescriptors(void)
 {
 	static constexpr size_t img_writes_per_frame =
+		1 +	// depth_resolve: depth_buffer
 		4 +	// illum: cdepth, depth, albedo, normal
 		1;	// wsi: output
 	static constexpr size_t buf_writes_per_frame =
@@ -1596,6 +1744,7 @@ void Renderer::bindFrameDescriptors(void)
 			VkImageView imageView;
 			VkImageLayout imageLayout;
 		} write_img_descs[img_writes_per_frame] {
+			{cur_frame.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 2, m_sampler_fb, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -1668,6 +1817,7 @@ void Renderer::recreateSwapchain(void)
 		auto &f = reinterpret_cast<Frame*>(frames)[i];
 		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd,
 			f.m_descriptor_set_0, f.m_descriptor_set_dynamic,
+			f.m_depth_resolve_set,
 			f.m_illumination_set, f.m_wsi_set,
 			f.m_dyn_buffer);
 	}
@@ -1857,6 +2007,22 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 	return m_r.device.createFramebuffer(ci);
 }
 
+Vk::Framebuffer Renderer::Frame::createDepthResolveFb(void)
+{
+	VkFramebufferCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	ci.renderPass = m_r.m_depth_resolve_pass;
+	VkImageView atts[] {
+		m_depth_first_mip_view
+	};
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.width = m_r.m_swapchain_extent_mip.width;
+	ci.height = m_r.m_swapchain_extent_mip.height;
+	ci.layers = 1;
+	return m_r.device.createFramebuffer(ci);
+}
+
 Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 {
 	VkFramebufferCreateInfo ci{};
@@ -1902,6 +2068,7 @@ Vk::Framebuffer Renderer::Frame::createWsiFb(void)
 
 Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
 	VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
+	VkDescriptorSet descriptorSetDepthResolve,
 	VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
 	Vk::BufferAllocation dynBuffer) :
 	m_r(r),
@@ -1921,6 +2088,8 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_cdepth)),
 	m_depth_view(createFbImageMip(VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_depth)),
+	m_depth_first_mip_view(m_r.createImageViewMip(m_depth, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit,
+		0, 1)),
 	m_albedo_view(createFbImageMs(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_albedo)),
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
@@ -1928,6 +2097,8 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_output)),
 	m_opaque_fb(createOpaqueFb()),
+	m_depth_resolve_fb(createDepthResolveFb()),
+	m_depth_resolve_set(descriptorSetDepthResolve),
 	m_illumination_fb(createIlluminationFb()),
 	m_illumination_set(descriptorSetIllum),
 	m_illumination_buffer(createIlluminationBuffer()),
@@ -1941,6 +2112,7 @@ void Renderer::Frame::destroy(bool with_ext_res)
 	m_r.device.destroy(m_wsi_fb);
 	m_r.allocator.destroy(m_illumination_buffer);
 	m_r.device.destroy(m_illumination_fb);
+	m_r.device.destroy(m_depth_resolve_fb),
 	m_r.device.destroy(m_opaque_fb);
 
 	m_r.device.destroy(m_output_view);
@@ -1950,6 +2122,7 @@ void Renderer::Frame::destroy(bool with_ext_res)
 	m_r.allocator.destroy(m_normal);
 	m_r.device.destroy(m_albedo_view);
 	m_r.allocator.destroy(m_albedo);
+	m_r.device.destroy(m_depth_first_mip_view);
 	m_r.device.destroy(m_depth_view);
 	m_r.allocator.destroy(m_depth);
 	m_r.device.destroy(m_cdepth_view);
@@ -1984,6 +2157,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 {
 	std::lock_guard l(m_r.m_render_mutex);
 	auto &sex = m_r.m_swapchain_extent;
+	auto &sex_mip = m_r.m_swapchain_extent_mip;
 
 	uint32_t swapchain_index;
 	vkAssert(vkAcquireNextImageKHR(m_r.device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
@@ -2043,6 +2217,29 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				1, &barrier, 0, nullptr, 0, nullptr);
 		}
 
+		m_cmd.setExtent(sex_mip);
+		{
+			VkRenderPassBeginInfo bi{};
+			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			bi.renderPass = m_r.m_depth_resolve_pass;
+			bi.framebuffer = m_depth_resolve_fb;
+			bi.renderArea = VkRect2D{{0, 0}, sex_mip};
+			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+		}
+		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline);
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline.pipelineLayout,
+			0, 1, &m_depth_resolve_set, 0, nullptr);
+		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+		m_cmd.draw(3, 1, 0, 0);
+		m_cmd.endRenderPass();
+
+		{
+			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
+			m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+				1, &barrier, 0, nullptr, 0, nullptr);
+		}
+
+		m_cmd.setExtent(m_r.m_swapchain_extent);
 		{
 			VkRenderPassBeginInfo bi{};
 			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

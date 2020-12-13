@@ -46,6 +46,7 @@ void main(void)
 			if (i >= sample_count) {
 				out_output *= sample_factor;
 				//out_output = vec3(float(its) / float(sample_count));
+				//out_output = vec3(texelFetch(depth, pos, 0).x);
 				return;
 			}
 		}
