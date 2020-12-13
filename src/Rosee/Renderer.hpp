@@ -102,6 +102,9 @@ public:
 
 private:
 	VkExtent2D m_swapchain_extent;
+	uint32_t m_swapchain_mip_levels;
+	VkExtent2D m_swapchain_extent_mip;
+	static uint32_t extentLog2(uint32_t val);
 
 public:
 	const VkExtent2D& swapchainExtent(void) const { return m_swapchain_extent; }
@@ -147,6 +150,8 @@ private:
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
+	Vk::RenderPass m_depth_resolve_pass;
+	Vk::RenderPass createDepthResolvePass(void);
 	Vk::RenderPass m_illumination_pass;
 	Vk::RenderPass createIlluminationPass(void);
 	Vk::DescriptorSetLayout m_illumination_set_layout;
@@ -188,6 +193,7 @@ private:
 
 		Vk::ImageView createFbImage(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
 		Vk::ImageView createFbImageMs(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
+		Vk::ImageView createFbImageMip(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
 
 		Vk::ImageAllocation m_depth_buffer;
 		Vk::ImageView m_depth_buffer_view;
