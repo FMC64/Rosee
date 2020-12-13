@@ -488,6 +488,11 @@ Vk::PipelineLayout Renderer::createPipelineLayoutDescriptorSet(void)
 	};
 	ci.setLayoutCount = array_size(set_layouts);
 	ci.pSetLayouts = set_layouts;
+	VkPushConstantRange ranges[] {
+		{VK_SHADER_STAGE_FRAGMENT_BIT, 0, 16}
+	};
+	ci.pushConstantRangeCount = array_size(ranges);
+	ci.pPushConstantRanges = ranges;
 	return device.createPipelineLayout(ci);
 }
 
@@ -1014,7 +1019,8 @@ void Pipeline::pushDynamic(cmp_id cmp)
 void Pipeline::destroy(Vk::Device device)
 {
 	device.destroy(*this);
-	device.destroy(pipelineLayout);
+	if (pipelineLayout != VK_NULL_HANDLE)
+		device.destroy(pipelineLayout);
 	for (uint32_t i = 0; i < shaderModuleCount; i++)
 		device.destroy(shaderModules[i]);
 }
@@ -1211,26 +1217,9 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 	dynamic.pDynamicStates = dynamic_states;
 	ci.pDynamicState = &dynamic;
 
-	{
-		VkPipelineLayoutCreateInfo ci{};
-		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		VkDescriptorSetLayout set_layouts[] {
-			m_descriptor_set_layout_0,
-			m_descriptor_set_layout_dynamic
-		};
-		ci.setLayoutCount = array_size(set_layouts);
-		ci.pSetLayouts = set_layouts;
-		VkPushConstantRange ranges[] {
-			{VK_SHADER_STAGE_FRAGMENT_BIT, 0, pushConstantRange}
-		};
-		if (pushConstantRange > 0) {
-			ci.pushConstantRangeCount = array_size(ranges);
-			ci.pPushConstantRanges = ranges;
-		}
-		res.pipelineLayout = device.createPipelineLayout(ci);
-		res.pushConstantRange = pushConstantRange;
-	}
-	ci.layout = res.pipelineLayout;
+	res.pipelineLayout = VK_NULL_HANDLE;
+	res.pushConstantRange = pushConstantRange;
+	ci.layout = m_pipeline_layout_descriptor_set;
 	ci.renderPass = m_opaque_pass;
 
 	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
@@ -1464,7 +1453,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 		createDescriptorSetLayout0())
 		),
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
-	m_pipeline_layout_desciptor_set(createPipelineLayoutDescriptorSet()),
+	m_pipeline_layout_descriptor_set(createPipelineLayoutDescriptorSet()),
 	m_descriptor_pool(createDescriptorPool()),
 
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
@@ -1515,7 +1504,7 @@ Renderer::~Renderer(void)
 	device.destroy(m_fwd_p2_module);
 
 	device.destroy(m_descriptor_pool);
-	device.destroy(m_pipeline_layout_desciptor_set);
+	device.destroy(m_pipeline_layout_descriptor_set);
 	device.destroy(m_descriptor_set_layout_dynamic);
 	device.destroy(m_descriptor_set_layout_0);
 
@@ -1947,7 +1936,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 	{
 		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		m_cmd.setExtent(m_r.m_swapchain_extent);
-		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_desciptor_set,
+		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_descriptor_set,
 			0, 1, &m_descriptor_set_0, 0, nullptr);
 		{
 			VkRenderPassBeginInfo bi{};
@@ -2107,7 +2096,7 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 					m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *n.pipeline);
 				if (n.material != cur.material) {
 					if (n.pipeline->pushConstantRange > 0)
-						m_cmd.pushConstants(n.pipeline->pipelineLayout, Vk::ShaderStage::FragmentBit, 0, n.pipeline->pushConstantRange, n.material);
+						m_cmd.pushConstants(m_r.m_pipeline_layout_descriptor_set, Vk::ShaderStage::FragmentBit, 0, n.pipeline->pushConstantRange, n.material);
 				}
 				if (n.model != cur.model) {
 					m_cmd.bindVertexBuffer(0, n.model->vertexBuffer, 0);
@@ -2116,7 +2105,7 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 				}
 				{
 					uint32_t dyn_off[] {static_cast<uint32_t>(m_dyn_buffer_size)};
-					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, n.pipeline->pipelineLayout,
+					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_descriptor_set,
 						1, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
 				}
 				cur = n;

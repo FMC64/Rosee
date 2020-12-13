@@ -134,7 +134,7 @@ private:
 	Vk::DescriptorSetLayout createDescriptorSetLayout0(void);
 	Vk::DescriptorSetLayout m_descriptor_set_layout_dynamic;
 	Vk::DescriptorSetLayout createDescriptorSetLayoutDynamic(void);
-	Vk::PipelineLayout m_pipeline_layout_desciptor_set;
+	Vk::PipelineLayout m_pipeline_layout_descriptor_set;
 	Vk::PipelineLayout createPipelineLayoutDescriptorSet(void);
 	Vk::DescriptorPool m_descriptor_pool;
 	Vk::DescriptorPool createDescriptorPool(void);
