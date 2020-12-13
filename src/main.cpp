@@ -37,6 +37,7 @@ class Game
 		};*/
 
 		auto pipeline_pool = PipelinePool(64);
+		auto material_pool = MaterialPool(64);
 		auto model_pool = ModelPool(64);
 		size_t image_count = 1;
 		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
@@ -46,7 +47,7 @@ class Game
 		*model_world = m_r.loadModel("res/mod/vokselia_spawn.obj");
 
 		auto pipeline_opaque = pipeline_pool.allocate();
-		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", 0);
+		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", sizeof(int32_t));
 		pipeline_opaque->pushDynamic<MVP>();
 		pipeline_opaque->pushDynamic<MV_normal>();
 
@@ -59,6 +60,9 @@ class Game
 			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		});
+
+		auto material_albedo = material_pool.allocate();
+		*reinterpret_cast<int32_t*>(material_albedo) = 0;
 
 		{
 			auto img0 = image_pool.allocate();
@@ -77,6 +81,7 @@ class Game
 			b.get<Transform>()[n] = glm::scale(glm::vec3(100.0f));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
+			r.material = material_albedo;
 			r.model = model_world;
 		}
 

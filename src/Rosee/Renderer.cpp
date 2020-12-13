@@ -2107,7 +2107,7 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 					m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *n.pipeline);
 				if (n.material != cur.material) {
 					if (n.pipeline->pushConstantRange > 0)
-						m_cmd.pushConstants(n.pipeline->pipelineLayout, Vk::ShaderStage::FragmentBit, 0, n.pipeline->pushConstantRange, cur.material);
+						m_cmd.pushConstants(n.pipeline->pipelineLayout, Vk::ShaderStage::FragmentBit, 0, n.pipeline->pushConstantRange, n.material);
 				}
 				if (n.model != cur.model) {
 					m_cmd.bindVertexBuffer(0, n.model->vertexBuffer, 0);

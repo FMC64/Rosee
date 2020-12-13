@@ -1,5 +1,0 @@
-layout(push_constant) uniform PushConstant {
-	vec3 color;
-	vec2 pos;
-	float size;
-} p;

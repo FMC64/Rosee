@@ -3,6 +3,10 @@
 
 #include "0_frag.set"
 
+layout(push_constant) uniform PushConstant {
+	int albedo;
+} p;
+
 layout(location = 0) in vec2 in_u;
 layout(location = 1) in vec3 in_n;
 
@@ -12,7 +16,7 @@ layout(location = 2) out vec3 out_normal;
 
 void main(void)
 {
-	vec4 t = texture(samplers[0], vec2(in_u.x, -in_u.y));
+	vec4 t = texture(samplers[p.albedo], vec2(in_u.x, -in_u.y));
 	if (t.w < 0.01)
 		discard;
 	out_depth = gl_FragCoord.z;
