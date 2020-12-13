@@ -387,7 +387,7 @@ Vk::Allocator Renderer::createAllocator(void)
 uint32_t Renderer::extentLog2(uint32_t val)
 {
 	uint32_t i;
-	for (i = 0; (static_cast<uint32_t>(1) << i) < val; i++);
+	for (i = 1; i < val; i <<= 1);
 	return i;
 }
 
@@ -402,6 +402,11 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 		if (m_swapchain_extent.width * m_swapchain_extent.height > 0)
 			break;
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
+		{
+			std::lock_guard l(m_next_input_mutex);
+			m_next_input++;
+		}
+		m_next_input_cv.notify_one();
 	}
 
 	auto wp = extentLog2(m_swapchain_extent.width);
