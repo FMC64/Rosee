@@ -386,17 +386,9 @@ Vk::Allocator Renderer::createAllocator(void)
 
 uint32_t Renderer::extentLog2(uint32_t val)
 {
-	uint32_t res = 0;
-	for (uint32_t i = 0; ; i++) {
-		auto c = static_cast<uint32_t>(1) << i;
-		if (c > val)
-			break;
-		if (c & val)
-			res = i;
-	}
-	if ((static_cast<uint32_t>(1)) != val)
-		res++;
-	return res;
+	uint32_t i;
+	for (i = 0; (static_cast<uint32_t>(1) << i) < val; i++);
+	return i;
 }
 
 Vk::SwapchainKHR Renderer::createSwapchain(void)
