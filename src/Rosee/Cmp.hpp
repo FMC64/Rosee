@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <glm/mat4x4.hpp>
+#include <glm/mat3x4.hpp>
 #include <glm/vec3.hpp>
 #include "array.hpp"
 #include "Cmp/List.hpp"
@@ -79,12 +80,12 @@ struct MVP : public Cmp::Id_t<MVP>, public glm::mat4
 	using glm::mat4::operator=;
 };
 
-struct MV_normal : public Cmp::Id_t<MV_normal>, public glm::mat4
+struct MV_normal : public Cmp::Id_t<MV_normal>, public glm::mat3x4
 {
 	static Cmp::init_fun_t init;
 	static Cmp::destr_fun_t destr;
 
-	using glm::mat4::operator=;
+	using glm::mat3x4::operator=;
 };
 
 struct Render

@@ -152,9 +152,10 @@ class Game
 					auto trans = b.get<Transform>();
 					for (size_t i = 0; i < size; i++) {
 						mvp[i] = vp * trans[i];
-						mv_normal[i] = view * trans[i];
+						auto normal = view * trans[i];
 						for (size_t j = 0; j < 3; j++)
-							mv_normal[i][3][j] = 0.0f;
+							for (size_t k = 0; k < 3; k++)
+								mv_normal[i][j][k] = normal[j][k];
 					}
 				});
 

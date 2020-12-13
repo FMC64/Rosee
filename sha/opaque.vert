@@ -3,7 +3,7 @@
 
 struct Frame {
 	mat4 mvp;
-	mat4 mv_normal;
+	mat3 mv_normal;
 };
 
 layout(set = 1, binding = 0) readonly buffer Dyn {
@@ -21,5 +21,5 @@ void main(void)
 {
 	gl_Position = d.f[gl_InstanceIndex].mvp * vec4(in_p, 1.0);
 	out_u = in_u;
-	out_n = (d.f[gl_InstanceIndex].mv_normal * vec4(in_n, 1.0)).xyz;
+	out_n = d.f[gl_InstanceIndex].mv_normal * in_n;
 }
