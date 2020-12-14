@@ -47,7 +47,7 @@ void main(void)
 			if (i >= sample_count) {
 				out_output *= sample_factor;
 				//out_output = vec3(float(its) / float(sample_count));
-				//out_output = vec3(texture(depth, gl_FragCoord.xy * il.depth_size, 4).x);
+				//out_output = vec3(texture(depth, gl_FragCoord.xy * il.depth_size, 6).x);
 				return;
 			}
 		}

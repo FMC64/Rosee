@@ -2,7 +2,6 @@
 #extension GL_GOOGLE_include_directive : enable
 
 layout(constant_id = 0) const int sample_count = 1;
-layout(constant_id = 1) const float sample_factor = 1.0;
 
 layout(set = 0, binding = 0) uniform sampler2DMS cdepth;
 
@@ -14,5 +13,4 @@ void main(void)
 	out_depth = 0.0;
 	for (int i = 0; i < sample_count; i++)
 		out_depth = max(out_depth, texelFetch(cdepth, pos, i).x);
-	out_depth *= sample_factor;
 }
