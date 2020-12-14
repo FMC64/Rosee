@@ -133,7 +133,7 @@ private:
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
 
-	static inline constexpr uint32_t s0_samplers_size = 1;
+	static inline constexpr uint32_t s0_sampler_count = 1;
 	static inline constexpr size_t sets_per_frame = 5;
 
 	Vk::DescriptorSetLayout m_descriptor_set_layout_0;

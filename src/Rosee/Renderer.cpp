@@ -501,7 +501,7 @@ Vk::DescriptorSetLayout Renderer::createDescriptorSetLayout0(void)
 	VkDescriptorSetLayoutCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	VkDescriptorSetLayoutBinding bindings[] {
-		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, s0_samplers_size, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
+		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, s0_sampler_count, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -547,7 +547,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
-			s0_samplers_size +	// s0
+			s0_sampler_count +	// s0
 			1 +			// depth_resolve
 			4 +			// illumination
 			1			// wsi
@@ -1348,9 +1348,21 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, stagesPath);
 	res.pushShaderModule(vert);
 	res.pushShaderModule(frag);
+	struct FragSpec {
+		int32_t sampler_count;
+	} frag_spec_data{s0_sampler_count};
+	VkSpecializationMapEntry frag_spec_entries[] {
+		{0, offsetof(FragSpec, sampler_count), sizeof(FragSpec::sampler_count)}
+	};
+	VkSpecializationInfo frag_spec;
+	frag_spec.mapEntryCount = array_size(frag_spec_entries);
+	frag_spec.pMapEntries = frag_spec_entries;
+	frag_spec.dataSize = sizeof(FragSpec);
+	frag_spec.pData = &frag_spec_data;
 	VkPipelineShaderStageCreateInfo stages[] {
 		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, vert),
-		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, frag)
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
 	};
 	ci.stageCount = array_size(stages);
 	ci.pStages = stages;
