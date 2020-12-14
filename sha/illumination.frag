@@ -6,6 +6,7 @@ layout(constant_id = 1) const float sample_factor = 1.0;
 
 layout(set = 0, binding = 0) uniform Illum {
 	vec3 sun;
+	vec2 depth_size;
 } il;
 layout(set = 0, binding = 1) uniform sampler2DMS cdepth;
 layout(set = 0, binding = 2) uniform sampler2D depth;

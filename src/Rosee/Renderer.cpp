@@ -386,9 +386,9 @@ Vk::Allocator Renderer::createAllocator(void)
 
 uint32_t Renderer::extentLog2(uint32_t val)
 {
-	uint32_t i;
-	for (i = 1; i < val; i <<= 1);
-	return i;
+	uint32_t res = 0;
+	for (uint32_t i = 1; i < val; i <<= static_cast<uint32_t>(1), res++);
+	return res;
 }
 
 uint32_t Renderer::extentMipLevels(const VkExtent2D &extent)
@@ -1087,6 +1087,21 @@ Vk::Sampler Renderer::createSamplerFb(void)
 	});
 }
 
+Vk::Sampler Renderer::createSamplerFbMip(void)
+{
+	return device.createSampler(VkSamplerCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = VK_FILTER_NEAREST,
+		.minFilter = VK_FILTER_NEAREST,
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.minLod = 0.0f,
+		.maxLod = VK_LOD_CLAMP_NONE
+	});
+}
+
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
 	VkCommandBuffer cmds[m_frame_count * sets_per_frame];
@@ -1664,6 +1679,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_wsi_pipeline(createWsiPipeline()),
 
 	m_sampler_fb(createSamplerFb()),
+	m_sampler_fb_mip(createSamplerFbMip()),
 
 	m_frames(createFrames()),
 	m_pipeline_pool(4),
@@ -1685,6 +1701,7 @@ Renderer::~Renderer(void)
 	for (auto &f : m_frames)
 		f.destroy(true);
 
+	device.destroy(m_sampler_fb_mip);
 	device.destroy(m_sampler_fb);
 
 	m_wsi_pipeline.destroy(device);
@@ -1746,7 +1763,7 @@ void Renderer::bindFrameDescriptors(void)
 		} write_img_descs[img_writes_per_frame] {
 			{cur_frame.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 2, m_sampler_fb, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 2, m_sampler_fb_mip, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -2256,6 +2273,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 
 			Illumination illum;
 			illum.sun = view_norm * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
+			illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
 
 
 			*reinterpret_cast<Illumination*>(reinterpret_cast<uint8_t*>(m_dyn_buffer_staging_ptr) + m_dyn_buffer_size) = illum;

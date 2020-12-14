@@ -174,6 +174,8 @@ private:
 
 	Vk::Sampler m_sampler_fb;
 	Vk::Sampler createSamplerFb(void);
+	Vk::Sampler m_sampler_fb_mip;
+	Vk::Sampler createSamplerFbMip(void);
 
 	class Frame
 	{
@@ -234,6 +236,7 @@ private:
 		struct Illumination {
 			glm::vec3 sun;
 			float _pad;
+			glm::vec2 depth_size;
 		};
 
 	public:

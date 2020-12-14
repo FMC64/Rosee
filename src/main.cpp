@@ -193,8 +193,8 @@ class Game
 	}
 
 public:
-	Game(bool validate) :
-		m_r(3, validate, false),
+	Game(bool validate, bool useRenderDoc) :
+		m_r(3, validate, useRenderDoc),
 		m_rt([this](){
 			render();
 		})
@@ -221,11 +221,15 @@ public:
 int main(int argc, char **argv)
 {
 	bool validate = false;
-	for (int i = 1; i < argc; i++)
+	bool is_render_doc = false;
+	for (int i = 1; i < argc; i++) {
 		if (std::strcmp(argv[i], "-v") == 0)
 			validate = true;
+		if (std::strcmp(argv[i], "-r") == 0)
+			is_render_doc = true;
+	}
 
-	auto g = Game(validate || is_debug);
+	auto g = Game(validate || is_debug, is_render_doc);
 	g.run();
 	return 0;
 }
