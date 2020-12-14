@@ -124,7 +124,9 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 	if (dir2 == vec2(0.0))
 		return false;
 	vec2 dir2n = -dir2;
-	float dir_pp_bias = (1.0 / length(dir2)) / 64.0;
+	float dir_len = 1.0 / length(dir2);
+	float dir_pp_bias = dir_len * (1.0 / 64.0);
+	//vec2 dir2_norm = dir2 * dir_len;
 
 	float t = 0.0;
 
@@ -142,30 +144,25 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 		return true;
 	}
 
-	const int trace_res = 5;
+	const int trace_res = 0;
 	t += rt_cell_end(p.xy, dir2, float(1 << trace_res)) + dir_pp_bias;
 	p = mix(p0, p1, t);
 
-	uint max_it = 512;//rt_fb.depth_buffer_max_it >> max_it_fac;
-	while (it++ < max_it) {
-		if (t >= t_max)
-			return false;
-		int cur_lev = level + trace_res;
-		int cell_lev = level == 0 ? 0 : cur_lev;
-		float cell_size = float(1 << cell_lev);
-		float start_d = mix(p0.z, p1.z, t + rt_cell_end(p.xy, dir2n, cell_size));
-		float end_d = mix(p0.z, p1.z, t + rt_cell_end(p.xy, dir2, cell_size));
-		float d = textureLod(depth, p.xy * il.depth_size, cell_lev).x;
+	//uint max_it = 512;//rt_fb.depth_buffer_max_it >> max_it_fac;
+	for (int i = 0; i < 512; i++) {
+		float d = textureLod(depth, p.xy * il.depth_size, level).x;
 		if (level == 0)
-			d = rt_z_to_depth(rt_depth_to_z(d) + bias);
-		if ((start_d <= d) || (end_d <= d)) {
+			d += rt_z_to_depth(rt_depth_to_z(d) + bias);
+		if (p.z <= d) {
 			if (level == 0) {
 				pos = p.xy;
 				return true;
 			}
 			level--;
 		} else {
-			t += rt_cell_end(p.xy, dir2, float(1 << cur_lev)) + dir_pp_bias;
+			t += dir_len * float(1 << (level + trace_res));
+			if (t >= t_max)
+				return false;
 			p = mix(p0, p1, t);
 			level++;
 		}
