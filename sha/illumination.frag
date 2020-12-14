@@ -152,7 +152,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 	for (int i = 0; i < 512; i++) {
 		float d = textureLod(depth, p.xy * il.depth_size, level).x;
 		if (level == 0)
-			d += rt_z_to_depth(rt_depth_to_z(d) + bias);
+			d = rt_z_to_depth(rt_depth_to_z(d) + bias);
 		if (p.z <= d) {
 			if (level == 0) {
 				pos = p.xy;
