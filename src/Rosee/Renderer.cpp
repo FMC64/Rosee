@@ -396,6 +396,11 @@ uint32_t Renderer::extentMipLevels(const VkExtent2D &extent)
 	return static_cast<uint32_t>(std::floor(std::log2(max(extent.width, extent.height)))) + static_cast<uint32_t>(1);
 }
 
+uint32_t Renderer::nextExtentMip(uint32_t extent)
+{
+	return max(extent / static_cast<uint32_t>(2), static_cast<uint32_t>(1));
+}
+
 Vk::SwapchainKHR Renderer::createSwapchain(void)
 {
 	while (true) {
@@ -418,6 +423,16 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	auto hp = extentLog2(m_swapchain_extent.height);
 	m_swapchain_extent_mip = VkExtent2D{static_cast<uint32_t>(1) << wp, static_cast<uint32_t>(1) << hp};
 	m_swapchain_mip_levels = extentMipLevels(m_swapchain_extent_mip);
+	m_swapchain_extent_mips.resize(m_swapchain_mip_levels);
+	{
+		uint32_t w = wp;
+		uint32_t h = hp;
+		for (uint32_t i = 0; i < m_swapchain_mip_levels; i++) {
+			m_swapchain_extent_mips[i] = VkExtent2D{w, h};
+			w = nextExtentMip(w);
+			h = nextExtentMip(h);
+		}
+	}
 
 	m_pipeline_viewport_state.viewport = VkViewport{0.0f, 0.0f, static_cast<float>(m_swapchain_extent.width), static_cast<float>(m_swapchain_extent.height), 0.0f, 1.0f};
 	m_pipeline_viewport_state.scissor = VkRect2D{{0, 0}, {m_swapchain_extent.width, m_swapchain_extent.height}};
@@ -552,6 +567,21 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 			4 +			// illumination
 			1			// wsi
 		)}
+	};
+	ci.poolSizeCount = array_size(pool_sizes);
+	ci.pPoolSizes = pool_sizes;
+	return device.createDescriptorPool(ci);
+}
+
+Vk::DescriptorPool Renderer::createDescriptorPoolMip(void)
+{
+	VkDescriptorPoolCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	ci.maxSets = m_frame_count * sets_per_frame_mip * (m_swapchain_mip_levels - 1);
+	VkDescriptorPoolSize pool_sizes[] {
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			m_frame_count * sets_per_frame_mip * (m_swapchain_mip_levels - 1)
+		}
 	};
 	ci.poolSizeCount = array_size(pool_sizes);
 	ci.pPoolSizes = pool_sizes;
@@ -714,6 +744,94 @@ Pipeline Renderer::createDepthResolvePipeline(void)
 		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
 			VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
+	};
+	ci.stageCount = array_size(stages);
+	ci.pStages = stages;
+
+	VkPipelineVertexInputStateCreateInfo vertex_input{};
+	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	VkVertexInputBindingDescription vertex_input_bindings[] {
+		{0, sizeof(Vertex::p2), VK_VERTEX_INPUT_RATE_VERTEX}
+	};
+	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+	VkVertexInputAttributeDescription vertex_input_attributes[] {
+		{0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::p2, p)}
+	};
+	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+	ci.pVertexInputState = &vertex_input;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	ci.pInputAssemblyState = &input_assembly;
+
+	ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+	VkPipelineRasterizationStateCreateInfo rasterization{};
+	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterization.lineWidth = 1.0f;
+	ci.pRasterizationState = &rasterization;
+
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ci.pMultisampleState = &multisample;
+
+	VkPipelineColorBlendStateCreateInfo color_blend{};
+	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment
+	};
+	color_blend.attachmentCount = array_size(color_blend_attachments);
+	color_blend.pAttachments = color_blend_attachments;
+	ci.pColorBlendState = &color_blend;
+
+	VkPipelineDynamicStateCreateInfo dynamic{};
+	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	VkDynamicState dynamic_states[] {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	dynamic.dynamicStateCount = array_size(dynamic_states);
+	dynamic.pDynamicStates = dynamic_states;
+	ci.pDynamicState = &dynamic;
+
+	{
+		VkPipelineLayoutCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		VkDescriptorSetLayout set_layouts[] {
+			m_depth_resolve_set_layout
+		};
+		ci.setLayoutCount = array_size(set_layouts);
+		ci.pSetLayouts = set_layouts;
+		res.pipelineLayout = device.createPipelineLayout(ci);
+	}
+	ci.layout = res.pipelineLayout;
+	ci.renderPass = m_depth_resolve_pass;
+
+	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
+	return res;
+}
+
+Pipeline Renderer::createDepthAccPipeline(void)
+{
+	Pipeline res;
+
+	VkGraphicsPipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, "sha/depth_acc");
+	res.pushShaderModule(frag);
+	VkPipelineShaderStageCreateInfo stages[] {
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
+		initPipelineStage(VK_SHADER_STAGE_FRAGMENT_BIT, frag)
 	};
 	ci.stageCount = array_size(stages);
 	ci.pStages = stages;
@@ -1147,6 +1265,14 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	}
 	device.updateDescriptorSets(m_frame_count, desc_writes, 0, nullptr);
 
+	size_t sets_mip_stride = (m_swapchain_mip_levels - 1) * sets_per_frame_mip;
+	size_t sets_mip_size = m_frame_count * sets_mip_stride;
+	VkDescriptorSet sets_mip[sets_mip_size];
+	VkDescriptorSetLayout set_layouts_mip[sets_mip_size];
+	for (size_t i = 0; i < sets_mip_size; i++)
+		set_layouts_mip[i] = m_depth_resolve_set_layout;
+	device.allocateDescriptorSets(m_descriptor_pool_mip, sets_mip_size, set_layouts_mip, sets_mip);
+
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
@@ -1154,6 +1280,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 			sets[i * sets_per_frame], sets[i * sets_per_frame + 1],
 			sets[i * sets_per_frame + 2], sets[i * sets_per_frame + 3],
 			sets[i * sets_per_frame + 4],
+			&sets_mip[i * sets_mip_stride],
 			dyn_buffers[i]);
 	return res;
 }
@@ -1674,6 +1801,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_pipeline_layout_descriptor_set(createPipelineLayoutDescriptorSet()),
 	m_descriptor_pool(createDescriptorPool()),
+	m_descriptor_pool_mip(createDescriptorPoolMip()),
 
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
@@ -1683,6 +1811,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_depth_resolve_pass(createDepthResolvePass()),
 	m_depth_resolve_set_layout(createDepthResolveSetLayout()),
 	m_depth_resolve_pipeline(createDepthResolvePipeline()),
+	m_depth_acc_pipeline(createDepthAccPipeline()),
 	m_illumination_pass(createIlluminationPass()),
 	m_illumination_set_layout(createIlluminationSetLayout()),
 	m_illumination_pipeline(createIlluminationPipeline()),
@@ -1722,6 +1851,7 @@ Renderer::~Renderer(void)
 	m_illumination_pipeline.destroy(device);
 	device.destroy(m_illumination_set_layout);
 	device.destroy(m_illumination_pass);
+	m_depth_acc_pipeline.destroy(device);
 	m_depth_resolve_pipeline.destroy(device);
 	device.destroy(m_depth_resolve_set_layout);
 	device.destroy(m_depth_resolve_pass);
@@ -1730,6 +1860,7 @@ Renderer::~Renderer(void)
 	allocator.destroy(m_screen_vertex_buffer);
 	device.destroy(m_fwd_p2_module);
 
+	device.destroy(m_descriptor_pool_mip);
 	device.destroy(m_descriptor_pool);
 	device.destroy(m_pipeline_layout_descriptor_set);
 	device.destroy(m_descriptor_set_layout_dynamic);
@@ -1752,18 +1883,23 @@ Renderer::~Renderer(void)
 
 void Renderer::bindFrameDescriptors(void)
 {
-	static constexpr size_t img_writes_per_frame =
+	static constexpr uint32_t img_writes_per_frame =
 		1 +	// depth_resolve: depth_buffer
 		4 +	// illum: cdepth, depth, albedo, normal
 		1;	// wsi: output
-	static constexpr size_t buf_writes_per_frame =
+	static constexpr uint32_t img_writes_offset = 0;
+	static constexpr uint32_t buf_writes_per_frame =
 		1;	// illum: buffer
-	static constexpr size_t writes_per_frame = img_writes_per_frame + buf_writes_per_frame;
+	static constexpr uint32_t buf_writes_offset = img_writes_per_frame;
+	uint32_t img_mip_writes_per_frame = 
+		m_swapchain_mip_levels - 1;	// depth_acc
+	uint32_t img_mip_writes_offset = img_writes_per_frame + buf_writes_per_frame;
+	uint32_t writes_per_frame = img_writes_per_frame + buf_writes_per_frame + img_mip_writes_per_frame;
 
-	VkDescriptorImageInfo image_infos[m_frame_count * img_writes_per_frame];
+	VkDescriptorImageInfo image_infos[m_frame_count * (img_writes_per_frame + img_mip_writes_per_frame)];
 	VkDescriptorBufferInfo buffer_infos[m_frame_count * buf_writes_per_frame];
 	VkWriteDescriptorSet writes[m_frame_count * writes_per_frame];
-	for (size_t i = 0; i < m_frame_count; i++) {
+	for (uint32_t i = 0; i < m_frame_count; i++) {
 		auto &cur_frame = m_frames[i];
 
 		struct WriteImgDesc {
@@ -1778,11 +1914,11 @@ void Renderer::bindFrameDescriptors(void)
 			{cur_frame.m_illumination_set, 2, m_sampler_fb_mip, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 		};
 
-		for (size_t j = 0; j < img_writes_per_frame; j++) {
-			auto &ii = image_infos[i * img_writes_per_frame + j];
+		for (uint32_t j = 0; j < img_writes_per_frame; j++) {
+			auto &ii = image_infos[i * (img_writes_per_frame + img_mip_writes_per_frame) + j];
 			ii.sampler = write_img_descs[j].sampler;
 			ii.imageView = write_img_descs[j].imageView;
 			ii.imageLayout = write_img_descs[j].imageLayout;
@@ -1795,7 +1931,7 @@ void Renderer::bindFrameDescriptors(void)
 			w.descriptorCount = 1;
 			w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			w.pImageInfo = &ii;
-			writes[i * writes_per_frame + j] = w;
+			writes[i * writes_per_frame + img_writes_offset + j] = w;
 		}
 
 		struct WriteBufDesc {
@@ -1806,7 +1942,7 @@ void Renderer::bindFrameDescriptors(void)
 			{cur_frame.m_illumination_set, 0, cur_frame.m_illumination_buffer}
 		};
 
-		for (size_t j = 0; j < buf_writes_per_frame; j++) {
+		for (uint32_t j = 0; j < buf_writes_per_frame; j++) {
 			auto &bi = buffer_infos[i * buf_writes_per_frame + j];
 			bi.buffer = write_buf_descs[j].buffer;
 			bi.offset = 0;
@@ -1820,7 +1956,28 @@ void Renderer::bindFrameDescriptors(void)
 			w.descriptorCount = 1;
 			w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			w.pBufferInfo = &bi;
-			writes[i * writes_per_frame + img_writes_per_frame + j] = w;
+			writes[i * writes_per_frame + buf_writes_offset + j] = w;
+		}
+
+		WriteImgDesc write_img_mip_descs[img_mip_writes_per_frame];
+		for (uint32_t j = 0; j < img_mip_writes_per_frame; j++)
+			write_img_mip_descs[j] = WriteImgDesc{cur_frame.m_depth_acc_sets[j], 0, m_sampler_fb,
+				j == 0 ? cur_frame.m_depth_first_mip_view : cur_frame.m_depth_acc_views[j - 1], Vk::ImageLayout::ShaderReadOnlyOptimal};
+		for (uint32_t j = 0; j < img_mip_writes_per_frame; j++) {
+			auto &ii = image_infos[i * (img_writes_per_frame + img_mip_writes_per_frame) + img_writes_per_frame + j];
+			ii.sampler = write_img_mip_descs[j].sampler;
+			ii.imageView = write_img_mip_descs[j].imageView;
+			ii.imageLayout = write_img_mip_descs[j].imageLayout;
+
+			VkWriteDescriptorSet w{};
+			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			w.dstSet = write_img_mip_descs[j].descriptorSet;
+			w.dstBinding = write_img_mip_descs[j].binding;
+			w.dstArrayElement = 0;
+			w.descriptorCount = 1;
+			w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			w.pImageInfo = &ii;
+			writes[i * writes_per_frame + img_mip_writes_offset + j] = w;
 		}
 	}
 	vkUpdateDescriptorSets(device, m_frame_count * writes_per_frame, writes, 0, nullptr);
@@ -1831,6 +1988,7 @@ void Renderer::recreateSwapchain(void)
 	m_queue.waitIdle();
 	for (auto &f : m_frames)
 		f.destroy();
+	device.destroy(m_descriptor_pool_mip);
 	size_t frame_count = m_frames.size();
 	uint8_t frames[frame_count * sizeof(Frame)];
 	std::memcpy(frames, m_frames.data(), frame_count * sizeof(Frame));
@@ -1842,12 +2000,23 @@ void Renderer::recreateSwapchain(void)
 	m_swapchain = createSwapchain();
 	m_swapchain_images = device.getSwapchainImages(m_swapchain);
 	m_swapchain_image_views = createSwapchainImageViews();
+
+	m_descriptor_pool_mip = createDescriptorPoolMip();
+	size_t sets_mip_stride = (m_swapchain_mip_levels - 1) * sets_per_frame_mip;
+	size_t sets_mip_size = m_frame_count * sets_mip_stride;
+	VkDescriptorSet sets_mip[sets_mip_size];
+	VkDescriptorSetLayout set_layouts_mip[sets_mip_size];
+	for (size_t i = 0; i < sets_mip_size; i++)
+		set_layouts_mip[i] = m_depth_resolve_set_layout;
+	device.allocateDescriptorSets(m_descriptor_pool_mip, sets_mip_size, set_layouts_mip, sets_mip);
+
 	for (size_t i = 0; i < frame_count; i++) {
 		auto &f = reinterpret_cast<Frame*>(frames)[i];
 		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd,
 			f.m_descriptor_set_0, f.m_descriptor_set_dynamic,
 			f.m_depth_resolve_set,
 			f.m_illumination_set, f.m_wsi_set,
+			&sets_mip[sets_mip_stride],
 			f.m_dyn_buffer);
 	}
 	bindFrameDescriptors();
@@ -2052,6 +2221,45 @@ Vk::Framebuffer Renderer::Frame::createDepthResolveFb(void)
 	return m_r.device.createFramebuffer(ci);
 }
 
+vector<Vk::ImageView> Renderer::Frame::createDepthAccViews(void)
+{
+	size_t acc_sets = m_r.m_swapchain_mip_levels - 1;
+	auto res = vector<Vk::ImageView>(acc_sets);
+	for (size_t i = 0; i < acc_sets; i++)
+		res[i] = m_r.createImageViewMip(m_depth, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit, i + 1, 1);
+	return res;
+}
+
+vector<Vk::Framebuffer> Renderer::Frame::createDepthAccFbs(void)
+{
+	size_t acc_sets = m_r.m_swapchain_mip_levels - 1;
+	auto res = vector<Vk::Framebuffer>(acc_sets);
+	for (size_t i = 0; i < acc_sets; i++) {
+		VkFramebufferCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		ci.renderPass = m_r.m_depth_resolve_pass;
+		VkImageView atts[] {
+			m_depth_acc_views[i]
+		};
+		ci.attachmentCount = array_size(atts);
+		ci.pAttachments = atts;
+		auto &cext = m_r.m_swapchain_extent_mips[i + 1];
+		ci.width = cext.width;
+		ci.height = cext.height;
+		ci.layers = 1;
+		res[i] = m_r.device.createFramebuffer(ci);
+	}
+	return res;
+}
+
+vector<VkDescriptorSet> Renderer::Frame::createDepthAccSets(const VkDescriptorSet *pDescriptorSetsMip)
+{
+	size_t acc_sets = m_r.m_swapchain_mip_levels - 1;
+	auto res = vector<VkDescriptorSet>(acc_sets);
+	std::memcpy(res.data(), pDescriptorSetsMip, acc_sets * sizeof(VkDescriptorSet));
+	return res;
+}
+
 Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 {
 	VkFramebufferCreateInfo ci{};
@@ -2099,6 +2307,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
 	VkDescriptorSet descriptorSetDepthResolve,
 	VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
+	const VkDescriptorSet *pDescriptorSetsMip,
 	Vk::BufferAllocation dynBuffer) :
 	m_r(r),
 	m_i(i),
@@ -2128,6 +2337,9 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_opaque_fb(createOpaqueFb()),
 	m_depth_resolve_fb(createDepthResolveFb()),
 	m_depth_resolve_set(descriptorSetDepthResolve),
+	m_depth_acc_views(createDepthAccViews()),
+	m_depth_acc_fbs(createDepthAccFbs()),
+	m_depth_acc_sets(createDepthAccSets(pDescriptorSetsMip)),
 	m_illumination_fb(createIlluminationFb()),
 	m_illumination_set(descriptorSetIllum),
 	m_illumination_buffer(createIlluminationBuffer()),
@@ -2140,6 +2352,10 @@ void Renderer::Frame::destroy(bool with_ext_res)
 {
 	m_r.device.destroy(m_wsi_fb);
 	m_r.allocator.destroy(m_illumination_buffer);
+	for (auto v : m_depth_acc_views)
+		m_r.device.destroy(v);
+	for (auto f : m_depth_acc_fbs)
+		m_r.device.destroy(f);
 	m_r.device.destroy(m_illumination_fb);
 	m_r.device.destroy(m_depth_resolve_fb),
 	m_r.device.destroy(m_opaque_fb);
@@ -2261,6 +2477,31 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
 		m_cmd.draw(3, 1, 0, 0);
 		m_cmd.endRenderPass();
+
+		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline);
+		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+		for (uint32_t i = 0; i < m_depth_acc_fbs.size(); i++) {
+			{
+				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
+				m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+					1, &barrier, 0, nullptr, 0, nullptr);
+			}
+
+			auto &cur_ex = m_r.m_swapchain_extent_mips[i + 1];
+			m_cmd.setExtent(cur_ex);
+			{
+				VkRenderPassBeginInfo bi{};
+				bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				bi.renderPass = m_r.m_depth_resolve_pass;
+				bi.framebuffer = m_depth_acc_fbs[i];
+				bi.renderArea = VkRect2D{{0, 0}, cur_ex};
+				m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+			}
+			m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline.pipelineLayout,
+				0, 1, &m_depth_acc_sets[i], 0, nullptr);
+			m_cmd.draw(3, 1, 0, 0);
+			m_cmd.endRenderPass();
+		}
 
 		{
 			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };

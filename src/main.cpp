@@ -44,7 +44,7 @@ class Game
 		auto image_view_pool = Pool<Vk::ImageView>(image_count);
 
 		auto model_world = model_pool.allocate();
-		*model_world = m_r.loadModel("res/mod/vokselia_spawn.obj");
+		*model_world = m_r.loadModel("res/mod/sponza.obj");
 
 		auto pipeline_opaque = pipeline_pool.allocate();
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", sizeof(int32_t));
