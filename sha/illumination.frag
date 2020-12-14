@@ -21,9 +21,9 @@ layout(set = 0, binding = 4) uniform sampler2DMS normal;
 
 layout(location = 0) out vec3 out_output;
 
-float rt_depth_to_z(float depth)
+float rt_depth_to_z(float d)
 {
-	return il.cam_b / (depth -  il.cam_a);
+	return il.cam_b / (d -  il.cam_a);
 }
 
 float rt_z_to_depth(float z)
@@ -34,7 +34,7 @@ float rt_z_to_depth(float z)
 vec2 rt_ndc_to_ss(vec2 p)
 {
 	vec2 size = textureSize(albedo);
-	return ((p / 2.0) + 0.5) * size;
+	return ((p * 0.5) + 0.5) * size;
 }
 
 vec3 rt_pos_view(vec2 pos)
@@ -142,7 +142,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 		return true;
 	}
 
-	const int trace_res = 0;
+	const int trace_res = 5;
 	t += rt_cell_end(p.xy, dir2, float(1 << trace_res)) + dir_pp_bias;
 	p = mix(p0, p1, t);
 
@@ -153,10 +153,12 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 		int cur_lev = level + trace_res;
 		int cell_lev = level == 0 ? 0 : cur_lev;
 		float cell_size = float(1 << cell_lev);
-		float depth = texelFetch(depth, ivec2(p.xy), cell_lev).x;
+		float start_d = mix(p0.z, p1.z, t + rt_cell_end(p.xy, dir2n, cell_size));
+		float end_d = mix(p0.z, p1.z, t + rt_cell_end(p.xy, dir2, cell_size));
+		float d = textureLod(depth, p.xy * il.depth_size, cell_lev).x;
 		if (level == 0)
-			depth = rt_z_to_depth(rt_depth_to_z(depth) + bias);
-		if (p.z <= depth) {
+			d = rt_z_to_depth(rt_depth_to_z(d) + bias);
+		if ((start_d <= d) || (end_d <= d)) {
 			if (level == 0) {
 				pos = p.xy;
 				return true;
