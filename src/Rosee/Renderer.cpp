@@ -425,8 +425,8 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 	m_swapchain_mip_levels = extentMipLevels(m_swapchain_extent_mip);
 	m_swapchain_extent_mips.resize(m_swapchain_mip_levels);
 	{
-		uint32_t w = wp;
-		uint32_t h = hp;
+		uint32_t w = m_swapchain_extent_mip.width;
+		uint32_t h = m_swapchain_extent_mip.height;
 		for (uint32_t i = 0; i < m_swapchain_mip_levels; i++) {
 			m_swapchain_extent_mips[i] = VkExtent2D{w, h};
 			w = nextExtentMip(w);

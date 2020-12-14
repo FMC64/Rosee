@@ -13,6 +13,6 @@ void main(void)
 	ivec2 pos = ivec2(gl_FragCoord.xy);
 	out_depth = 0.0;
 	for (int i = 0; i < sample_count; i++)
-		out_depth += texelFetch(cdepth, pos, i).x;
+		out_depth = max(out_depth, texelFetch(cdepth, pos, i).x);
 	out_depth *= sample_factor;
 }
