@@ -2523,9 +2523,14 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				view_norm[3][i] = 0.0f;
 
 			Illumination illum;
+			illum.cam_proj = camera.proj;
 			illum.sun = view_norm * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
 			illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
-
+			illum.ratio = camera.ratio;
+			illum.cam_near = camera.near;
+			illum.cam_far = camera.far;
+			illum.cam_a = camera.far / (camera.far - camera.near);
+			illum.cam_b = -(camera.far * camera.near) / (camera.far - camera.near);
 
 			*reinterpret_cast<Illumination*>(reinterpret_cast<uint8_t*>(m_dyn_buffer_staging_ptr) + m_dyn_buffer_size) = illum;
 			{

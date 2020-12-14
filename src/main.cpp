@@ -105,12 +105,12 @@ class Game
 			bef = now;
 			t += delta;
 			glm::mat4 view, proj;
-			{
-				const double ang_rad = pi / 180.0;
+			const double near = 0.1, far = 1000.0;
+			const double ang_rad = pi / 180.0;
 
-				const double near = 0.1, far = 1000.0,
-				ratio = static_cast<double>(m_r.swapchainExtent().width) / static_cast<double>(m_r.swapchainExtent().height),
+			const double ratio = static_cast<double>(m_r.swapchainExtent().width) / static_cast<double>(m_r.swapchainExtent().height),
 				fov = 70.0 * ang_rad;
+			{
 				proj = glm::perspectiveLH_ZO<float>(fov, ratio, far, near);
 				proj[1][1] *= -1.0;
 
@@ -181,7 +181,7 @@ class Game
 				camera.b = -(far * near) / (far - near);
 				camera.ratio = glm::vec2(ratio, -1.0) * glm::vec2(std::tan(fov / 2.0));*/
 			}
-			m_r.render(m_m, Camera{view, proj});
+			m_r.render(m_m, Camera{view, proj, static_cast<float>(far), static_cast<float>(near), glm::vec2(ratio, -1.0) * glm::vec2(std::tan(fov / 2.0))});
 		}
 
 		m_r.waitIdle();
