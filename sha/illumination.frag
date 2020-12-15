@@ -26,9 +26,17 @@ layout(set = 0, binding = 2) uniform sampler2D depth;
 layout(set = 0, binding = 3) uniform sampler2DMS albedo;
 layout(set = 0, binding = 4) uniform sampler2DMS normal;
 layout(set = 0, binding = 5) uniform sampler2D last_depth;
-layout(set = 0, binding = 6) uniform sampler2D last_output;
+layout(set = 0, binding = 6) uniform sampler2D last_albedo;
 
-layout(location = 0) out vec3 out_output;
+layout(set = 0, binding = 7) uniform isampler2D last_step;
+layout(set = 0, binding = 8) uniform isampler2D last_acc;
+layout(set = 0, binding = 9) uniform sampler2D last_direct_light;
+layout(set = 0, binding = 10) uniform sampler2D last_output;
+
+layout(location = 0) out int out_step;
+layout(location = 1) out int out_acc;
+layout(location = 2) out vec3 out_direct_light;
+layout(location = 3) out vec3 out_output;
 
 float rt_depth_to_z(float d)
 {
@@ -175,6 +183,18 @@ vec3 last_pos_view(vec2 pos, vec2 size)
 	return vec3(ndc2, z);
 }
 
+const float irradiance_albedo_bias = 0.01;
+
+vec3 output_to_irradiance(vec3 outp, vec3 albedo)
+{
+	return outp / (albedo + irradiance_albedo_bias);
+}
+
+vec3 irradiance_to_output(vec3 irradiance, vec3 albedo)
+{
+	return irradiance * (albedo + irradiance_albedo_bias);
+}
+
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
@@ -206,8 +226,11 @@ void main(void)
 
 		float illum = max(align, 0.05);
 		vec3 outp = alb * illum * 2.5;
-		if (repr_success)
-			outp = mix(texture(last_output, last_view_pos * il.size_inv).xyz, outp, 0.01);
+		if (repr_success) {
+			vec3 last_irr = output_to_irradiance(texture(last_output, last_view_pos * il.size_inv).xyz, texture(last_albedo, last_view_pos * il.size_inv).xyz);
+			vec3 cur_irr = output_to_irradiance(outp, alb);
+			outp = irradiance_to_output(mix(last_irr, cur_irr, 0.01), alb);
+		}
 
 		float count = 0;
 		for (int j = 0; j < sample_count; j++) {
@@ -223,6 +246,9 @@ void main(void)
 				break;
 			i++;
 			if (i >= sample_count) {
+				out_step = 0;
+				out_acc = 0;
+				out_direct_light = vec3(0.0);
 				out_output *= sample_factor;
 				//out_output = vec3(float(its) / float(sample_count));
 				//out_output = vec3(texture(depth, gl_FragCoord.xy * il.depth_size, 6).x);

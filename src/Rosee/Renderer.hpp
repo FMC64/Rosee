@@ -227,6 +227,12 @@ private:
 		Vk::ImageAllocation m_normal;
 		Vk::ImageView m_normal_view;
 
+		Vk::ImageAllocation m_step;
+		Vk::ImageView m_step_view;
+		Vk::ImageAllocation m_acc;
+		Vk::ImageView m_acc_view;
+		Vk::ImageAllocation m_direct_light;
+		Vk::ImageView m_direct_light_view;
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
