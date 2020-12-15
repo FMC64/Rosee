@@ -1804,7 +1804,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
-	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_64_BIT)),
+	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_opaque_pass(createOpaquePass()),
 	m_depth_resolve_pass(createDepthResolvePass()),
 	m_depth_resolve_set_layout(createDepthResolveSetLayout()),

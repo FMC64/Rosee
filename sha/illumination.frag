@@ -37,10 +37,10 @@ vec2 rt_ndc_to_ss(vec2 p)
 	return ((p * 0.5) + 0.5) * size;
 }
 
-vec3 rt_pos_view(vec2 pos)
+vec3 rt_pos_view(vec2 pos, int samp)
 {
 	vec2 size = vec2(1.0) / textureSize(albedo);
-	float d = texelFetch(depth, ivec2(pos), 0).x;
+	float d = texelFetch(cdepth, ivec2(pos), samp).x;
 	float z = rt_depth_to_z(d);
 	vec2 uv = pos * size;
 	vec2 ndc2 = (uv - 0.5) * 2.0;
@@ -49,9 +49,9 @@ vec3 rt_pos_view(vec2 pos)
 	return vec3(ndc2, z);
 }
 
-vec3 rt_current_view(void)
+vec3 rt_current_view(int samp)
 {
-	return rt_pos_view(gl_FragCoord.xy);
+	return rt_pos_view(gl_FragCoord.xy, samp);
 }
 
 vec3 rt_project_point(vec3 point)
@@ -76,13 +76,6 @@ void rt_project_ray(vec3 origin, vec3 dir, out vec3 ss_p0, out vec3 ss_p1)
 	else
 		len = (il.cam_far - origin.z) / dir.z;
 	vec3 end = origin + dir * len;
-	/*if (origin.z < camera.near || origin.z > camera.far) {
-		if (dir.z > 0.0)
-			len = (camera.near - origin.z) / dir.z;
-		else
-			len = (camera.far - origin.z) / dir.z;
-		origin += dir * len;
-	}*/
 	ss_p0 = rt_project_point(origin);
 	ss_p1 = rt_project_point(end);
 }
@@ -104,55 +97,36 @@ bool rt_inter_rect_strong(vec2 tl, vec2 br, vec2 p, vec2 d, float bias, out floa
 	return inter.x >= tl.x && inter.y >= tl.y && inter.x <= br.x && inter.y <= br.y;
 }
 
-// returns t intersection
-float rt_cell_end(vec2 p, vec2 d, float size)
-{
-	vec2 cell_tl = floor(p / size) * size;
-	return rt_inter_rect(cell_tl, cell_tl + size, p, d);
-}
-
-bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
+bool rt_traceRay(vec3 origin, vec3 dir, int samp, out vec2 pos)
 {
 	vec3 p0, p1;
 	rt_project_ray(origin, dir, p0, p1);
 
-	vec3 normal = normalize(texelFetch(normal, ivec2(p0.xy), 0)).xyz;
-
-	float bias = 0.025 * (1.0 - max(dot(normalize(origin), -normal), 0.0));
+	vec3 normal = normalize(texelFetch(normal, ivec2(p0.xy), samp).xyz);
 
 	vec2 dir2 = p1.xy - p0.xy;
-	if (dir2 == vec2(0.0))
+	float dir2_len_ni = length(dir2);
+	if (dir2_len_ni == 0.0)
 		return false;
-	vec2 dir2n = -dir2;
-	float dir_len = 1.0 / length(dir2);
-	float dir_pp_bias = dir_len * (1.0 / 64.0);
-	//vec2 dir2_norm = dir2 * dir_len;
+	float dir_len = 1.0 / dir2_len_ni;
 
 	float t = 0.0;
-
 	int level = 0;
 
 	float t_max;
-	if (!rt_inter_rect_strong(vec2(0.0), vec2(textureSize(albedo) - 1), p0.xy, dir2, dir_pp_bias, t_max))
+	if (!rt_inter_rect_strong(vec2(0.0), vec2(textureSize(albedo) - 1), p0.xy, dir2, dir_len * (1.0 / 64.0), t_max))
 		return false;
 
 	vec3 p = p0;
-	uint it = 0;
-
 	if (dot(normal, dir) < 0.0) {
 		pos = p.xy;
 		return true;
 	}
 
-	const int trace_res = 0;
-	t += rt_cell_end(p.xy, dir2, float(1 << trace_res)) + dir_pp_bias;
+	t += dir_len * 2.0;
 	p = mix(p0, p1, t);
-
-	//uint max_it = 512;//rt_fb.depth_buffer_max_it >> max_it_fac;
 	for (int i = 0; i < 512; i++) {
 		float d = textureLod(depth, p.xy * il.depth_size, level).x;
-		if (level == 0)
-			d = rt_z_to_depth(rt_depth_to_z(d) + bias);
 		if (p.z <= d) {
 			if (level == 0) {
 				pos = p.xy;
@@ -160,11 +134,12 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 			}
 			level--;
 		} else {
-			t += dir_len * float(1 << (level + trace_res));
+			t += dir_len * float(1 << level);
 			if (t >= t_max)
 				return false;
 			p = mix(p0, p1, t);
 			level++;
+			level = min(5, level);
 		}
 	}
 	return false;
@@ -186,7 +161,7 @@ void main(void)
 		float align = dot(norm, il.sun);
 
 		vec2 rt_pos;
-		if (rt_traceRay(rt_current_view(), il.sun, rt_pos))
+		if (rt_traceRay(rt_current_view(i), il.sun, i, rt_pos))
 			align = 0.0;
 
 		float illum = max(align, 0.05);
