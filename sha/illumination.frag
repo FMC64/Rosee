@@ -21,10 +21,10 @@ layout(set = 0, binding = 0) uniform Illum {
 	float cam_a;
 	float cam_b;
 } il;
-layout(set = 0, binding = 1) uniform sampler2DMS cdepth;
+layout(set = 0, binding = 1) uniform sampler2D cdepth;
 layout(set = 0, binding = 2) uniform sampler2D depth;
-layout(set = 0, binding = 3) uniform sampler2DMS albedo;
-layout(set = 0, binding = 4) uniform sampler2DMS normal;
+layout(set = 0, binding = 3) uniform sampler2D albedo;
+layout(set = 0, binding = 4) uniform sampler2D normal;
 layout(set = 0, binding = 5) uniform sampler2D last_depth;
 layout(set = 0, binding = 6) uniform sampler2D last_albedo;
 
@@ -50,13 +50,13 @@ float rt_z_to_depth(float z)
 
 vec2 rt_ndc_to_ss(vec2 p)
 {
-	vec2 size = textureSize(albedo);
+	vec2 size = textureSize(albedo, 0);
 	return ((p * 0.5) + 0.5) * size;
 }
 
 vec3 rt_pos_view(vec2 pos, int samp)
 {
-	vec2 size = vec2(1.0) / textureSize(albedo);
+	vec2 size = vec2(1.0) / textureSize(albedo, 0);
 	float d = texelFetch(cdepth, ivec2(pos), samp).x;
 	float z = rt_depth_to_z(d);
 	vec2 uv = pos * size;
@@ -131,7 +131,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, int samp, out vec2 pos)
 	int level = 0;
 
 	float t_max;
-	if (!rt_inter_rect_strong(vec2(0.0), vec2(textureSize(albedo) - 1), p0.xy, dir2, dir_len * (1.0 / 64.0), t_max))
+	if (!rt_inter_rect_strong(vec2(0.0), vec2(textureSize(albedo, 0) - 1), p0.xy, dir2, dir_len * (1.0 / 64.0), t_max))
 		return false;
 
 	vec3 p = p0;

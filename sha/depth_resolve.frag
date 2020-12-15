@@ -3,7 +3,7 @@
 
 layout(constant_id = 0) const int sample_count = 1;
 
-layout(set = 0, binding = 0) uniform sampler2DMS cdepth;
+layout(set = 0, binding = 0) uniform sampler2D cdepth;
 
 layout(location = 0) out float out_depth;
 

@@ -200,6 +200,16 @@ public:
 	{
 		vkCmdCopyBufferToImage(*this, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions);
 	}
+
+	void clearDepthStencilImage(VkImage image, VkImageLayout imageLayout, const VkClearDepthStencilValue *pDepthStencil, uint32_t rangeCount, const VkImageSubresourceRange *pRanges)
+	{
+		vkCmdClearDepthStencilImage(*this, image, imageLayout, pDepthStencil, rangeCount, pRanges);
+	}
+
+	void clearColorImage(VkImage image, VkImageLayout imageLayout, const VkClearColorValue *pColor, uint32_t rangeCount, const VkImageSubresourceRange *pRanges)
+	{
+		vkCmdClearColorImage(*this, image, imageLayout, pColor, rangeCount, pRanges);
+	}
 };
 
 class Queue : public Handle<VkQueue>

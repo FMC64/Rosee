@@ -2010,6 +2010,85 @@ void Renderer::bindFrameDescriptors(void)
 		}
 	}
 	vkUpdateDescriptorSets(device, m_frame_count * writes_per_frame, writes, 0, nullptr);
+
+	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	{
+		static constexpr uint32_t barrs_per_frame = 3;
+		{
+			VkImageMemoryBarrier img_barrs[barrs_per_frame * m_frame_count];
+			for (uint32_t i = 0; i < m_frame_count; i++) {
+				VkImage imgs[barrs_per_frame] {
+					m_frames[i].m_depth,
+					m_frames[i].m_step,
+					m_frames[i].m_acc
+				};
+				for (uint32_t j = 0; j < array_size(imgs); j++)
+					img_barrs[i * barrs_per_frame + j] = VkImageMemoryBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr,
+						Vk::Access::TransferWriteBit, Vk::Access::TransferReadBit,
+						Vk::ImageLayout::Undefined, Vk::ImageLayout::TransferDstOptimal, 0, 0, imgs[j],
+						{Vk::ImageAspect::ColorBit, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}};
+			}
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::TransferBit,
+				0, 0, nullptr, 0, nullptr, barrs_per_frame * m_frame_count, img_barrs);
+		}
+
+		{
+			VkClearColorValue cv_f32_zero;
+			VkClearColorValue cv_i32_zero;
+			for (size_t i = 0; i < 4; i++) {
+				cv_f32_zero.float32[i] = 0.0f;
+				cv_i32_zero.int32[i] = 0;
+			}
+			for (uint32_t i = 0; i < m_frame_count; i++) {
+				struct {
+					VkImage img;
+					const VkClearColorValue *pClear;
+				} imgs[barrs_per_frame] {
+					{m_frames[i].m_depth, &cv_f32_zero},
+					{m_frames[i].m_step, &cv_i32_zero},
+					{m_frames[i].m_acc, &cv_i32_zero}
+				};
+
+				for (uint32_t j = 0; j < barrs_per_frame; j++) {
+					VkImageSubresourceRange range{Vk::ImageAspect::ColorBit, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS};
+					m_transfer_cmd.clearColorImage(imgs[j].img, Vk::ImageLayout::TransferDstOptimal, imgs[j].pClear, 1, &range);
+				}
+			}
+		}
+
+		{
+			static constexpr uint32_t add_barrs_per_frame = 3;
+			static constexpr uint32_t tbarrs_per_frame = barrs_per_frame + add_barrs_per_frame;
+			uint32_t img_barr_count = tbarrs_per_frame * m_frame_count;
+			VkImageMemoryBarrier img_barrs[img_barr_count];
+			for (uint32_t i = 0; i < m_frame_count; i++) {
+				VkImage imgs[tbarrs_per_frame] {
+					m_frames[i].m_depth,
+					m_frames[i].m_step,
+					m_frames[i].m_acc,
+
+					m_frames[i].m_albedo,
+					m_frames[i].m_direct_light,
+					m_frames[i].m_output
+				};
+				for (uint32_t j = 0; j < array_size(imgs); j++)
+					img_barrs[i * tbarrs_per_frame + j] = VkImageMemoryBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr,
+						Vk::Access::TransferWriteBit, Vk::Access::TransferReadBit,
+						j < barrs_per_frame ? Vk::ImageLayout::TransferDstOptimal : Vk::ImageLayout::Undefined,
+						Vk::ImageLayout::ShaderReadOnlyOptimal, 0, 0, imgs[j],
+						{Vk::ImageAspect::ColorBit, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}};
+			}
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::TransferBit,
+				0, 0, nullptr, 0, nullptr, img_barr_count, img_barrs);
+		}
+	}
+	m_transfer_cmd.end();
+	VkSubmitInfo submit{};
+	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit.commandBufferCount = 1;
+	submit.pCommandBuffers = m_transfer_cmd.ptr();
+	m_queue.submit(1, &submit, VK_NULL_HANDLE);
+	m_queue.waitIdle();
 }
 
 void Renderer::recreateSwapchain(void)
@@ -2357,7 +2436,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_cdepth_view(createFbImageMs(VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_cdepth)),
 	m_depth_view(createFbImageMip(VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_depth)),
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_depth)),
 	m_depth_first_mip_view(m_r.createImageViewMip(m_depth, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit,
 		0, 1)),
 	m_albedo_view(createFbImageMs(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
@@ -2365,9 +2444,9 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_normal)),
 	m_step_view(createFbImage(VK_FORMAT_R8_SINT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_step)),
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_step)),
 	m_acc_view(createFbImage(VK_FORMAT_R16_SINT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_acc)),
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_acc)),
 	m_direct_light_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_direct_light)),
 	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
