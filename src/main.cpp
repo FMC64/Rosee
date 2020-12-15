@@ -93,6 +93,7 @@ class Game
 		auto base_cursor = glm::dvec2(0.0);
 		bool esc_prev = false;
 		bool esc = false;
+		bool first_it = true;
 		while (true) {
 			{
 				std::lock_guard l(m_done_mtx);
@@ -104,7 +105,7 @@ class Game
 			auto delta = static_cast<std::chrono::duration<double>>(now - bef).count();
 			bef = now;
 			t += delta;
-			glm::mat4 view, proj;
+			glm::mat4 last_view, view, proj;
 			const double near = 0.1, far = 1000.0;
 			const double ang_rad = pi / 180.0;
 
@@ -147,7 +148,10 @@ class Game
 					camera_pos -= dir_side * move * static_cast<float>(delta);
 				if (m_r.keyState(GLFW_KEY_D))
 					camera_pos += dir_side * move * static_cast<float>(delta);
+				last_view = view;
 				view = view_rot * glm::translate(-camera_pos);
+				if (first_it)
+					last_view = view;
 				auto vp = proj * view;
 
 				m_m.query<MVP>([&](Brush &b){
@@ -181,7 +185,8 @@ class Game
 				camera.b = -(far * near) / (far - near);
 				camera.ratio = glm::vec2(ratio, -1.0) * glm::vec2(std::tan(fov / 2.0));*/
 			}
-			m_r.render(m_m, Camera{view, proj, static_cast<float>(far), static_cast<float>(near), glm::vec2(ratio, -1.0) * glm::vec2(std::tan(fov / 2.0))});
+			m_r.render(m_m, Camera{last_view, view, proj, static_cast<float>(far), static_cast<float>(near), glm::vec2(ratio, -1.0) * glm::vec2(std::tan(fov / 2.0))});
+			first_it = false;
 		}
 
 		m_r.waitIdle();

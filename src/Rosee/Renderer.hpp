@@ -19,6 +19,7 @@ using MaterialPool = Pool<Material>;
 using ModelPool = Pool<Model>;
 
 struct Camera {
+	glm::mat4 last_view;
 	glm::mat4 view;
 	glm::mat4 proj;
 	float near;
@@ -251,8 +252,15 @@ private:
 
 		struct Illumination {
 			glm::mat4 cam_proj;
+			glm::mat4 view;
+			glm::mat4 view_inv;
+			glm::mat4 last_view;
+			glm::mat4 last_view_inv;
+			glm::mat4 cam_cur_to_last;
 			glm::vec3 sun;
 			float _pad;
+			glm::vec2 size;
+			glm::vec2 size_inv;
 			glm::vec2 depth_size;
 			glm::vec2 ratio;
 			float cam_near;

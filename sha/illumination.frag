@@ -6,7 +6,14 @@ layout(constant_id = 1) const float sample_factor = 1.0;
 
 layout(set = 0, binding = 0) uniform Illum {
 	mat4 cam_proj;
+	mat4 view;
+	mat4 view_inv;
+	mat4 last_view;
+	mat4 last_view_inv;
+	mat4 cam_cur_to_last;
 	vec3 sun;
+	vec2 size;
+	vec2 size_inv;
 	vec2 depth_size;
 	vec2 cam_ratio;
 	float cam_near;
@@ -18,6 +25,8 @@ layout(set = 0, binding = 1) uniform sampler2DMS cdepth;
 layout(set = 0, binding = 2) uniform sampler2D depth;
 layout(set = 0, binding = 3) uniform sampler2DMS albedo;
 layout(set = 0, binding = 4) uniform sampler2DMS normal;
+layout(set = 0, binding = 5) uniform sampler2D last_depth;
+layout(set = 0, binding = 6) uniform sampler2D last_output;
 
 layout(location = 0) out vec3 out_output;
 
@@ -145,6 +154,27 @@ bool rt_traceRay(vec3 origin, vec3 dir, int samp, out vec2 pos)
 	return false;
 }
 
+
+int hash(int x) {
+	x += ( x << 10 );
+	x ^= ( x >>  6 );
+	x += ( x <<  3 );
+	x ^= ( x >> 11 );
+	x += ( x << 15 );
+	return x;
+}
+
+vec3 last_pos_view(vec2 pos, vec2 size)
+{
+	float d = textureLod(last_depth, pos * il.depth_size, 0).x;
+	float z = rt_depth_to_z(d);
+	vec2 uv = pos / size;
+	vec2 ndc2 = (uv - 0.5) * 2.0;
+	ndc2 *= il.cam_ratio;
+	ndc2 *= z;
+	return vec3(ndc2, z);
+}
+
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
@@ -155,17 +185,29 @@ void main(void)
 		sample_done[i] = 0;
 	int i = 0;
 	for (int k = 0; k < sample_count; k++) {
+		vec3 view = rt_current_view(i);
+		vec4 last_view = il.cam_cur_to_last * vec4(view, 1.0);
+		vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
+
+		const float repr_dist_tres = 0.5;
+		bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
+			last_view_pos.x <= (il.size.x - 1) && last_view_pos.y <= (il.size.y - 1) &&
+			length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos, il.size), 1.0)).xyz) < repr_dist_tres &&
+			texture(depth, gl_FragCoord.xy * il.depth_size).x < 0.9999999;
+
 		float d = texelFetch(cdepth, pos, i).x;
 		vec3 alb = texelFetch(albedo, pos, i).xyz;
 		vec3 norm = normalize(texelFetch(normal, pos, i).xyz);
 		float align = dot(norm, il.sun);
 
 		vec2 rt_pos;
-		if (rt_traceRay(rt_current_view(i), il.sun, i, rt_pos))
+		if (rt_traceRay(view, il.sun, i, rt_pos))
 			align = 0.0;
 
 		float illum = max(align, 0.05);
 		vec3 outp = alb * illum * 2.5;
+		if (repr_success)
+			outp = mix(texture(last_output, last_view_pos * il.size_inv).xyz, outp, 0.01);
 
 		float count = 0;
 		for (int j = 0; j < sample_count; j++) {
