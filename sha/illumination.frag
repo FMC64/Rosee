@@ -227,11 +227,12 @@ void main(void)
 	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
 		last_view_pos.x <= (il.size.x - 1) && last_view_pos.y <= (il.size.y - 1) &&
 		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos, il.size), 1.0)).xyz) < repr_dist_tres &&
-		texture(depth, gl_FragCoord.xy * il.depth_size).x < 0.9999999;
+		texelFetch(depth, pos, 0).x < 0.9999999;
 
 	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 256;
 	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
 	int last_acc = texelFetch(last_acc, ilast_view_pos, 0).x;
+	vec3 last_direct_light = texture(last_direct_light, last_view_pos).xyz;
 	if (!repr_success) {
 		last_step = 0;
 		last_acc = 0;
@@ -258,25 +259,26 @@ void main(void)
 
 	if (last_step == 0) {
 		out_step = 0;
+		out_acc = last_acc + 1;
 		vec3 alb = texelFetch(albedo, pos, 0).xyz;
 		vec3 norm = normalize(texelFetch(normal, pos, 0).xyz);
 		float align = dot(norm, il.sun);
-		out_direct_light = alb * align * (ray_success ? 0.0 : 1.0) * 2.5;
+		vec3 direct_light = alb * align * (ray_success ? 0.0 : 1.0) * 2.5;
+		out_direct_light = direct_light;
+		if (last_acc > 0) {
+			vec3 last_irr = output_to_irradiance(last_direct_light, texture(last_albedo, last_view_pos).xyz);
+			vec3 cur_irr = output_to_irradiance(direct_light, alb);
+			out_direct_light = irradiance_to_output((last_irr * float(last_acc) + cur_irr) / float(last_acc + 1), alb);
+		}
+		out_output = out_direct_light;
+	} else {
+		out_direct_light = last_direct_light;
 		out_output = out_direct_light;
 	}
 
-	/*float illum = max(align, 0.05);
-	vec3 outp = alb * illum * 2.5;
-	if (repr_success) {
-		vec3 last_irr = output_to_irradiance(texture(last_output, last_view_pos * il.size_inv).xyz, texture(last_albedo, last_view_pos * il.size_inv).xyz);
-		vec3 cur_irr = output_to_irradiance(outp, alb);
-		outp = irradiance_to_output(mix(last_irr, cur_irr, 0.01), alb);
-	}*/
-
-	out_acc = 0;
 	//out_direct_light = vec3(0.0);
 	out_path_pos = uvec2(0);
 	out_path_albedo = vec3(0.0);
-	//out_path_direct_light = vec3(0.0);
+	out_path_direct_light = vec3(0.0);
 	//out_output = outp;
 }

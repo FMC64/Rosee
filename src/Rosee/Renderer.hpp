@@ -188,6 +188,8 @@ private:
 	Vk::Sampler createSamplerFb(void);
 	Vk::Sampler m_sampler_fb_mip;
 	Vk::Sampler createSamplerFbMip(void);
+	Vk::Sampler m_sampler_fb_lin;
+	Vk::Sampler createSamplerFbLin(void);
 
 	class Frame
 	{
