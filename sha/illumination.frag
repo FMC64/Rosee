@@ -288,8 +288,8 @@ void main(void)
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
 	int last_acc = texelFetch(last_acc, ilast_view_pos, 0).x;
-	vec3 vlast_direct_light = correct_nan(texture(last_direct_light, last_view_pos).xyz);
-	vec3 last_alb = texture(last_albedo, last_view_pos).xyz;
+	vec3 vlast_direct_light = correct_nan(textureLod(last_direct_light, last_view_pos, 0).xyz);
+	vec3 last_alb = textureLod(last_albedo, last_view_pos, 0).xyz;
 	if (!repr_success) {
 		last_step = 0;
 		last_acc = 0;
@@ -308,7 +308,7 @@ void main(void)
 		out_path_direct_light = vlast_direct_light;
 	}
 	if (last_step == 2) {
-		uvec2 last_path_pos = texture(last_path_pos, last_view_pos).xy;
+		uvec2 last_path_pos = textureLod(last_path_pos, last_view_pos, 0).xy;
 		ray_origin = (il.view_last_to_cur * vec4(last_pos_view(last_path_pos), 1.0)).xyz;
 		ray_dir = rnd_diffuse_around((il.view_last_to_cur_normal * vec4(normalize(texelFetch(last_normal, ilast_view_pos, 0).xyz), 1.0)).xyz, rnd);
 		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
@@ -329,7 +329,7 @@ void main(void)
 			out_direct_light = irradiance_correct_adv(vlast_direct_light, last_alb,
 				direct_light, alb, last_acc);
 
-		vec3 outp = texture(last_output, last_view_pos).xyz;
+		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 		out_output = irradiance_correct(outp, last_alb, alb);
 	}
 	if (last_step >= 1) {
@@ -339,12 +339,12 @@ void main(void)
 
 		out_path_pos = uvec2(ray_pos);
 		if (ray_success) {
-			out_path_direct_light += correct_nan(texture(last_direct_light, ray_pos).xyz) * out_path_albedo;	// bug with ray_pos in wrong frame
-			out_path_albedo *= texture(albedo, ray_pos).xyz;
-			out_output = irradiance_correct(texture(last_output, last_view_pos).xyz, last_alb, alb);
+			out_path_direct_light += correct_nan(textureLod(last_direct_light, ray_pos, 0).xyz) * out_path_albedo;	// bug with ray_pos in wrong frame
+			out_path_albedo *= textureLod(albedo, ray_pos, 0).xyz;
+			out_output = irradiance_correct(textureLod(last_output, last_view_pos, 0).xyz, last_alb, alb);
 		} else {
 			out_path_direct_light += env_sample(ray_dir) * out_path_albedo;
-			out_output = irradiance_correct_adv(texture(last_output, last_view_pos).xyz, last_alb,
+			out_output = irradiance_correct_adv(textureLod(last_output, last_view_pos, 0).xyz, last_alb,
 				out_path_direct_light, alb, last_acc);
 		}
 	}
