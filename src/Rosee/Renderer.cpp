@@ -2725,6 +2725,9 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			for (size_t i = 0; i < 3; i++)
 				illum.view_normal[3][i] = 0.0f;
 			illum.view_inv = glm::inverse(camera.view);
+			illum.view_normal_inv = illum.view_inv;
+			for (size_t i = 0; i < 3; i++)
+				illum.view_normal_inv[3][i] = 0.0f;
 			illum.last_view = camera.last_view;
 			illum.last_view_inv = glm::inverse(camera.last_view);
 			illum.cam_cur_to_last = illum.last_view * illum.view_inv;

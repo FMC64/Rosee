@@ -270,6 +270,7 @@ private:
 			glm::mat4 view;
 			glm::mat4 view_normal;
 			glm::mat4 view_inv;
+			glm::mat4 view_normal_inv;
 			glm::mat4 last_view;
 			glm::mat4 last_view_inv;
 			glm::mat4 cam_cur_to_last;

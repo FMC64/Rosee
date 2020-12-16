@@ -9,6 +9,7 @@ layout(set = 0, binding = 0) uniform Illum {
 	mat4 view;
 	mat4 view_normal;
 	mat4 view_inv;
+	mat4 view_normal_inv;
 	mat4 last_view;
 	mat4 last_view_inv;
 	mat4 cam_cur_to_last;
@@ -153,7 +154,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 	p = mix(p0, p1, t);
 	for (int i = 0; i < 512; i++) {
 		float d = textureLod(depth, p.xy * il.depth_size, level).x;
-		if (p.z <= d) {
+		if (p.z < d) {
 			if (level == 0) {
 				pos = p.xy;
 				return true;
@@ -214,11 +215,26 @@ vec3 rnd_diffuse_around(vec3 normal, int rand)
 	return nx * rvec.x + ny * rvec.y + nz * rvec.z;
 }
 
+vec3 env_sample(vec3 dir)
+{
+	const vec3 hor = vec3(80, 120, 180) / 255;
+	const vec3 up = vec3(0, 60, 256) / 255;
+	float up_ratio = dot(dir, vec3(0.0, 1.0, 0.0));
+
+	up_ratio = 1.0 - up_ratio;
+	up_ratio *= up_ratio;
+	up_ratio *= up_ratio;
+	up_ratio = 1.0 - up_ratio;
+	return normalize(hor * (1.0 - up_ratio) + vec3(1.0) * up) * (dir.y > 0.0 ? 1.0 : 0.0);
+	//return texture(env.map, dir.zxy).xyz;
+}
+
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
 
 	vec3 view = rt_current_view();
+	vec3 view_norm = normalize(view);
 	vec4 last_view = il.cam_cur_to_last * vec4(view, 1.0);
 	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
 	ivec2 ilast_view_pos = ivec2(last_view_pos);
@@ -233,6 +249,8 @@ void main(void)
 	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
 	int last_acc = texelFetch(last_acc, ilast_view_pos, 0).x;
 	vec3 last_direct_light = texture(last_direct_light, last_view_pos).xyz;
+	if (isnan(last_direct_light.x))
+		last_direct_light = vec3(0.0);
 	if (!repr_success) {
 		last_step = 0;
 		last_acc = 0;
@@ -275,6 +293,9 @@ void main(void)
 		out_direct_light = last_direct_light;
 		out_output = out_direct_light;
 	}
+
+	if (texelFetch(cdepth, pos, 0).x == 0.0)
+		out_output = env_sample((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 
 	//out_direct_light = vec3(0.0);
 	out_path_pos = uvec2(0);
