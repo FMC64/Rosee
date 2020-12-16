@@ -144,7 +144,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 	int level = 0;
 
 	float t_max;
-	if (!rt_inter_rect_strong(vec2(0.0), vec2(textureSize(albedo, 0) - 1), p0.xy, dir2, dir_len * (1.0 / 64.0), t_max))
+	if (!rt_inter_rect_strong(vec2(0.0), vec2(textureSize(albedo, 0)), p0.xy, dir2, dir_len * (1.0 / 64.0), t_max))
 		return false;
 
 	vec3 p = p0;
@@ -280,7 +280,7 @@ void main(void)
 
 	const float repr_dist_tres = 0.5;
 	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
-		last_view_pos.x <= (il.size.x - 1) && last_view_pos.y <= (il.size.y - 1) &&
+		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
 		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz) < repr_dist_tres &&
 		texelFetch(depth, pos, 0).x < 0.9999999;
 
