@@ -46,7 +46,7 @@ layout(set = 0, binding = 14) uniform sampler2D last_output;
 layout(location = 0) out int out_step;
 layout(location = 1) out uvec2 out_acc;
 layout(location = 2) out vec3 out_direct_light;
-layout(location = 3) out uvec2 out_path_pos;
+layout(location = 3) out uvec4 out_path_pos;
 layout(location = 4) out vec3 out_path_albedo;
 layout(location = 5) out vec3 out_path_direct_light;
 layout(location = 6) out vec3 out_output;
@@ -231,9 +231,9 @@ vec3 rnd_diffuse_around(vec3 normal, int rand)
 	return nx * rvec.x + ny * rvec.y + nz * rvec.z;
 }
 
-vec3 rnd_diffuse_around_rough(vec3 w_i, vec3 w_normal, int rand, float roughness)
+vec3 rnd_diffuse_around_rough(vec3 i, vec3 normal, float roughness, int rand)
 {
-	return normalize(mix(reflect(w_i, w_normal), rnd_diffuse_around(w_normal, rand), roughness));
+	return normalize(mix(rnd_diffuse_around(normal, rand), reflect(i, normal), roughness));
 }
 
 vec3 env_sample_novoid(vec3 dir)
@@ -313,13 +313,13 @@ void main(void)
 	}
 	if (last_step == 1) {
 		ray_origin = view;
-		ray_dir = rnd_diffuse_around(normalize(texelFetch(normal, pos, 0).xyz), rnd);
+		ray_dir = rnd_diffuse_around_rough(view_norm, normalize(texelFetch(normal, pos, 0).xyz), 0.0, rnd);
 		out_path_albedo = alb;
 		out_path_direct_light = vlast_direct_light;
 	}
 	if (last_step == 2) {
-		uvec2 last_path_pos = textureLod(last_path_pos, last_view_pos, 0).xy;
-		ray_origin = (il.view_last_to_cur * vec4(last_pos_view(last_path_pos), 1.0)).xyz;
+		uvec4 last_path_pos = textureLod(last_path_pos, last_view_pos, 0);
+		ray_origin = (il.view_last_to_cur * vec4(last_pos_view(last_path_pos.zw), 1.0)).xyz;
 		ray_dir = rnd_diffuse_around((il.view_last_to_cur_normal * vec4(normalize(texelFetch(last_normal, ilast_view_pos, 0).xyz), 1.0)).xyz, rnd);
 		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
 		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
@@ -347,7 +347,7 @@ void main(void)
 		out_acc.x = min(last_acc.x + (ray_success ? 0 : 1), 65000);
 		out_direct_light = irradiance_correct(vlast_direct_light, last_alb, alb);
 
-		out_path_pos = uvec2(ray_pos);
+		out_path_pos = uvec4(uvec2(0), uvec2(ray_pos));
 		vec3 foutput = textureLod(last_output, last_view_pos, 0).xyz;
 		if (ray_success) {
 			out_path_direct_light += correct_nan(textureLod(last_direct_light, ray_pos, 0).xyz) * out_path_albedo;	// bug with ray_pos in wrong frame
