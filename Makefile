@@ -24,6 +24,7 @@ CXXFLAGS += -DDEBUG
 endif
 ifdef RELEASE
 CXXFLAGS_BASE += -O3
+LD_LIBS += -s
 endif
 
 ifdef WINDOWS
