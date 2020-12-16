@@ -914,7 +914,7 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 		{0, VK_FORMAT_R8_SINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// step 0
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-		{0, VK_FORMAT_R16_SINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// acc 1
+		{0, VK_FORMAT_R16G16_UINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// acc 1
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
 		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// direct_light 2
@@ -2492,7 +2492,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal)),
 	m_step_view(createFbImage(VK_FORMAT_R8_SINT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_step)),
-	m_acc_view(createFbImage(VK_FORMAT_R16_SINT, Vk::ImageAspect::ColorBit,
+	m_acc_view(createFbImage(VK_FORMAT_R16G16_UINT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_acc)),
 	m_direct_light_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_direct_light)),

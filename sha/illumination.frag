@@ -36,7 +36,7 @@ layout(set = 0, binding = 6) uniform sampler2D last_albedo;
 layout(set = 0, binding = 7) uniform sampler2D last_normal;
 
 layout(set = 0, binding = 8) uniform isampler2D last_step;
-layout(set = 0, binding = 9) uniform isampler2D last_acc;
+layout(set = 0, binding = 9) uniform usampler2D last_acc;
 layout(set = 0, binding = 10) uniform sampler2D last_direct_light;
 layout(set = 0, binding = 11) uniform usampler2D last_path_pos;
 layout(set = 0, binding = 12) uniform sampler2D last_path_albedo;
@@ -44,7 +44,7 @@ layout(set = 0, binding = 13) uniform sampler2D last_path_direct_light;
 layout(set = 0, binding = 14) uniform sampler2D last_output;
 
 layout(location = 0) out int out_step;
-layout(location = 1) out int out_acc;
+layout(location = 1) out uvec2 out_acc;
 layout(location = 2) out vec3 out_direct_light;
 layout(location = 3) out uvec2 out_path_pos;
 layout(location = 4) out vec3 out_path_albedo;
@@ -268,6 +268,16 @@ vec3 correct_nan(vec3 vec)
 		return vec;
 }
 
+float vec_sum(vec3 vec)
+{
+	return vec.x + vec.y + vec.z;
+}
+
+int vec_sum(bvec3 vec)
+{
+	return (vec.x ? 1 : 0) + (vec.y ? 1 : 0) + (vec.z ? 1 : 0);
+}
+
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
@@ -287,12 +297,12 @@ void main(void)
 	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 256;
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
-	int last_acc = texelFetch(last_acc, ilast_view_pos, 0).x;
+	uvec2 last_acc = texelFetch(last_acc, ilast_view_pos, 0).xy;
 	vec3 vlast_direct_light = correct_nan(textureLod(last_direct_light, last_view_pos, 0).xyz);
 	vec3 last_alb = textureLod(last_albedo, last_view_pos, 0).xyz;
 	if (!repr_success) {
 		last_step = 0;
-		last_acc = 0;
+		last_acc = uvec2(0);
 	}
 
 	vec3 ray_origin;
@@ -325,28 +335,36 @@ void main(void)
 		float align = dot(norm, il.sun);
 		vec3 direct_light = alb * align * (ray_success ? 0.0 : 1.0) * 2.5;
 		out_direct_light = direct_light;
-		if (last_acc > 0)
+		if (last_acc.x > 0)
 			out_direct_light = irradiance_correct_adv(vlast_direct_light, last_alb,
-				direct_light, alb, last_acc);
+				direct_light, alb, last_acc.x);
 
 		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 		out_output = irradiance_correct(outp, last_alb, alb);
 	}
 	if (last_step >= 1) {
 		out_step = ray_success ? 2 : 0;
-		out_acc = last_acc + (ray_success ? 0 : 1);
+		out_acc.x = min(last_acc.x + (ray_success ? 0 : 1), 65000);
 		out_direct_light = irradiance_correct(vlast_direct_light, last_alb, alb);
 
 		out_path_pos = uvec2(ray_pos);
+		vec3 foutput = textureLod(last_output, last_view_pos, 0).xyz;
 		if (ray_success) {
 			out_path_direct_light += correct_nan(textureLod(last_direct_light, ray_pos, 0).xyz) * out_path_albedo;	// bug with ray_pos in wrong frame
 			out_path_albedo *= textureLod(albedo, ray_pos, 0).xyz;
-			out_output = irradiance_correct(textureLod(last_output, last_view_pos, 0).xyz, last_alb, alb);
+			out_output = irradiance_correct(foutput, last_alb, alb);
 		} else {
 			out_path_direct_light += env_sample(ray_dir) * out_path_albedo;
-			out_output = irradiance_correct_adv(textureLod(last_output, last_view_pos, 0).xyz, last_alb,
-				out_path_direct_light, alb, last_acc);
+			out_output = irradiance_correct_adv(foutput, last_alb, out_path_direct_light, alb, last_acc.x);
 		}
+		const uint rep_mask = 0x80;
+		uint dir = vec_sum(out_path_direct_light) >= vec_sum(foutput) ? rep_mask : 0;
+		if ((out_acc.y & rep_mask) == dir) {
+			out_acc.y = (min((out_acc.y ^ dir) + 1, 32000)) | dir;
+			if ((out_acc.y ^ dir) > 100)
+				out_acc = uvec2(0);
+		} else
+			out_acc.y = dir;
 	}
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0)
