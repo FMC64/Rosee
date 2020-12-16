@@ -22,11 +22,9 @@ class Game
 {
 	Renderer m_r;
 	Map m_m;
-	std::mutex m_done_mtx;
-	bool m_done = false;
-	std::thread m_rt;
 
-	void render(void)
+public:
+	void run(void)
 	{
 		//std::mt19937_64 m_rand_gen(time(nullptr));
 		/*auto zrand = [&](void) -> double {
@@ -95,11 +93,6 @@ class Game
 		bool esc = false;
 		bool first_it = true;
 		while (true) {
-			{
-				std::lock_guard l(m_done_mtx);
-				if (m_done)
-					break;
-			}
 			m_r.resetFrame();
 			auto now = std::chrono::high_resolution_clock::now();
 			auto delta = static_cast<std::chrono::duration<double>>(now - bef).count();
@@ -110,6 +103,8 @@ class Game
 			const double ang_rad = pi / 180.0;
 
 			m_r.pollEvents();
+			if (m_r.shouldClose())
+				break;
 
 			const double ratio = static_cast<double>(m_r.swapchainExtent().width) / static_cast<double>(m_r.swapchainExtent().height),
 				fov = 70.0 * ang_rad;
@@ -199,30 +194,12 @@ class Game
 		image_pool.destroyUsing(m_r.allocator);
 	}
 
-public:
 	Game(bool validate, bool useRenderDoc) :
-		m_r(3, validate, useRenderDoc),
-		m_rt([this](){
-			render();
-		})
+		m_r(3, validate, useRenderDoc)
 	{
 	}
 	~Game(void)
 	{
-		m_rt.join();
-	}
-
-	void run(void)
-	{
-		while (true) {
-			//m_r.pollEvents();
-			if (m_r.shouldClose()) {
-				std::lock_guard l(m_done_mtx);
-				m_done = true;
-				break;
-			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(16));
-		}
 	}
 };
 

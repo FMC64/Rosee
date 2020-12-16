@@ -337,11 +337,7 @@ private:
 	glm::dvec2 m_cursor = glm::dvec2(0.0, 0.0);
 	static inline constexpr size_t key_update_count = 7;
 	static size_t m_keys_update[key_update_count];
-	size_t m_next_input = 0;
 	size_t m_pending_cursor_mode = ~0ULL;
-	std::mutex m_next_input_mutex;
-	std::condition_variable m_next_input_cv;
-	std::mutex m_render_mutex;
 
 	std::mt19937_64 m_rnd;
 

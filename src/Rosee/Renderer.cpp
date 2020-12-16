@@ -413,10 +413,7 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 		if (m_swapchain_extent.width * m_swapchain_extent.height > 0)
 			break;
 		std::this_thread::sleep_for(std::chrono::milliseconds(16));
-		{
-			std::lock_guard l(m_next_input_mutex);
-			m_next_input++;
-		}
+
 		pollEvents();
 	}
 
@@ -2198,13 +2195,6 @@ size_t Renderer::m_keys_update[Renderer::key_update_count] {
 
 void Renderer::pollEvents(void)
 {
-	/*{
-		std::unique_lock<std::mutex> l(m_next_input_mutex);
-		m_next_input_cv.wait(l, [this](){
-			return m_next_input > 0;
-		});
-		m_next_input--;
-	}*/
 	glfwPollEvents();
 	{
 		std::memcpy(m_keys_prev, m_keys, sizeof(m_keys));
@@ -2219,7 +2209,6 @@ void Renderer::pollEvents(void)
 		}
 	}
 	if (keyReleased(GLFW_KEY_F11)) {
-		std::lock_guard l(m_render_mutex);
 		m_fullscreen = !m_fullscreen;
 		int monitor_count;
 		auto monitors = glfwGetMonitors(&monitor_count);
@@ -2587,7 +2576,6 @@ void Renderer::Frame::reset(void)
 
 void Renderer::Frame::render(Map &map, const Camera &camera)
 {
-	std::lock_guard l(m_r.m_render_mutex);
 	auto &sex = m_r.m_swapchain_extent;
 	auto &sex_mip = m_r.m_swapchain_extent_mip;
 
