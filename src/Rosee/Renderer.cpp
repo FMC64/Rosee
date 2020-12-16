@@ -565,7 +565,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_sampler_count +	// s0
 			1 +			// depth_resolve
-			13 +			// illumination
+			14 +			// illumination
 			1			// wsi
 		)}
 	};
@@ -982,13 +982,14 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 		{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// normal
 		{5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_depth
 		{6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_albedo
-		{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_step
-		{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_acc
-		{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_direct_light
-		{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_pos
-		{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_albedo
-		{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
-		{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
+		{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_normal
+		{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_step
+		{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_acc
+		{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_direct_light
+		{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_pos
+		{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_albedo
+		{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
+		{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -1946,7 +1947,7 @@ void Renderer::bindFrameDescriptors(void)
 {
 	static constexpr uint32_t img_writes_per_frame =
 		1 +	// depth_resolve: depth_buffer
-		13 +	// illum
+		14 +	// illum
 		1;	// wsi: output
 	static constexpr uint32_t img_writes_offset = 0;
 	static constexpr uint32_t buf_writes_per_frame =
@@ -1978,13 +1979,14 @@ void Renderer::bindFrameDescriptors(void)
 			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 6, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 9, m_sampler_fb_lin, cur_frame.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 13, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 9, m_sampler_fb, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 10, m_sampler_fb_lin, cur_frame.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 13, m_sampler_fb, cur_frame.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 14, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 		};
 
@@ -2055,7 +2057,7 @@ void Renderer::bindFrameDescriptors(void)
 
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	{
-		static constexpr uint32_t barrs_per_frame = 6;
+		static constexpr uint32_t barrs_per_frame = 7;
 		{
 			VkImageMemoryBarrier img_barrs[barrs_per_frame * m_frame_count];
 			for (uint32_t i = 0; i < m_frame_count; i++) {
@@ -2064,6 +2066,7 @@ void Renderer::bindFrameDescriptors(void)
 					m_frames[i].m_step,
 					m_frames[i].m_acc,
 					m_frames[i].m_albedo,
+					m_frames[i].m_normal,
 					m_frames[i].m_direct_light,
 					m_frames[i].m_output
 				};
@@ -2093,6 +2096,7 @@ void Renderer::bindFrameDescriptors(void)
 					{m_frames[i].m_step, &cv_i32_zero},
 					{m_frames[i].m_acc, &cv_i32_zero},
 					{m_frames[i].m_albedo, &cv_f32_zero},
+					{m_frames[i].m_normal, &cv_f32_zero},
 					{m_frames[i].m_direct_light, &cv_f32_zero},
 					{m_frames[i].m_output, &cv_f32_zero}
 				};
@@ -2115,6 +2119,7 @@ void Renderer::bindFrameDescriptors(void)
 					m_frames[i].m_step,
 					m_frames[i].m_acc,
 					m_frames[i].m_albedo,
+					m_frames[i].m_normal,
 					m_frames[i].m_direct_light,
 					m_frames[i].m_output,
 
@@ -2730,7 +2735,11 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				illum.view_normal_inv[3][i] = 0.0f;
 			illum.last_view = camera.last_view;
 			illum.last_view_inv = glm::inverse(camera.last_view);
-			illum.cam_cur_to_last = illum.last_view * illum.view_inv;
+			illum.view_cur_to_last = illum.last_view * illum.view_inv;
+			illum.view_last_to_cur = illum.view * illum.last_view_inv;
+			illum.view_last_to_cur_normal = illum.view_last_to_cur;
+			for (size_t i = 0; i < 3; i++)
+				illum.view_last_to_cur_normal[3][i] = 0.0f;
 			for (size_t i = 0; i < 256; i++) {
 				reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
 				reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);

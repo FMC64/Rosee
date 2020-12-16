@@ -273,7 +273,9 @@ private:
 			glm::mat4 view_normal_inv;
 			glm::mat4 last_view;
 			glm::mat4 last_view_inv;
-			glm::mat4 cam_cur_to_last;
+			glm::mat4 view_cur_to_last;
+			glm::mat4 view_last_to_cur;
+			glm::mat4 view_last_to_cur_normal;
 			glm::vec4 rnd_sun[256];
 			glm::vec4 rnd_diffuse[256];
 			glm::vec3 sun;
