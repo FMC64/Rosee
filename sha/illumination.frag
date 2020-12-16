@@ -334,10 +334,8 @@ void main(void)
 		vec3 norm = normalize(texelFetch(normal, pos, 0).xyz);
 		float align = dot(norm, il.sun);
 		vec3 direct_light = alb * align * (ray_success ? 0.0 : 1.0) * 2.5;
-		out_direct_light = direct_light;
-		if (last_acc.x > 0)
-			out_direct_light = irradiance_correct_adv(vlast_direct_light, last_alb,
-				direct_light, alb, last_acc.x);
+		out_direct_light = irradiance_correct_adv(vlast_direct_light, last_alb,
+			direct_light, alb, last_acc.x);
 
 		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 		out_output = irradiance_correct(outp, last_alb, alb);
@@ -345,6 +343,7 @@ void main(void)
 	if (last_step >= 1) {
 		out_step = ray_success ? 2 : 0;
 		out_acc.x = min(last_acc.x + (ray_success ? 0 : 1), 65000);
+		out_acc.y = last_acc.y;
 		out_direct_light = irradiance_correct(vlast_direct_light, last_alb, alb);
 
 		out_path_pos = uvec4(uvec2(0), uvec2(ray_pos));
@@ -357,11 +356,12 @@ void main(void)
 			out_path_direct_light += env_sample(ray_dir) * out_path_albedo;
 			out_output = irradiance_correct_adv(foutput, last_alb, out_path_direct_light, alb, last_acc.x);
 		}
+
 		const uint rep_mask = 0x80;
 		uint dir = vec_sum(out_path_direct_light) >= vec_sum(foutput) ? rep_mask : 0;
 		if ((out_acc.y & rep_mask) == dir) {
 			out_acc.y = (min((out_acc.y ^ dir) + 1, 32000)) | dir;
-			if ((out_acc.y ^ dir) > 100)
+			if ((out_acc.y ^ dir) > 96)
 				out_acc = uvec2(0);
 		} else
 			out_acc.y = dir;
