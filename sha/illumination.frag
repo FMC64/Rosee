@@ -31,12 +31,18 @@ layout(set = 0, binding = 6) uniform sampler2D last_albedo;
 layout(set = 0, binding = 7) uniform isampler2D last_step;
 layout(set = 0, binding = 8) uniform isampler2D last_acc;
 layout(set = 0, binding = 9) uniform sampler2D last_direct_light;
-layout(set = 0, binding = 10) uniform sampler2D last_output;
+layout(set = 0, binding = 10) uniform usampler2D last_path_pos;
+layout(set = 0, binding = 11) uniform sampler2D last_path_albedo;
+layout(set = 0, binding = 12) uniform sampler2D last_path_direct_light;
+layout(set = 0, binding = 13) uniform sampler2D last_output;
 
 layout(location = 0) out int out_step;
 layout(location = 1) out int out_acc;
 layout(location = 2) out vec3 out_direct_light;
-layout(location = 3) out vec3 out_output;
+layout(location = 3) out uvec2 out_path_pos;
+layout(location = 4) out vec3 out_path_albedo;
+layout(location = 5) out vec3 out_path_direct_light;
+layout(location = 6) out vec3 out_output;
 
 float rt_depth_to_z(float d)
 {
@@ -54,10 +60,10 @@ vec2 rt_ndc_to_ss(vec2 p)
 	return ((p * 0.5) + 0.5) * size;
 }
 
-vec3 rt_pos_view(vec2 pos, int samp)
+vec3 rt_pos_view(vec2 pos)
 {
 	vec2 size = vec2(1.0) / textureSize(albedo, 0);
-	float d = texelFetch(cdepth, ivec2(pos), samp).x;
+	float d = texelFetch(cdepth, ivec2(pos), 0).x;
 	float z = rt_depth_to_z(d);
 	vec2 uv = pos * size;
 	vec2 ndc2 = (uv - 0.5) * 2.0;
@@ -66,9 +72,9 @@ vec3 rt_pos_view(vec2 pos, int samp)
 	return vec3(ndc2, z);
 }
 
-vec3 rt_current_view(int samp)
+vec3 rt_current_view()
 {
-	return rt_pos_view(gl_FragCoord.xy, samp);
+	return rt_pos_view(gl_FragCoord.xy);
 }
 
 vec3 rt_project_point(vec3 point)
@@ -114,12 +120,12 @@ bool rt_inter_rect_strong(vec2 tl, vec2 br, vec2 p, vec2 d, float bias, out floa
 	return inter.x >= tl.x && inter.y >= tl.y && inter.x <= br.x && inter.y <= br.y;
 }
 
-bool rt_traceRay(vec3 origin, vec3 dir, int samp, out vec2 pos)
+bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 {
 	vec3 p0, p1;
 	rt_project_ray(origin, dir, p0, p1);
 
-	vec3 normal = normalize(texelFetch(normal, ivec2(p0.xy), samp).xyz);
+	vec3 normal = normalize(texelFetch(normal, ivec2(p0.xy), 0).xyz);
 
 	vec2 dir2 = p1.xy - p0.xy;
 	float dir2_len_ni = length(dir2);
@@ -163,7 +169,8 @@ bool rt_traceRay(vec3 origin, vec3 dir, int samp, out vec2 pos)
 }
 
 
-int hash(int x) {
+int hash(int x)
+{
 	x += ( x << 10 );
 	x ^= ( x >>  6 );
 	x += ( x <<  3 );
@@ -198,62 +205,39 @@ vec3 irradiance_to_output(vec3 irradiance, vec3 albedo)
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
-	out_output = vec3(0.0);
-	int sample_done[sample_count];
-	//int its = 0;
-	for (int i = 0; i < sample_count; i++)
-		sample_done[i] = 0;
-	int i = 0;
-	for (int k = 0; k < sample_count; k++) {
-		vec3 view = rt_current_view(i);
-		vec4 last_view = il.cam_cur_to_last * vec4(view, 1.0);
-		vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
 
-		const float repr_dist_tres = 0.5;
-		bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
-			last_view_pos.x <= (il.size.x - 1) && last_view_pos.y <= (il.size.y - 1) &&
-			length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos, il.size), 1.0)).xyz) < repr_dist_tres &&
-			texture(depth, gl_FragCoord.xy * il.depth_size).x < 0.9999999;
+	vec3 view = rt_current_view();
+	vec4 last_view = il.cam_cur_to_last * vec4(view, 1.0);
+	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
 
-		float d = texelFetch(cdepth, pos, i).x;
-		vec3 alb = texelFetch(albedo, pos, i).xyz;
-		vec3 norm = normalize(texelFetch(normal, pos, i).xyz);
-		float align = dot(norm, il.sun);
+	const float repr_dist_tres = 0.5;
+	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
+		last_view_pos.x <= (il.size.x - 1) && last_view_pos.y <= (il.size.y - 1) &&
+		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos, il.size), 1.0)).xyz) < repr_dist_tres &&
+		texture(depth, gl_FragCoord.xy * il.depth_size).x < 0.9999999;
 
-		vec2 rt_pos;
-		if (rt_traceRay(view, il.sun, i, rt_pos))
-			align = 0.0;
+	float d = texelFetch(cdepth, pos, 0).x;
+	vec3 alb = texelFetch(albedo, pos, 0).xyz;
+	vec3 norm = normalize(texelFetch(normal, pos, 0).xyz);
+	float align = dot(norm, il.sun);
 
-		float illum = max(align, 0.05);
-		vec3 outp = alb * illum * 2.5;
-		if (repr_success) {
-			vec3 last_irr = output_to_irradiance(texture(last_output, last_view_pos * il.size_inv).xyz, texture(last_albedo, last_view_pos * il.size_inv).xyz);
-			vec3 cur_irr = output_to_irradiance(outp, alb);
-			outp = irradiance_to_output(mix(last_irr, cur_irr, 0.01), alb);
-		}
+	vec2 rt_pos;
+	if (rt_traceRay(view, il.sun, rt_pos))
+		align = 0.0;
 
-		float count = 0;
-		for (int j = 0; j < sample_count; j++) {
-			bool same = texelFetch(cdepth, pos, j).x == d;
-			sample_done[j] += same ? 1 : 0;
-			count += same ? 1.0 : 0.0;
-		}
-		out_output += outp * count;
-		//its++;
-
-		for (int j = 0; j < sample_count; j++) {
-			if (sample_done[i] == 0)
-				break;
-			i++;
-			if (i >= sample_count) {
-				out_step = 0;
-				out_acc = 0;
-				out_direct_light = vec3(0.0);
-				out_output *= sample_factor;
-				//out_output = vec3(float(its) / float(sample_count));
-				//out_output = vec3(texture(depth, gl_FragCoord.xy * il.depth_size, 6).x);
-				return;
-			}
-		}
+	float illum = max(align, 0.05);
+	vec3 outp = alb * illum * 2.5;
+	if (repr_success) {
+		vec3 last_irr = output_to_irradiance(texture(last_output, last_view_pos * il.size_inv).xyz, texture(last_albedo, last_view_pos * il.size_inv).xyz);
+		vec3 cur_irr = output_to_irradiance(outp, alb);
+		outp = irradiance_to_output(mix(last_irr, cur_irr, 0.01), alb);
 	}
+
+	out_step = 0;
+	out_acc = 0;
+	out_direct_light = vec3(0.0);
+	out_path_pos = uvec2(0);
+	out_path_albedo = vec3(0.0);
+	out_path_direct_light = vec3(0.0);
+	out_output = outp;
 }

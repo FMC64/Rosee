@@ -233,6 +233,12 @@ private:
 		Vk::ImageView m_acc_view;
 		Vk::ImageAllocation m_direct_light;
 		Vk::ImageView m_direct_light_view;
+		Vk::ImageAllocation m_path_pos;
+		Vk::ImageView m_path_pos_view;
+		Vk::ImageAllocation m_path_albedo;
+		Vk::ImageView m_path_albedo_view;
+		Vk::ImageAllocation m_path_direct_light;
+		Vk::ImageView m_path_direct_light_view;
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 

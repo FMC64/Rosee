@@ -564,7 +564,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_sampler_count +	// s0
 			1 +			// depth_resolve
-			10 +			// illumination
+			13 +			// illumination
 			1			// wsi
 		)}
 	};
@@ -916,25 +916,40 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 		{0, VK_FORMAT_R8_SINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// step 0
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-		{0, VK_FORMAT_R16_SINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// acc 0
+		{0, VK_FORMAT_R16_SINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// acc 1
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// direct_light 0
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// direct_light 2
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// output 0
+		{0, VK_FORMAT_R16G16_UINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_pos 3
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_albedo 4
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_direct_light 5
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// output 6
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
 	};
 	VkAttachmentReference step {0, Vk::ImageLayout::ColorAttachmentOptimal};
 	VkAttachmentReference acc {1, Vk::ImageLayout::ColorAttachmentOptimal};
 	VkAttachmentReference direct_light {2, Vk::ImageLayout::ColorAttachmentOptimal};
-	VkAttachmentReference output {3, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference path_pos {3, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference path_albedo {4, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference path_direct_light {5, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference output {6, Vk::ImageLayout::ColorAttachmentOptimal};
 
 	VkAttachmentReference color_atts[] {
 		step,
 		acc,
 		direct_light,
+		path_pos,
+		path_albedo,
+		path_direct_light,
 		output
 	};
 
@@ -969,7 +984,10 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 		{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_step
 		{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_acc
 		{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_direct_light
-		{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
+		{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_pos
+		{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_albedo
+		{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
+		{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -1045,6 +1063,9 @@ Pipeline Renderer::createIlluminationPipeline(void)
 	color_blend_attachment.blendEnable = VK_FALSE;
 	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment,
+		color_blend_attachment,
+		color_blend_attachment,
 		color_blend_attachment,
 		color_blend_attachment,
 		color_blend_attachment,
@@ -1907,7 +1928,7 @@ void Renderer::bindFrameDescriptors(void)
 {
 	static constexpr uint32_t img_writes_per_frame =
 		1 +	// depth_resolve: depth_buffer
-		10 +	// illum: cdepth, depth, albedo, normal, last_depth, last_albedo, last_output
+		13 +	// illum
 		1;	// wsi: output
 	static constexpr uint32_t img_writes_offset = 0;
 	static constexpr uint32_t buf_writes_per_frame =
@@ -1939,10 +1960,13 @@ void Renderer::bindFrameDescriptors(void)
 			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 5, m_sampler_fb_mip, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 6, m_sampler_fb_mip, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 7, m_sampler_fb_mip, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 7, m_sampler_fb_mip, cur_frame.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 8, m_sampler_fb_mip, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 9, m_sampler_fb_mip, cur_frame.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 10, m_sampler_fb_mip, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 13, m_sampler_fb_mip, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 		};
 
@@ -2057,7 +2081,7 @@ void Renderer::bindFrameDescriptors(void)
 		}
 
 		{
-			static constexpr uint32_t add_barrs_per_frame = 3;
+			static constexpr uint32_t add_barrs_per_frame = 6;
 			static constexpr uint32_t tbarrs_per_frame = barrs_per_frame + add_barrs_per_frame;
 			uint32_t img_barr_count = tbarrs_per_frame * m_frame_count;
 			VkImageMemoryBarrier img_barrs[img_barr_count];
@@ -2069,6 +2093,9 @@ void Renderer::bindFrameDescriptors(void)
 
 					m_frames[i].m_albedo,
 					m_frames[i].m_direct_light,
+					m_frames[i].m_path_pos,
+					m_frames[i].m_path_albedo,
+					m_frames[i].m_path_direct_light,
 					m_frames[i].m_output
 				};
 				for (uint32_t j = 0; j < array_size(imgs); j++)
@@ -2377,6 +2404,9 @@ Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 		m_step_view,
 		m_acc_view,
 		m_direct_light_view,
+		m_path_pos_view,
+		m_path_albedo_view,
+		m_path_direct_light_view,
 		m_output_view
 	};
 	ci.attachmentCount = array_size(atts);
@@ -2449,6 +2479,12 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_acc)),
 	m_direct_light_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_direct_light)),
+	m_path_pos_view(createFbImage(VK_FORMAT_R16G16_UINT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_path_pos)),
+	m_path_albedo_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_path_albedo)),
+	m_path_direct_light_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_path_direct_light)),
 	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_output)),
 	m_opaque_fb(createOpaqueFb()),
@@ -2479,6 +2515,12 @@ void Renderer::Frame::destroy(bool with_ext_res)
 
 	m_r.device.destroy(m_output_view);
 	m_r.allocator.destroy(m_output);
+	m_r.device.destroy(m_path_direct_light_view);
+	m_r.allocator.destroy(m_path_direct_light);
+	m_r.device.destroy(m_path_albedo_view);
+	m_r.allocator.destroy(m_path_albedo);
+	m_r.device.destroy(m_path_pos_view);
+	m_r.allocator.destroy(m_path_pos);
 	m_r.device.destroy(m_direct_light_view);
 	m_r.allocator.destroy(m_direct_light);
 	m_r.device.destroy(m_acc_view);
