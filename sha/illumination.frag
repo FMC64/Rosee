@@ -231,7 +231,12 @@ vec3 rnd_diffuse_around(vec3 normal, int rand)
 	return nx * rvec.x + ny * rvec.y + nz * rvec.z;
 }
 
-vec3 env_sample(vec3 dir)
+vec3 rnd_diffuse_around_rough(vec3 w_i, vec3 w_normal, int rand, float roughness)
+{
+	return normalize(mix(reflect(w_i, w_normal), rnd_diffuse_around(w_normal, rand), roughness));
+}
+
+vec3 env_sample_novoid(vec3 dir)
 {
 	const vec3 hor = vec3(80, 120, 180) / 255;
 	const vec3 up = vec3(0, 60, 256) / 255;
@@ -241,8 +246,12 @@ vec3 env_sample(vec3 dir)
 	up_ratio *= up_ratio;
 	up_ratio *= up_ratio;
 	up_ratio = 1.0 - up_ratio;
-	return normalize(hor * (1.0 - up_ratio) + vec3(1.0) * up) * (dir.y > 0.0 ? 1.0 : 0.0);
-	//return texture(env.map, dir.zxy).xyz;
+	return normalize(hor * (1.0 - up_ratio) + vec3(1.0) * up);
+}
+
+vec3 env_sample(vec3 dir)
+{
+	return env_sample_novoid(dir) * (dir.y > 0.0 ? 1.0 : 0.0);
 }
 
 bool anynan(vec3 vec)
@@ -341,5 +350,5 @@ void main(void)
 	}
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0)
-		out_output = env_sample((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 }

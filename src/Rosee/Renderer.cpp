@@ -2506,7 +2506,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_albedo_view(createFbImageMs(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_albedo)),
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &m_normal)),
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal)),
 	m_step_view(createFbImage(VK_FORMAT_R8_SINT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_step)),
 	m_acc_view(createFbImage(VK_FORMAT_R16_SINT, Vk::ImageAspect::ColorBit,
