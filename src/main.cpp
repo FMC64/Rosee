@@ -109,6 +109,8 @@ class Game
 			const double near = 0.1, far = 1000.0;
 			const double ang_rad = pi / 180.0;
 
+			m_r.pollEvents();
+
 			const double ratio = static_cast<double>(m_r.swapchainExtent().width) / static_cast<double>(m_r.swapchainExtent().height),
 				fov = 70.0 * ang_rad;
 			{
@@ -213,12 +215,13 @@ public:
 	void run(void)
 	{
 		while (true) {
-			m_r.pollEvents();
+			//m_r.pollEvents();
 			if (m_r.shouldClose()) {
 				std::lock_guard l(m_done_mtx);
 				m_done = true;
 				break;
 			}
+			std::this_thread::sleep_for(std::chrono::milliseconds(16));
 		}
 	}
 };

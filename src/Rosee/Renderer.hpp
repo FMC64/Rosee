@@ -341,7 +341,6 @@ private:
 	size_t m_pending_cursor_mode = ~0ULL;
 	std::mutex m_next_input_mutex;
 	std::condition_variable m_next_input_cv;
-	std::mutex m_input_mutex;
 	std::mutex m_render_mutex;
 
 	std::mt19937_64 m_rnd;
@@ -352,10 +351,10 @@ public:
 
 	void pollEvents(void);
 	bool shouldClose(void) const;
-	bool keyState(int glfw_key);
-	bool keyPressed(int glfw_key);
-	bool keyReleased(int glfw_key);
-	glm::dvec2 cursor(void);
+	bool keyState(int glfw_key) const;
+	bool keyPressed(int glfw_key) const;
+	bool keyReleased(int glfw_key) const;
+	glm::dvec2 cursor(void) const;
 
 	void setCursorMode(bool show);
 

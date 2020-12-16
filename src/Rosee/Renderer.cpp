@@ -417,7 +417,7 @@ Vk::SwapchainKHR Renderer::createSwapchain(void)
 			std::lock_guard l(m_next_input_mutex);
 			m_next_input++;
 		}
-		m_next_input_cv.notify_one();
+		pollEvents();
 	}
 
 	auto wp = extentLog2(m_swapchain_extent.width);
@@ -2198,16 +2198,15 @@ size_t Renderer::m_keys_update[Renderer::key_update_count] {
 
 void Renderer::pollEvents(void)
 {
-	{
+	/*{
 		std::unique_lock<std::mutex> l(m_next_input_mutex);
 		m_next_input_cv.wait(l, [this](){
 			return m_next_input > 0;
 		});
 		m_next_input--;
-	}
+	}*/
 	glfwPollEvents();
 	{
-		std::lock_guard l(m_input_mutex);
 		std::memcpy(m_keys_prev, m_keys, sizeof(m_keys));
 		for (size_t i = 0; i < key_update_count; i++) {
 			auto glfw_key = m_keys_update[i];
@@ -2243,33 +2242,28 @@ bool Renderer::shouldClose(void) const
 	return glfwWindowShouldClose(m_window);
 }
 
-bool Renderer::keyState(int glfw_key)
+bool Renderer::keyState(int glfw_key) const
 {
-	std::lock_guard l(m_input_mutex);
 	return m_keys[glfw_key];
 }
 
-bool Renderer::keyPressed(int glfw_key)
+bool Renderer::keyPressed(int glfw_key) const
 {
-	std::lock_guard l(m_input_mutex);
 	return !m_keys_prev[glfw_key] && m_keys[glfw_key];
 }
 
-bool Renderer::keyReleased(int glfw_key)
+bool Renderer::keyReleased(int glfw_key) const
 {
-	std::lock_guard l(m_input_mutex);
 	return m_keys_prev[glfw_key] && !m_keys[glfw_key];
 }
 
-glm::dvec2 Renderer::cursor(void)
+glm::dvec2 Renderer::cursor(void) const
 {
-	std::lock_guard l(m_input_mutex);
 	return m_cursor;
 }
 
 void Renderer::setCursorMode(bool show)
 {
-	std::lock_guard l(m_input_mutex);
 	m_pending_cursor_mode = show ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED;
 }
 
@@ -2585,12 +2579,6 @@ void Renderer::Frame::destroy(bool with_ext_res)
 
 void Renderer::Frame::reset(void)
 {
-	{
-		std::lock_guard l(m_r.m_next_input_mutex);
-		m_r.m_next_input++;
-	}
-	m_r.m_next_input_cv.notify_one();
-
 	if (m_ever_submitted) {
 		m_r.device.wait(m_frame_done);
 		m_r.device.reset(m_frame_done);
