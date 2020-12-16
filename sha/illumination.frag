@@ -155,8 +155,10 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 
 	t += dir_len * 2.0;
 	p = mix(p0, p1, t);
+	const int base_quality = 5;
+	const int quality = 0;
 	for (int i = 0; i < 512; i++) {
-		float d = textureLod(depth, p.xy * il.depth_size, level).x;
+		float d = textureLod(depth, p.xy * il.depth_size, level == 0 ? 0 : (level + quality)).x;
 		if (p.z < d) {
 			if (level == 0) {
 				pos = p.xy;
@@ -164,12 +166,12 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 			}
 			level--;
 		} else {
-			t += dir_len * float(1 << level);
+			t += dir_len * float(1 << (level + quality));
 			if (t >= t_max)
 				return false;
 			p = mix(p0, p1, t);
 			level++;
-			level = min(5, level);
+			level = min(base_quality, level);
 		}
 	}
 	return false;
