@@ -7,10 +7,13 @@ layout(constant_id = 1) const float sample_factor = 1.0;
 layout(set = 0, binding = 0) uniform Illum {
 	mat4 cam_proj;
 	mat4 view;
+	mat4 view_normal;
 	mat4 view_inv;
 	mat4 last_view;
 	mat4 last_view_inv;
 	mat4 cam_cur_to_last;
+	vec3 rnd_sun[256];
+	vec3 rnd_diffuse[256];
 	vec3 sun;
 	vec2 size;
 	vec2 size_inv;
@@ -202,6 +205,15 @@ vec3 irradiance_to_output(vec3 irradiance, vec3 albedo)
 	return irradiance * (albedo + irradiance_albedo_bias);
 }
 
+vec3 rnd_diffuse_around(vec3 normal, int rand)
+{
+	vec3 nx = vec3(-normal.z, normal.y, normal.x);
+	vec3 ny = vec3(normal.y, -normal.z, normal.x);
+	vec3 nz = normal;
+	vec3 rvec = il.rnd_diffuse[rand];
+	return nx * rvec.x + ny * rvec.y + nz * rvec.z;
+}
+
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
@@ -209,6 +221,7 @@ void main(void)
 	vec3 view = rt_current_view();
 	vec4 last_view = il.cam_cur_to_last * vec4(view, 1.0);
 	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
+	ivec2 ilast_view_pos = ivec2(last_view_pos);
 
 	const float repr_dist_tres = 0.5;
 	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
@@ -216,28 +229,54 @@ void main(void)
 		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos, il.size), 1.0)).xyz) < repr_dist_tres &&
 		texture(depth, gl_FragCoord.xy * il.depth_size).x < 0.9999999;
 
-	float d = texelFetch(cdepth, pos, 0).x;
+	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 256;
+	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
+	int last_acc = texelFetch(last_acc, ilast_view_pos, 0).x;
+	if (!repr_success) {
+		last_step = 0;
+		last_acc = 0;
+	}
+
+	vec3 ray_origin;
+	vec3 ray_dir;
+	if (last_step == 0) {
+		ray_origin = view;
+		ray_dir = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
+	}
+	/*if (last_step == 1) {
+		ray_origin = view;
+		//ray_dir = ;
+	}*/
+
+	/*float d = texelFetch(cdepth, pos, 0).x;
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 	vec3 norm = normalize(texelFetch(normal, pos, 0).xyz);
-	float align = dot(norm, il.sun);
+	float align = dot(norm, il.sun);*/
 
-	vec2 rt_pos;
-	if (rt_traceRay(view, il.sun, rt_pos))
-		align = 0.0;
+	vec2 ray_pos;
+	bool ray_success = rt_traceRay(ray_origin, ray_dir, ray_pos);
 
-	float illum = max(align, 0.05);
+	if (last_step == 0) {
+		out_step = 0;
+		vec3 alb = texelFetch(albedo, pos, 0).xyz;
+		vec3 norm = normalize(texelFetch(normal, pos, 0).xyz);
+		float align = dot(norm, il.sun);
+		out_direct_light = alb * align * (ray_success ? 0.0 : 1.0) * 2.5;
+		out_output = out_direct_light;
+	}
+
+	/*float illum = max(align, 0.05);
 	vec3 outp = alb * illum * 2.5;
 	if (repr_success) {
 		vec3 last_irr = output_to_irradiance(texture(last_output, last_view_pos * il.size_inv).xyz, texture(last_albedo, last_view_pos * il.size_inv).xyz);
 		vec3 cur_irr = output_to_irradiance(outp, alb);
 		outp = irradiance_to_output(mix(last_irr, cur_irr, 0.01), alb);
-	}
+	}*/
 
-	out_step = 0;
 	out_acc = 0;
-	out_direct_light = vec3(0.0);
+	//out_direct_light = vec3(0.0);
 	out_path_pos = uvec2(0);
 	out_path_albedo = vec3(0.0);
-	out_path_direct_light = vec3(0.0);
-	out_output = outp;
+	//out_path_direct_light = vec3(0.0);
+	//out_output = outp;
 }

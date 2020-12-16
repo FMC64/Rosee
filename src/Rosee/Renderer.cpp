@@ -6,6 +6,7 @@
 #include <thread>
 #include <fstream>
 #include <sstream>
+#include <ctime>
 #include "../../dep/tinyobjloader/tiny_obj_loader.h"
 #include "../../dep/stb/stb_image.h"
 
@@ -1867,7 +1868,8 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	m_frames(createFrames()),
 	m_pipeline_pool(4),
-	m_model_pool(4)
+	m_model_pool(4),
+	m_rnd(std::time(nullptr))
 {
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
@@ -2253,6 +2255,11 @@ void Renderer::render(Map &map, const Camera &camera)
 {
 	m_frames[m_current_frame].render(map, camera);
 	m_current_frame = (m_current_frame + 1) % m_frame_count;
+}
+
+double Renderer::zrand(void)
+{
+	return static_cast<double>(m_rnd()) / static_cast<double>(std::numeric_limits<decltype(m_rnd())>::max());
 }
 
 Vk::BufferAllocation Renderer::Frame::createDynBufferStaging(void)
@@ -2692,10 +2699,17 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			Illumination illum;
 			illum.cam_proj = camera.proj;
 			illum.view = camera.view;
+			illum.view_normal = camera.view;
+			for (size_t i = 0; i < 3; i++)
+				illum.view_normal[3][i] = 0.0f;
 			illum.view_inv = glm::inverse(camera.view);
 			illum.last_view = camera.last_view;
 			illum.last_view_inv = glm::inverse(camera.last_view);
 			illum.cam_cur_to_last = illum.last_view * illum.view_inv;
+			for (size_t i = 0; i < 256; i++) {
+				reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
+				reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
+			}
 			illum.sun = view_norm * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
 			illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
 			illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);

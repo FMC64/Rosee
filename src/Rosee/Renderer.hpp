@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <condition_variable>
+#include <random>
 #include "vector.hpp"
 #include "Vk.hpp"
 #include "Map.hpp"
@@ -265,10 +266,13 @@ private:
 		struct Illumination {
 			glm::mat4 cam_proj;
 			glm::mat4 view;
+			glm::mat4 view_normal;
 			glm::mat4 view_inv;
 			glm::mat4 last_view;
 			glm::mat4 last_view_inv;
 			glm::mat4 cam_cur_to_last;
+			glm::vec4 rnd_sun[256];
+			glm::vec4 rnd_diffuse[256];
 			glm::vec3 sun;
 			float _pad;
 			glm::vec2 size;
@@ -335,6 +339,8 @@ private:
 	std::mutex m_input_mutex;
 	std::mutex m_render_mutex;
 
+	std::mt19937_64 m_rnd;
+
 public:
 	Renderer(uint32_t frameCount, bool validate, bool useRenderDoc);
 	~Renderer(void);
@@ -350,6 +356,8 @@ public:
 
 	void resetFrame(void);
 	void render(Map &map, const Camera &camera);
+
+	double zrand(void);
 };
 
 }
