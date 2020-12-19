@@ -270,6 +270,11 @@ vec3 correct_nan(vec3 vec)
 		return vec;
 }
 
+float vec_sum(vec2 vec)
+{
+	return vec.x + vec.y;
+}
+
 float vec_sum(vec3 vec)
 {
 	return vec.x + vec.y + vec.z;
@@ -278,6 +283,15 @@ float vec_sum(vec3 vec)
 int vec_sum(bvec3 vec)
 {
 	return (vec.x ? 1 : 0) + (vec.y ? 1 : 0) + (vec.z ? 1 : 0);
+}
+
+float sharp_divergence(vec2 pos)
+{
+	vec2 center = floor(pos) + 0.5;
+	float res = length(pos - center);
+	if (res < 0.01)
+		return 0.0;
+	return 1.0;
 }
 
 void main(void)
@@ -345,6 +359,11 @@ void main(void)
 
 		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 		out_output = irradiance_correct(outp, last_alb, alb);
+
+		if (sharp_divergence(last_view_pos) > 0.0) {
+			if (length(vlast_direct_light - direct_light) > 0.01)
+				out_acc.x = 0;
+		}
 	}
 	if (last_step >= 1) {
 		out_step = ray_success ? 2 : 0;
@@ -363,14 +382,10 @@ void main(void)
 			out_output = irradiance_correct_adv(foutput, last_alb, out_path_direct_light, alb, last_acc.x);
 		}
 
-		/*const uint rep_mask = 0x80;
-		uint dir = vec_sum(out_path_direct_light) >= vec_sum(foutput) ? rep_mask : 0;
-		if ((out_acc.y & rep_mask) == dir) {
-			out_acc.y = (min((out_acc.y ^ dir) + 1, 32000)) | dir;
-			if ((out_acc.y ^ dir) > 96)
-				out_acc = uvec2(0);
-		} else
-			out_acc.y = dir;*/
+		if (sharp_divergence(last_view_pos) > 0.0) {
+			if (length(vlast_direct_light - out_direct_light) > 0.01)
+				out_acc.x = 0;
+		}
 	}
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0)
