@@ -242,6 +242,8 @@ private:
 		Vk::ImageView m_path_albedo_view;
 		Vk::ImageAllocation m_path_direct_light;
 		Vk::ImageView m_path_direct_light_view;
+		Vk::ImageAllocation m_path_incidence;
+		Vk::ImageView m_path_incidence_view;
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
