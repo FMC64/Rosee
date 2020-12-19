@@ -127,7 +127,7 @@ bool rt_inter_rect_strong(vec2 tl, vec2 br, vec2 p, vec2 d, float bias, out floa
 	return inter.x >= tl.x && inter.y >= tl.y && inter.x <= br.x && inter.y <= br.y;
 }
 
-bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
+bool rt_traceRay(vec3 origin, vec3 dir, int quality, out vec2 pos)
 {
 	vec3 p0, p1;
 	rt_project_ray(origin, dir, p0, p1);
@@ -156,7 +156,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, out vec2 pos)
 	t += dir_len * 2.0;
 	p = mix(p0, p1, t);
 	const int base_quality = 5;
-	const int quality = 0;
+	//const int quality = 0;
 	for (int i = 0; i < 512; i++) {
 		float d = textureLod(depth, p.xy * il.depth_size, level == 0 ? 0 : (level + quality)).x;
 		if (p.z < d) {
@@ -309,15 +309,18 @@ void main(void)
 
 	vec3 ray_origin;
 	vec3 ray_dir;
+	int quality;
 	if (last_step == 0) {
 		ray_origin = view;
 		ray_dir = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
+		quality = 1;
 	}
 	if (last_step == 1) {
 		ray_origin = view;
 		ray_dir = rnd_diffuse_around_rough(view_norm, normalize(texelFetch(normal, pos, 0).xyz), 0.0, rnd);
 		out_path_albedo = alb;
 		out_path_direct_light = vlast_direct_light;
+		quality = 3;
 	}
 	if (last_step == 2) {
 		uvec4 last_path_pos = textureLod(last_path_pos, last_view_pos, 0);
@@ -325,10 +328,11 @@ void main(void)
 		ray_dir = rnd_diffuse_around((il.view_last_to_cur_normal * vec4(normalize(texelFetch(last_normal, ilast_view_pos, 0).xyz), 1.0)).xyz, rnd);
 		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
 		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
+		quality = 3;
 	}
 
 	vec2 ray_pos;
-	bool ray_success = rt_traceRay(ray_origin, ray_dir, ray_pos);
+	bool ray_success = rt_traceRay(ray_origin, ray_dir, quality, ray_pos);
 
 	if (last_step == 0) {
 		out_step = 1;
@@ -359,14 +363,14 @@ void main(void)
 			out_output = irradiance_correct_adv(foutput, last_alb, out_path_direct_light, alb, last_acc.x);
 		}
 
-		const uint rep_mask = 0x80;
+		/*const uint rep_mask = 0x80;
 		uint dir = vec_sum(out_path_direct_light) >= vec_sum(foutput) ? rep_mask : 0;
 		if ((out_acc.y & rep_mask) == dir) {
 			out_acc.y = (min((out_acc.y ^ dir) + 1, 32000)) | dir;
 			if ((out_acc.y ^ dir) > 96)
 				out_acc = uvec2(0);
 		} else
-			out_acc.y = dir;
+			out_acc.y = dir;*/
 	}
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0)

@@ -2595,6 +2595,13 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 	VkClearColorValue cv_zero;
 	for (size_t i = 0; i < 4; i++)
 		cv_zero.float32[i] = 0.0f;
+	/*VkClearColorValue cv_one;
+	for (size_t i = 0; i < 4; i++)
+		cv_one.float32[i] = 1.0f;*/
+	/*VkClearColorValue cv_r0g0zm1;
+	for (size_t i = 0; i < 4; i++)
+		cv_r0g0zm1.float32[i] = 0.0f;
+	cv_r0g0zm1.float32[3] = -1.0f;*/
 
 	{
 		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
