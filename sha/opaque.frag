@@ -21,5 +21,5 @@ void main(void)
 		discard;
 	out_depth = gl_FragCoord.z;
 	out_albedo = vec4(t.xyz, 1.0);
-	out_normal = in_n;
+	out_normal = normalize(in_n);
 }

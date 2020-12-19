@@ -216,6 +216,7 @@ private:
 
 		Vk::ImageView createFbImage(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
 		Vk::ImageView createFbImageMs(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
+		Vk::ImageView createFbImageResolved(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
 		Vk::ImageView createFbImageMip(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation);
 
 		Vk::ImageAllocation m_depth_buffer;
@@ -227,8 +228,12 @@ private:
 		Vk::ImageView m_depth_first_mip_view;
 		Vk::ImageAllocation m_albedo;
 		Vk::ImageView m_albedo_view;
+		Vk::ImageAllocation m_albedo_resolved;
+		Vk::ImageView m_albedo_resolved_view;
 		Vk::ImageAllocation m_normal;
 		Vk::ImageView m_normal_view;
+		Vk::ImageAllocation m_normal_resolved;
+		Vk::ImageView m_normal_resolved_view;
 
 		Vk::ImageAllocation m_step;
 		Vk::ImageView m_step_view;

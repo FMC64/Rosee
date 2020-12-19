@@ -632,45 +632,102 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	VkRenderPassCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
-	VkAttachmentDescription atts[] {
-		{0, format_depth, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
-			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
-		{0, VK_FORMAT_R32_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// cdepth 1
-			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-		{0, VK_FORMAT_R8G8B8A8_SRGB, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 2
-			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-		{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 3
-			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
-	};
-	VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
-	VkAttachmentReference cdepth {1, Vk::ImageLayout::ColorAttachmentOptimal};
-	VkAttachmentReference albedo {2, Vk::ImageLayout::ColorAttachmentOptimal};
-	VkAttachmentReference normal {3, Vk::ImageLayout::ColorAttachmentOptimal};
+	if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
+		VkAttachmentDescription atts[] {
+			{0, format_depth, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
+			{0, VK_FORMAT_R32_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// cdepth 1
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{0, VK_FORMAT_R8G8B8A8_SRGB, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 2
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 3
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
+		};
+		VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
+		VkAttachmentReference cdepth {1, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference albedo {2, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference normal {3, Vk::ImageLayout::ColorAttachmentOptimal};
 
-	VkAttachmentReference color_atts[] {
-		cdepth,
-		albedo,
-		normal
-	};
+		VkAttachmentReference color_atts[] {
+			cdepth,
+			albedo,
+			normal
+		};
 
-	VkSubpassDescription subpasses[] {
-		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			0, nullptr,		// input
-			array_size(color_atts), color_atts, nullptr,	// color, resolve
-			&depth,			// depth
-			0, nullptr}		// preserve
-	};
+		VkSubpassDescription subpasses[] {
+			{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				0, nullptr,		// input
+				array_size(color_atts), color_atts, nullptr,	// color, resolve
+				&depth,			// depth
+				0, nullptr}		// preserve
+		};
 
-	ci.attachmentCount = array_size(atts);
-	ci.pAttachments = atts;
-	ci.subpassCount = array_size(subpasses);
-	ci.pSubpasses = subpasses;
+		ci.attachmentCount = array_size(atts);
+		ci.pAttachments = atts;
+		ci.subpassCount = array_size(subpasses);
+		ci.pSubpasses = subpasses;
 
-	return device.createRenderPass(ci);
+		return device.createRenderPass(ci);
+	} else {
+			VkAttachmentDescription atts[] {
+			{0, format_depth, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
+			{0, VK_FORMAT_R32_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// cdepth 1
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{0, VK_FORMAT_R8G8B8A8_SRGB, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 2
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 3
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{0, VK_FORMAT_R8G8B8A8_SRGB, VK_SAMPLE_COUNT_1_BIT, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// albedo_resolved 4
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{0, VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_1_BIT, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// normal_resolved 5
+				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
+		};
+		VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
+		VkAttachmentReference cdepth {1, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference albedo {2, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference normal {3, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference cdepth_resolved {VK_ATTACHMENT_UNUSED, Vk::ImageLayout::Undefined};
+		VkAttachmentReference albedo_resolved {4, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference normal_resolved {5, Vk::ImageLayout::ColorAttachmentOptimal};
+
+		VkAttachmentReference color_atts[] {
+			cdepth,
+			albedo,
+			normal
+		};
+
+		VkAttachmentReference resolve_atts[] {
+			cdepth_resolved,
+			albedo_resolved,
+			normal_resolved
+		};
+
+		VkSubpassDescription subpasses[] {
+			{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				0, nullptr,		// input
+				array_size(color_atts), color_atts, resolve_atts,	// color, resolve
+				&depth,			// depth
+				0, nullptr}		// preserve
+		};
+
+		ci.attachmentCount = array_size(atts);
+		ci.pAttachments = atts;
+		ci.subpassCount = array_size(subpasses);
+		ci.pSubpasses = subpasses;
+
+		return device.createRenderPass(ci);
+	}
 }
 
 Vk::RenderPass Renderer::createDepthResolvePass(void)
@@ -723,7 +780,7 @@ Pipeline Renderer::createDepthResolvePipeline(void)
 
 	VkGraphicsPipelineCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, "sha/depth_resolve");
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, m_sample_count == VK_SAMPLE_COUNT_1_BIT ? "sha/depth_resolve" : "sha/depth_resolve_ms");
 	res.pushShaderModule(frag);
 	struct FragSpec {
 		int32_t sample_count;
@@ -1979,11 +2036,11 @@ void Renderer::bindFrameDescriptors(void)
 			{cur_frame.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 2, m_sampler_fb_mip, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 3, m_sampler_fb_lin, cur_frame.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 6, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 6, m_sampler_fb_lin, cur_frame.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 9, m_sampler_fb, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 10, m_sampler_fb_lin, cur_frame.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -2329,6 +2386,28 @@ Vk::ImageView Renderer::Frame::createFbImageMs(VkFormat format, VkImageAspectFla
 	return m_r.createImageView(*pAllocation, VK_IMAGE_VIEW_TYPE_2D, format, aspect);
 }
 
+Vk::ImageView Renderer::Frame::createFbImageResolved(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation)
+{
+	if (m_r.m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
+		*pAllocation = Vk::ImageAllocation(VK_NULL_HANDLE, VK_NULL_HANDLE);
+		return VK_NULL_HANDLE;
+	}
+	VkImageCreateInfo ici{};
+	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	ici.imageType = VK_IMAGE_TYPE_2D;
+	ici.format = format;
+	ici.extent = VkExtent3D{m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1};
+	ici.mipLevels = 1;
+	ici.arrayLayers = 1;
+	ici.samples = VK_SAMPLE_COUNT_1_BIT;
+	ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ici.usage = usage;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	*pAllocation = m_r.allocator.createImage(ici, aci);
+	return m_r.createImageView(*pAllocation, VK_IMAGE_VIEW_TYPE_2D, format, aspect);
+}
+
 Vk::ImageView Renderer::Frame::createFbImageMip(VkFormat format, VkImageAspectFlags aspect, VkImageUsageFlags usage, Vk::ImageAllocation *pAllocation)
 {
 	VkImageCreateInfo ici{};
@@ -2352,18 +2431,36 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 	VkFramebufferCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	ci.renderPass = m_r.m_opaque_pass;
-	VkImageView atts[] {
-		m_depth_buffer_view,
-		m_cdepth_view,
-		m_albedo_view,
-		m_normal_view
-	};
-	ci.attachmentCount = array_size(atts);
-	ci.pAttachments = atts;
-	ci.width = m_r.m_swapchain_extent.width;
-	ci.height = m_r.m_swapchain_extent.height;
-	ci.layers = 1;
-	return m_r.device.createFramebuffer(ci);
+
+	if (m_r.m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
+		VkImageView atts[] {
+			m_depth_buffer_view,
+			m_cdepth_view,
+			m_albedo_view,
+			m_normal_view
+		};
+		ci.attachmentCount = array_size(atts);
+		ci.pAttachments = atts;
+		ci.width = m_r.m_swapchain_extent.width;
+		ci.height = m_r.m_swapchain_extent.height;
+		ci.layers = 1;
+		return m_r.device.createFramebuffer(ci);
+	} else {
+		VkImageView atts[] {
+			m_depth_buffer_view,
+			m_cdepth_view,
+			m_albedo_view,
+			m_normal_view,
+			m_albedo_resolved_view,
+			m_normal_resolved_view
+		};
+		ci.attachmentCount = array_size(atts);
+		ci.pAttachments = atts;
+		ci.width = m_r.m_swapchain_extent.width;
+		ci.height = m_r.m_swapchain_extent.height;
+		ci.layers = 1;
+		return m_r.device.createFramebuffer(ci);
+	}
 }
 
 Vk::Framebuffer Renderer::Frame::createDepthResolveFb(void)
@@ -2498,8 +2595,12 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 		0, 1)),
 	m_albedo_view(createFbImageMs(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_albedo)),
+	m_albedo_resolved_view(createFbImageResolved(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_albedo_resolved)),
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal)),
+	m_normal_resolved_view(createFbImageResolved(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal_resolved)),
 	m_step_view(createFbImage(VK_FORMAT_R8_SINT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_step)),
 	m_acc_view(createFbImage(VK_FORMAT_R16G16_UINT, Vk::ImageAspect::ColorBit,
@@ -2528,6 +2629,10 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_wsi_fb(createWsiFb()),
 	m_wsi_set(descriptorSetWsi)
 {
+	if (m_r.m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
+		m_albedo_resolved_view = m_albedo_view;
+		m_normal_resolved_view = m_normal_view;
+	}
 }
 
 void Renderer::Frame::destroy(bool with_ext_res)
@@ -2559,8 +2664,16 @@ void Renderer::Frame::destroy(bool with_ext_res)
 	m_r.device.destroy(m_step_view);
 	m_r.allocator.destroy(m_step);
 
+	if (m_r.m_sample_count != VK_SAMPLE_COUNT_1_BIT) {
+		m_r.device.destroy(m_normal_resolved_view);
+		m_r.allocator.destroy(m_normal_resolved);
+	}
 	m_r.device.destroy(m_normal_view);
 	m_r.allocator.destroy(m_normal);
+	if (m_r.m_sample_count != VK_SAMPLE_COUNT_1_BIT) {
+		m_r.device.destroy(m_albedo_resolved_view);
+		m_r.allocator.destroy(m_albedo_resolved);
+	}
 	m_r.device.destroy(m_albedo_view);
 	m_r.allocator.destroy(m_albedo);
 	m_r.device.destroy(m_depth_first_mip_view);

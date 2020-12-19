@@ -27,7 +27,7 @@ layout(set = 0, binding = 0) uniform Illum {
 	float cam_a;
 	float cam_b;
 } il;
-layout(set = 0, binding = 1) uniform sampler2D cdepth;
+//layout(set = 0, binding = 1) uniform sampler2D cdepth;
 layout(set = 0, binding = 2) uniform sampler2D depth;
 layout(set = 0, binding = 3) uniform sampler2D albedo;
 layout(set = 0, binding = 4) uniform sampler2D normal;
@@ -72,7 +72,7 @@ vec2 rt_ndc_to_ss(vec2 p)
 vec3 rt_pos_view(vec2 pos)
 {
 	vec2 size = vec2(1.0) / textureSize(albedo, 0);
-	float d = texelFetch(cdepth, ivec2(pos), 0).x;
+	float d = texelFetch(depth, ivec2(pos), 0).x;
 	float z = rt_depth_to_z(d);
 	vec2 uv = pos * size;
 	vec2 ndc2 = (uv - 0.5) * 2.0;
@@ -396,6 +396,6 @@ void main(void)
 		}
 	}
 
-	if (texelFetch(cdepth, pos, 0).x == 0.0)
+	if (texelFetch(depth, pos, 0).x == 0.0)
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 }
