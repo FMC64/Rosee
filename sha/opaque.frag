@@ -16,7 +16,7 @@ layout(location = 2) out vec3 out_normal;
 
 float diff(float val, float y)
 {
-	return abs(val - y);
+	return min(min(min(abs(val - 2.0 - y), abs(val - 1.0 - y)), abs(val - y)), abs(val + 1.0 - y));
 }
 
 void main(void)
@@ -28,8 +28,7 @@ void main(void)
 	float v = diff(ouvf.x + ouvf.y, yf);
 
 	vec4 t = texture(samplers[p.albedo], vec2(u, v));
-	//float va = abs((uvf.x + uvf.y) - fract(in_w.y));
-	//vec4 t = vec4(vec3(va), 1.0);
+	//vec4 t = vec4(vec3(v), 1.0);
 	if (t.w < 0.01)
 		discard;
 	out_depth = gl_FragCoord.z;
