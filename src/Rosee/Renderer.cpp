@@ -1617,14 +1617,13 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 	VkPipelineVertexInputStateCreateInfo vertex_input{};
 	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	VkVertexInputBindingDescription vertex_input_bindings[] {
-		{0, sizeof(Vertex::pnu), VK_VERTEX_INPUT_RATE_VERTEX}
+		{0, sizeof(Vertex::pn), VK_VERTEX_INPUT_RATE_VERTEX}
 	};
 	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
 	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
 	VkVertexInputAttributeDescription vertex_input_attributes[] {
-		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pnu, p)},
-		{1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pnu, n)},
-		{2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::pnu, u)}
+		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pn, p)},
+		{1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pn, n)}
 	};
 	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
 	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
@@ -1632,7 +1631,8 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
 	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+	input_assembly.primitiveRestartEnable = VK_TRUE;
 	ci.pInputAssemblyState = &input_assembly;
 
 	ci.pViewportState = &m_pipeline_viewport_state.ci;
@@ -1701,6 +1701,49 @@ Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	return allocator.createBuffer(bci, aci);
+}
+
+Vk::BufferAllocation Renderer::createIndexBuffer(size_t size)
+{
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = size;
+	bci.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	return allocator.createBuffer(bci, aci);
+}
+
+void Renderer::loadBuffer(VkBuffer buffer, size_t size, const void *data)
+{
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = size;
+	bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+	aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	void *mdata;
+	auto s = allocator.createBuffer(bci, aci, &mdata);
+	std::memcpy(mdata, data, size);
+	allocator.invalidateAllocation(s, 0, size);
+
+	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	VkBufferCopy region;
+	region.srcOffset = 0;
+	region.dstOffset = 0;
+	region.size = size;
+	m_transfer_cmd.copyBuffer(s, buffer, 1, &region);
+	m_transfer_cmd.end();
+
+	VkSubmitInfo submit{};
+	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit.commandBufferCount = 1;
+	submit.pCommandBuffers = m_transfer_cmd.ptr();
+	m_queue.submit(1, &submit, VK_NULL_HANDLE);
+	m_queue.waitIdle();
+
+	allocator.destroy(s);
 }
 
 Model Renderer::loadModel(const char *path)

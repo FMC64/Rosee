@@ -36,7 +36,7 @@ class Noise
 		return glm::dvec2(std::cos(ang), std::sin(ang));
 	}
 
-	float grad_scal(const ivec2 &pos, const glm::dvec2 &dir)
+	double grad_scal(const ivec2 &pos, const glm::dvec2 &dir)
 	{
 		return glm::dot(gradient(pos), dir);
 	}
@@ -49,22 +49,87 @@ public:
 
 	double sample(const glm::dvec2 &pos)
 	{
-		ivec2 ipos(pos.x, pos.y);
+		ivec2 ipos(pos);
 		auto spos = m_seed + ipos;
-		auto lpos = pos - glm::dvec2(ipos.x, ipos.y);
+		auto lpos = pos - glm::dvec2(ipos);
 
 		//	g0	g1
 		//
 		//
 		//	g2	g3
-		auto g0 = grad_scal(spos, -lpos);					
+		auto g0 = grad_scal(spos, -lpos);
 		auto g1 = grad_scal(ivec2(spos.x + 1, spos.y), glm::dvec2(1.0 - lpos.x, - lpos.y));
-		auto g2 = grad_scal(ivec2(spos.x, spos.y + 1), glm::dvec2(lpos.x, 1.0 - lpos.y));
+		auto g2 = grad_scal(ivec2(spos.x, spos.y + 1), glm::dvec2(-lpos.x, 1.0 - lpos.y));
 		auto g3 = grad_scal(ivec2(spos.x + 1, spos.y + 1), glm::dvec2(1.0 - lpos.x, 1.0 - lpos.y));
 
 		auto g01 = glm::mix(g0, g1, lpos.x);
 		auto g23 = glm::mix(g2, g3, lpos.x);
 		return glm::mix(g01, g23, lpos.y);
+	}
+};
+
+class World
+{
+	Noise m_0;
+	Noise m_1;
+	static constexpr size_t chunk_size = 64;
+
+public:
+	World(void) :
+		m_0(ivec2(0, 0)),
+		m_1(ivec2(64000, 25000))
+	{
+	}
+
+	glm::dvec3 sample(const glm::dvec2 &p)
+	{
+		auto pos = p + glm::dvec2(0.5);
+		auto h = m_0.sample(pos * 0.1) * 3.0 + m_1.sample(pos * 0.0099) * 30.0;
+		return glm::vec3(pos.x, h, pos.y);
+	}
+
+	glm::dvec3 sample_normal(const glm::dvec2 &pos)
+	{
+		static constexpr double bias = 0.1;
+		auto a = sample(pos);
+		auto b = sample(glm::dvec2(pos.x + bias, pos.y + bias * 0.5));
+		auto c = sample(glm::dvec2(pos.x + bias * 0.5, pos.y + bias));
+		return glm::normalize(glm::cross(b - a, c - a));
+	}
+
+	Model createChunk(Renderer &r, const ivec2 &pos)
+	{
+		auto start = ivec2(pos.x * chunk_size, pos.y * chunk_size);
+		static constexpr size_t vert_count = chunk_size * chunk_size;
+		Vertex::pn vertices[vert_count];
+		for (size_t i = 0; i < chunk_size; i++)
+			for (size_t j = 0; j < chunk_size; j++) {
+				auto &cur = vertices[i * chunk_size + j];
+				auto p2d = glm::dvec2(start + ivec2(j, i));
+				cur.p = sample(p2d);
+				cur.n = -sample_normal(p2d);
+			}
+		static constexpr size_t ind_stride = chunk_size * 2 + 1;
+		static constexpr size_t ind_count = ind_stride * (chunk_size - 1);
+		uint16_t indices[ind_count];
+		std::memset(indices, 0xFF, ind_count * sizeof(uint16_t));
+		for (size_t i = 0; i < (chunk_size - 1); i++) {
+			for (size_t j = 0; j < (chunk_size - 1); j++) {
+				indices[ind_stride * i + j * 2] = i * chunk_size + j;
+				indices[ind_stride * i + j * 2 + 1] = (i + 1) * chunk_size + j + 1;
+			}
+		}
+
+		Model res;
+		res.primitiveCount = ind_count;
+		size_t buf_size = vert_count * sizeof(Vertex::pn);
+		size_t ind_size = ind_count * sizeof(uint16_t);
+		res.vertexBuffer = r.createVertexBuffer(buf_size);
+		res.indexBuffer = r.createIndexBuffer(ind_size);
+		res.indexType = VK_INDEX_TYPE_UINT16;
+		r.loadBuffer(res.vertexBuffer, buf_size, vertices);
+		r.loadBuffer(res.indexBuffer, ind_size, indices);
+		return res;
 	}
 };
 
@@ -76,6 +141,7 @@ class Game
 public:
 	void run(void)
 	{
+		World world;
 		auto pipeline_pool = PipelinePool(64);
 		auto material_pool = MaterialPool(64);
 		auto model_pool = ModelPool(64);
@@ -84,7 +150,7 @@ public:
 		auto image_view_pool = Pool<Vk::ImageView>(image_count);
 
 		auto model_world = model_pool.allocate();
-		*model_world = m_r.loadModel("res/mod/vokselia_spawn.obj");
+		*model_world = world.createChunk(m_r, ivec2(0));
 
 		auto pipeline_opaque = pipeline_pool.allocate();
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", sizeof(int32_t));
@@ -118,7 +184,7 @@ public:
 
 		{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender>(1);
-			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
+			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
 			r.material = material_albedo;

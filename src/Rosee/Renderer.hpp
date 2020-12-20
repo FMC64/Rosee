@@ -35,6 +35,12 @@ struct p2
 	glm::vec2 p;
 };
 
+struct pn
+{
+	glm::vec3 p;
+	glm::vec3 n;
+};
+
 struct pnu
 {
 	glm::vec3 p;
@@ -97,6 +103,7 @@ public:
 
 private:
 	Vk::Allocator createAllocator(void);
+
 	Vk::Queue m_queue;
 
 public:
@@ -140,6 +147,7 @@ private:
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
 
+private:
 	static inline constexpr uint32_t s0_sampler_count = 1;
 	static inline constexpr uint32_t sets_per_frame = 5;
 	static inline constexpr uint32_t sets_per_frame_mip = 1;
@@ -333,6 +341,8 @@ private:
 
 public:
 	Vk::BufferAllocation createVertexBuffer(size_t size);
+	Vk::BufferAllocation createIndexBuffer(size_t size);
+	void loadBuffer(VkBuffer buffer, size_t size, const void *data);
 	Model loadModel(const char *path);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
 
