@@ -84,7 +84,7 @@ public:
 	glm::dvec3 sample(const glm::dvec2 &p)
 	{
 		auto pos = p + glm::dvec2(0.5);
-		auto h = m_0.sample(pos * 0.1) * 3.0 + m_1.sample(pos * 0.0099) * 30.0;
+		auto h = m_0.sample(pos * 0.1) * 50.0 + m_1.sample(pos * 0.0099) * 30.0;
 		return glm::vec3(pos.x, h, pos.y);
 	}
 
