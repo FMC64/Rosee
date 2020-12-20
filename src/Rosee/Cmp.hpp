@@ -51,12 +51,12 @@ struct Id : public Cmp::Id_t<Id>
 	}
 };
 
-struct Transform : public Cmp::Id_t<Transform>, public glm::mat4
+struct Transform : public Cmp::Id_t<Transform>, public glm::dmat4
 {
 	static Cmp::init_fun_t init;
 	static Cmp::destr_fun_t destr;
 
-	using glm::mat4::operator=;
+	using glm::dmat4::operator=;
 };
 
 struct Point2D : public Cmp::Id_t<Point2D>
