@@ -171,7 +171,7 @@ Vk::Device Renderer::createDevice(void)
 	}
 
 	static auto required_features = VkPhysicalDeviceFeatures {
-		.fillModeNonSolid = true
+		.samplerAnisotropy = true
 	};
 	static const char *required_exts[] {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -1857,13 +1857,11 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 	ici.format = VK_FORMAT_R8G8B8A8_SRGB;
 	auto extent = VkExtent3D{static_cast<uint32_t>(x), static_cast<uint32_t>(y), 1};
 	ici.extent = extent;
-	if (gen_mips)
-		throw std::runtime_error("not supported yet");
-	ici.mipLevels = 1;
+	ici.mipLevels = gen_mips ? extentMipLevels(VkExtent2D{extent.width, extent.height}) : 1;
 	ici.arrayLayers = 1;
 	ici.samples = VK_SAMPLE_COUNT_1_BIT;
 	ici.tiling = VK_IMAGE_TILING_OPTIMAL;
-	ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	ici.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	auto res = allocator.createImage(ici, aci);
@@ -1899,10 +1897,58 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 			m_transfer_cmd.copyBufferToImage(s, res, Vk::ImageLayout::TransferDstOptimal, 1, &region);
 		}
 		{
-			VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::MemoryReadBit,
-				Vk::ImageLayout::TransferDstOptimal, Vk::ImageLayout::ShaderReadOnlyOptimal, 0, 0, res,
+			VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::TransferReadBit,
+				Vk::ImageLayout::TransferDstOptimal, Vk::ImageLayout::TransferSrcOptimal, 0, 0, res,
 				{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
-			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::AllGraphicsBit, 0,
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::TransferBit, 0,
+				0, nullptr, 0, nullptr, 1, &ibarrier);
+		}
+		auto cur_size = VkExtent2D{extent.width, extent.height};
+		for (uint32_t i = 0; i < ici.mipLevels - 1; i++) {
+			{
+				VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::TransferReadBit,
+					Vk::ImageLayout::Undefined, Vk::ImageLayout::TransferDstOptimal, 0, 0, res,
+					{ VK_IMAGE_ASPECT_COLOR_BIT, i + 1, 1, 0, VK_REMAINING_ARRAY_LAYERS } };
+				m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::TransferBit, 0,
+					0, nullptr, 0, nullptr, 1, &ibarrier);
+			}
+
+			VkImageBlit region;
+			region.srcSubresource.aspectMask = Vk::ImageAspect::ColorBit;
+			region.srcSubresource.mipLevel = i;
+			region.srcSubresource.baseArrayLayer = 0;
+			region.srcSubresource.layerCount = 1;
+			region.srcOffsets[0] = VkOffset3D{0, 0, 0};
+			region.srcOffsets[1] = VkOffset3D{static_cast<int32_t>(cur_size.width), static_cast<int32_t>(cur_size.height), 1};
+
+			cur_size = VkExtent2D{nextExtentMip(cur_size.width), nextExtentMip(cur_size.height)};
+			region.dstSubresource.aspectMask = Vk::ImageAspect::ColorBit;
+			region.dstSubresource.mipLevel = i + 1;
+			region.dstSubresource.baseArrayLayer = 0;
+			region.dstSubresource.layerCount = 1;
+			region.dstOffsets[0] = VkOffset3D{0, 0, 0};
+			region.dstOffsets[1] = VkOffset3D{static_cast<int32_t>(cur_size.width), static_cast<int32_t>(cur_size.height), 1};
+			m_transfer_cmd.blitImage(res, Vk::ImageLayout::TransferSrcOptimal, res, Vk::ImageLayout::TransferDstOptimal, 
+				1, &region, VK_FILTER_LINEAR);
+
+			{
+				VkImageMemoryBarrier ibarriers[] { 
+					{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::TransferReadBit,
+						Vk::ImageLayout::TransferSrcOptimal, Vk::ImageLayout::ShaderReadOnlyOptimal, 0, 0, res,
+						{ VK_IMAGE_ASPECT_COLOR_BIT, i, 1, 0, VK_REMAINING_ARRAY_LAYERS } },
+					{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::TransferReadBit,
+						Vk::ImageLayout::TransferDstOptimal, Vk::ImageLayout::TransferSrcOptimal, 0, 0, res,
+						{ VK_IMAGE_ASPECT_COLOR_BIT, i + 1, 1, 0, VK_REMAINING_ARRAY_LAYERS } }
+				};
+				m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::TransferBit, 0,
+					0, nullptr, 0, nullptr, array_size(ibarriers), ibarriers);
+			}
+		}
+		{
+			VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::TransferReadBit,
+				Vk::ImageLayout::TransferSrcOptimal, Vk::ImageLayout::ShaderReadOnlyOptimal, 0, 0, res,
+				{ VK_IMAGE_ASPECT_COLOR_BIT, ici.mipLevels - 1, 1, 0, VK_REMAINING_ARRAY_LAYERS } };
+			m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::TransferBit, 0,
 				0, nullptr, 0, nullptr, 1, &ibarrier);
 		}
 		m_transfer_cmd.end();

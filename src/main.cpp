@@ -156,15 +156,19 @@ public:
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", sizeof(int32_t));
 		pipeline_opaque->pushDynamic<MVP>();
 		pipeline_opaque->pushDynamic<MV_normal>();
+		pipeline_opaque->pushDynamic<MW_local>();
 
 		auto sampler_norm_n = m_r.device.createSampler(VkSamplerCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-			.magFilter = VK_FILTER_NEAREST,
-			.minFilter = VK_FILTER_NEAREST,
+			.magFilter = VK_FILTER_LINEAR,
+			.minFilter = VK_FILTER_LINEAR,
 			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
 			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.anisotropyEnable = true,
+			.maxAnisotropy = 16.0f,
+			.maxLod = VK_LOD_CLAMP_NONE
 		});
 
 		auto material_albedo = material_pool.allocate();
@@ -172,7 +176,7 @@ public:
 
 		{
 			auto img0 = image_pool.allocate();
-			*img0 = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false);
+			*img0 = m_r.loadImage("res/img/grass.png", true);
 			auto view0 = image_view_pool.allocate();
 			*view0 = m_r.createImageView(*img0, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
@@ -183,7 +187,7 @@ public:
 		}
 
 		{
-			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender>(1);
+			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
@@ -262,13 +266,16 @@ public:
 					auto size = b.size();
 					auto mvp = b.get<MVP>();
 					auto mv_normal = b.get<MV_normal>();
+					auto mw_local = b.get<MW_local>();
 					auto trans = b.get<Transform>();
 					for (size_t i = 0; i < size; i++) {
 						mvp[i] = vp * trans[i];
 						auto normal = view * trans[i];
 						for (size_t j = 0; j < 3; j++)
-							for (size_t k = 0; k < 3; k++)
+							for (size_t k = 0; k < 3; k++) {
 								mv_normal[i][j][k] = normal[j][k];
+								mw_local[i][j][k] = trans[i][j][k];
+							}
 					}
 				});
 			}

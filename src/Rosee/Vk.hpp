@@ -210,6 +210,12 @@ public:
 	{
 		vkCmdClearColorImage(*this, image, imageLayout, pColor, rangeCount, pRanges);
 	}
+
+	void blitImage(VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage, VkImageLayout dstImageLayout,
+		uint32_t regionCount, const VkImageBlit *pRegions, VkFilter filter)
+	{
+		vkCmdBlitImage(*this, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter);
+	}
 };
 
 class Queue : public Handle<VkQueue>
