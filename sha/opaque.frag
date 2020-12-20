@@ -24,11 +24,12 @@ void main(void)
 	vec2 uvf = fract(in_w.xz);
 	float yf = fract(in_w.y);
 	vec2 ouvf = 1.0 - uvf;
-	float u = diff(max(uvf.x, uvf.y), yf);
-	float v = diff(max(ouvf.x, ouvf.y), yf);
+	float u = diff(uvf.x + uvf.y, yf);
+	float v = diff(ouvf.x + ouvf.y, yf);
 
 	vec4 t = texture(samplers[p.albedo], vec2(u, v));
-	//vec4 t = vec4(vec3(u), 1.0);
+	//float va = abs((uvf.x + uvf.y) - fract(in_w.y));
+	//vec4 t = vec4(vec3(va), 1.0);
 	if (t.w < 0.01)
 		discard;
 	out_depth = gl_FragCoord.z;
