@@ -14,20 +14,28 @@ layout(location = 0) out float out_depth;
 layout(location = 1) out vec4 out_albedo;
 layout(location = 2) out vec3 out_normal;
 
-float diff(float val, float y)
+float tex_diff(float val, float y)
 {
-	return min(min(min(abs(val - 2.0 - y), abs(val - 1.0 - y)), abs(val - y)), abs(val + 1.0 - y));
+	float vadj = y - val;
+	if (vadj > 0.0)
+		return vadj;
+	else if (vadj > -1.0)
+		return vadj + 1.0;
+	else
+		return vadj + 2.0;
+}
+
+vec2 tex_3dmap(vec3 pos)
+{
+	vec2 uvf = fract(pos.xz);
+	float yf = fract(pos.y);
+	vec2 ouvf = 1.0 - uvf;
+	return vec2(tex_diff(uvf.x + uvf.y, yf), tex_diff(ouvf.x + ouvf.y, yf));
 }
 
 void main(void)
 {
-	vec2 uvf = fract(in_w.xz);
-	float yf = fract(in_w.y);
-	vec2 ouvf = 1.0 - uvf;
-	float u = diff(uvf.x + uvf.y, yf);
-	float v = diff(ouvf.x + ouvf.y, yf);
-
-	vec4 t = texture(samplers[p.albedo], vec2(u, v));
+	vec4 t = texture(samplers[p.albedo], tex_3dmap(in_w));
 	//vec4 t = vec4(vec3(v), 1.0);
 	if (t.w < 0.01)
 		discard;
