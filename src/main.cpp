@@ -72,9 +72,10 @@ class World
 {
 	Noise m_0;
 	Noise m_1;
-	static constexpr size_t chunk_size = 64;
 
 public:
+	static constexpr int64_t chunk_size = 64;
+
 	World(void) :
 		m_0(ivec2(0, 0)),
 		m_1(ivec2(64000, 25000))
@@ -84,7 +85,7 @@ public:
 	glm::dvec3 sample(const glm::dvec2 &p)
 	{
 		auto pos = p + glm::dvec2(0.5);
-		auto h = m_0.sample(pos * 0.1) * 3.0 + m_1.sample(pos * 0.0099) * 30.0;
+		auto h = m_0.sample(pos * 0.1) * 3.0 + m_1.sample(pos * 0.0099) * 10.0;
 		return glm::vec3(pos.x, h, pos.y);
 	}
 
@@ -97,24 +98,25 @@ public:
 		return glm::normalize(glm::cross(b - a, c - a));
 	}
 
-	Model createChunk(Renderer &r, const ivec2 &pos)
+	Model createChunk(Renderer &r, const ivec2 &pos, size_t scale)
 	{
-		auto start = ivec2(pos.x * chunk_size, pos.y * chunk_size);
+		int64_t scav = static_cast<int64_t>(1) << scale;
+		auto start = ivec2(pos.x * scav * chunk_size, pos.y * scav * chunk_size);
 		static constexpr size_t vert_count = chunk_size * chunk_size;
 		Vertex::pn vertices[vert_count];
 		for (size_t i = 0; i < chunk_size; i++)
 			for (size_t j = 0; j < chunk_size; j++) {
 				auto &cur = vertices[i * chunk_size + j];
-				auto p2d = glm::dvec2(start + ivec2(j, i));
-				cur.p = sample(p2d);
+				auto p2d = glm::dvec2(start + ivec2(j * scav, i * scav));
+				cur.p = glm::dvec3(j * scav, sample(p2d).y, i * scav);
 				cur.n = -sample_normal(p2d);
 			}
 		static constexpr size_t ind_stride = chunk_size * 2 + 1;
 		static constexpr size_t ind_count = ind_stride * (chunk_size - 1);
 		uint16_t indices[ind_count];
 		std::memset(indices, 0xFF, ind_count * sizeof(uint16_t));
-		for (size_t i = 0; i < (chunk_size - 1); i++) {
-			for (size_t j = 0; j < (chunk_size - 1); j++) {
+		for (int64_t i = 0; i < (chunk_size - 1); i++) {
+			for (int64_t j = 0; j < (chunk_size - 1); j++) {
 				indices[ind_stride * i + j * 2] = i * chunk_size + j;
 				indices[ind_stride * i + j * 2 + 1] = (i + 1) * chunk_size + j + 1;
 			}
@@ -137,11 +139,67 @@ class Game
 {
 	Renderer m_r;
 	Map m_m;
+	World m_w;
+
+	static int64_t next_chunk_size_n(int64_t val)
+	{
+		int64_t res = val / 2;
+		while (res * 2 + 2 >= val)
+			res--;
+		return res;
+	}
+
+	static int64_t next_chunk_size_p(int64_t val)
+	{
+		int64_t res = val / 2;
+		while (res * 2 < val)
+			res++;
+		return res;
+	}
+
+	void gen_chunks(Pipeline *pipeline, Material *material)
+	{
+		auto pos = ivec2(0);
+		auto pos_end = ivec2(1);
+		size_t scale = 0;
+
+		for (size_t i = 0; i < 1; i++) {
+			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
+			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
+			auto nscale = scale + 1;
+			int64_t scav = static_cast<int64_t>(1) << nscale;
+
+			/*std::cout << "npos: " << npos.x << ", " << npos.y << std::endl;
+			std::cout << "npos_end: " << npos_end.x << ", " << npos_end.y << std::endl;
+			std::cout << "scav: " << scav << std::endl;*/
+
+			for (int64_t j = npos.y; j < npos_end.y; j++)
+				for (int64_t k = npos.x; k < npos_end.x; k++) {
+					auto cpos = ivec2(k, j);
+					auto cpos_sca = cpos * static_cast<int64_t>(2);
+					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.y && cpos_sca.y < pos_end.y)) {
+						auto model = new Model(m_w.createChunk(m_r, cpos, nscale));
+						auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
+						auto off = glm::dvec3(cpos.x * scav * World::chunk_size, 0.0, cpos.y * scav * World::chunk_size);
+						//std::cout << "chunk kj: " << k << ", " << j << std::endl;
+						//std::cout << "chunk: " << off.x << ", " << off.y << std::endl;
+						b.get<Transform>()[n] = glm::translate(off);
+						auto &r = b.get<OpaqueRender>()[n];
+						r.pipeline = pipeline;
+						r.material = material;
+						r.model = model;
+					}
+				}
+
+			pos = npos;
+			pos_end = npos_end;
+			scale = nscale;
+		}
+	}
 
 public:
 	void run(void)
 	{
-		World world;
 		auto pipeline_pool = PipelinePool(64);
 		auto material_pool = MaterialPool(64);
 		auto model_pool = ModelPool(64);
@@ -149,8 +207,8 @@ public:
 		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
 		auto image_view_pool = Pool<Vk::ImageView>(image_count);
 
-		auto model_world = model_pool.allocate();
-		*model_world = world.createChunk(m_r, ivec2(0));
+		//auto model_world = model_pool.allocate();
+		//*model_world = world.createChunk(m_r, ivec2(0));
 
 		auto pipeline_opaque = pipeline_pool.allocate();
 		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", sizeof(int32_t));
@@ -186,14 +244,15 @@ public:
 			m_r.bindCombinedImageSamplers(0, array_size(image_infos), image_infos);
 		}
 
-		{
+		/*{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
 			r.material = material_albedo;
 			r.model = model_world;
-		}
+		}*/
+		gen_chunks(pipeline_opaque, material_albedo);
 
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
