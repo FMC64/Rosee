@@ -21,19 +21,30 @@ using namespace Rosee;
 class Noise
 {
 	ivec2 m_seed;
-	std::mt19937_64 m_gen;
+	std::minstd_rand m_gen;
 
 	double zrand(void)
 	{
 		return static_cast<double>(m_gen()) / static_cast<double>(std::numeric_limits<decltype(m_gen())>::max());
 	}
 
+	double nrand(void)
+	{
+		return zrand() * 2.0 - 1.0;
+	}
+
 	glm::dvec2 gradient(const ivec2 &pos)
 	{
 		auto seq = std::seed_seq{pos.x, pos.y};
 		m_gen.seed(seq);
-		double ang = zrand() * pi * 2.0;
-		return glm::dvec2(std::cos(ang), std::sin(ang));
+		while (true) {
+			auto c = glm::dvec2(nrand(), nrand());
+			auto d = glm::dot(c, c);
+			if (d > 0.0 && d <= 1.0)
+				return glm::normalize(c);
+		}
+		//double ang = zrand() * pi * 2.0;
+		//return glm::dvec2(std::cos(ang), std::sin(ang));
 	}
 
 	double grad_scal(const ivec2 &pos, const glm::dvec2 &dir)
@@ -135,6 +146,16 @@ public:
 	}
 };
 
+static double decrease(double val, double hm)
+{
+	if (val > 0.0 && val > hm)
+		return val - hm;
+	else if (val < 0.0 && val < -hm)
+		return val + hm;
+	else
+		return 0.0;
+}
+
 class Game
 {
 	Renderer m_r;
@@ -163,7 +184,7 @@ class Game
 		auto pos_end = ivec2(1);
 		size_t scale = 0;
 
-		for (size_t i = 0; i < 1; i++) {
+		for (size_t i = 0; i < 3; i++) {
 			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
 			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
 			auto nscale = scale + 1;
@@ -257,12 +278,15 @@ public:
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
 		auto camera_pos = glm::dvec3(0.0);
+		auto camera_speed = glm::dvec3(0.0);
 		bool cursor_mode = false;
 		m_r.setCursorMode(false);
 		auto base_cursor = glm::dvec2(0.0);
 		bool esc_prev = false;
 		bool esc = false;
 		bool first_it = true;
+		bool is_noclip = true;
+		bool grounded = false;
 		while (true) {
 			m_r.resetFrame();
 			auto now = std::chrono::high_resolution_clock::now();
@@ -270,7 +294,7 @@ public:
 			bef = now;
 			t += delta;
 			glm::dmat4 last_view, view, proj;
-			const double near = 0.1, far = 1000.0;
+			const double near = 0.1, far = 64000.0;
 			const double ang_rad = pi / 180.0;
 
 			m_r.pollEvents();
@@ -299,7 +323,8 @@ public:
 					m_r.setCursorMode(cursor_mode);
 				}
 				const float sensi = 0.1;
-				double move = m_r.keyState(GLFW_KEY_LEFT_SHIFT) ? 20.0 : 2.0;
+				double move = m_r.keyState(GLFW_KEY_LEFT_SHIFT) ? 1000.0 : 100.0;
+				double movenc = 10.0;
 				auto view_rot = glm::rotate((-cursor.x * ang_rad) * sensi, glm::dvec3(0.0, 1.0, 0.0));
 				view_rot = glm::rotate(std::clamp(-cursor.y * sensi, -90.0, 90.0) * ang_rad, glm::dvec3(1.0, 0.0, 0.0)) * view_rot;
 				auto view_rot_inverse = glm::inverse(view_rot);
@@ -307,14 +332,67 @@ public:
 				auto dir_fwd = glm::dvec3(dir_fwd_w.x, dir_fwd_w.y, dir_fwd_w.z);
 				auto dir_side_w = view_rot_inverse * glm::dvec4(1.0, 0.0, 0.0, 0.0);
 				auto dir_side = glm::dvec3(dir_side_w.x, dir_side_w.y, dir_side_w.z);
-				if (m_r.keyState(GLFW_KEY_W))
-					camera_pos += dir_fwd * move * delta;
-				if (m_r.keyState(GLFW_KEY_S))
-					camera_pos -= dir_fwd * move * delta;
-				if (m_r.keyState(GLFW_KEY_A))
-					camera_pos -= dir_side * move * delta;
-				if (m_r.keyState(GLFW_KEY_D))
-					camera_pos += dir_side * move * delta;
+
+				auto dir_side_aw = view_rot_inverse * glm::dvec4(-1.0, 0.0, 1.0, 0.0);
+				auto dir_side_a = glm::dvec3(dir_side_aw.x, dir_side_aw.y, dir_side_aw.z);
+				auto dir_side_dw = view_rot_inverse * glm::dvec4(1.0, 0.0, 1.0, 0.0);
+				auto dir_side_d = glm::dvec3(dir_side_dw.x, dir_side_dw.y, dir_side_dw.z);
+				if (m_r.keyReleased(GLFW_KEY_N)) {
+					is_noclip = !is_noclip;
+					if (!is_noclip)
+						camera_speed = glm::dvec3(0.0);
+				}
+				if (is_noclip) {
+					if (m_r.keyState(GLFW_KEY_W))
+						camera_pos += dir_fwd * move * delta;
+					if (m_r.keyState(GLFW_KEY_S))
+						camera_pos -= dir_fwd * move * delta;
+					if (m_r.keyState(GLFW_KEY_A))
+						camera_pos -= dir_side * move * delta;
+					if (m_r.keyState(GLFW_KEY_D))
+						camera_pos += dir_side * move * delta;
+				} else {
+					/*if (grounded) {
+						camera_speed =;
+					}*/
+					camera_speed.y -= 9.8 * delta;
+					if (m_r.keyState(GLFW_KEY_W))
+						camera_speed += dir_fwd * movenc * delta;
+					if (m_r.keyState(GLFW_KEY_S)) {
+						auto mul = 1.0 - delta;
+						camera_speed.x *= mul;
+						camera_speed.y *= mul;
+					}
+					if (m_r.keyState(GLFW_KEY_A)) {
+						if (!grounded) {
+							auto len = glm::length(camera_speed);
+							camera_speed = camera_speed + len * dir_side_a * delta;
+							camera_speed = glm::normalize(camera_speed) * (glm::mix(len, glm::length(camera_speed), 0.1));
+						} else
+							camera_speed -= dir_side * movenc * delta;
+					}
+					if (m_r.keyState(GLFW_KEY_D)) {
+						if (!grounded) {
+							auto len = glm::length(camera_speed);
+							camera_speed = camera_speed + len * dir_side_d * delta;
+							camera_speed = glm::normalize(camera_speed) * (glm::mix(len, glm::length(camera_speed), 0.1));
+						} else
+							camera_speed += dir_side * movenc * delta;
+					}
+					auto fpos = camera_pos;
+					camera_pos += camera_speed * delta;
+					const double ph = 1.8;
+					auto h = m_w.sample(glm::dvec2(camera_pos.x, camera_pos.z)).y;
+					grounded = false;
+					if (h > (camera_pos.y - ph)) {
+						camera_pos.y = h + ph;
+						auto len = glm::length(camera_speed);
+						camera_speed = (camera_pos - fpos) * (1.0 / delta);
+						if (glm::length(camera_speed) > len)
+							camera_speed = glm::normalize(camera_speed) * len;
+						grounded = true;
+					}
+				}
 				last_view = view;
 				view = view_rot * glm::translate(-camera_pos);
 				if (first_it)
