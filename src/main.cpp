@@ -179,9 +179,24 @@ class Game
 		auto res = iabs_restore_sign(ures, is_neg);
 		while (res * 2 - 2 < val)
 			res++;
-		while (res & 1)
+		while ((res % 2) == 1)
 			res++;
 		return res;
+	}
+
+	void gen_chunk(Pipeline *pipeline, Material *material, const ivec2 &cpos, size_t scale)
+	{
+		int64_t scav = static_cast<int64_t>(1) << scale;
+		auto model = new Model(m_w.createChunk(m_r, cpos, scale));
+		auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
+		auto off = glm::dvec3(cpos.x * scav * World::chunk_size, 0.0, cpos.y * scav * World::chunk_size);
+		//std::cout << "chunk kj: " << k << ", " << j << std::endl;
+		//std::cout << "chunk: " << off.x << ", " << off.y << std::endl;
+		b.get<Transform>()[n] = glm::translate(off);
+		auto &r = b.get<OpaqueRender>()[n];
+		r.pipeline = pipeline;
+		r.material = material;
+		r.model = model;
 	}
 
 	void gen_chunks(Pipeline *pipeline, Material *material)
@@ -190,11 +205,17 @@ class Game
 		auto pos_end = pos + ivec2(1);
 		size_t scale = 0;
 
+		{
+			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
+			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
+			for (int64_t j = npos.y; j < npos_end.y; j++)
+				for (int64_t k = npos.x; k < npos_end.x; k++)
+					gen_chunk(pipeline, material, ivec2(k, j), 0);
+			}
 		for (size_t i = 0; i < 8; i++) {
 			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
 			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
 			auto nscale = scale + 1;
-			int64_t scav = static_cast<int64_t>(1) << nscale;
 
 			/*std::cout << "npos: " << npos.x << ", " << npos.y << std::endl;
 			std::cout << "npos_end: " << npos_end.x << ", " << npos_end.y << std::endl;
@@ -204,18 +225,8 @@ class Game
 				for (int64_t k = npos.x; k < npos_end.x; k++) {
 					auto cpos = ivec2(k, j);
 					auto cpos_sca = cpos * static_cast<int64_t>(2);
-					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.x && cpos_sca.y < pos_end.y)) {
-						auto model = new Model(m_w.createChunk(m_r, cpos, nscale));
-						auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
-						auto off = glm::dvec3(cpos.x * scav * World::chunk_size, 0.0, cpos.y * scav * World::chunk_size);
-						//std::cout << "chunk kj: " << k << ", " << j << std::endl;
-						//std::cout << "chunk: " << off.x << ", " << off.y << std::endl;
-						b.get<Transform>()[n] = glm::translate(off);
-						auto &r = b.get<OpaqueRender>()[n];
-						r.pipeline = pipeline;
-						r.material = material;
-						r.model = model;
-					}
+					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.x && cpos_sca.y < pos_end.y))
+						gen_chunk(pipeline, material, cpos, nscale);
 				}
 
 			pos = npos;
