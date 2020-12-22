@@ -146,7 +146,7 @@ public:
 	}
 };
 
-static double decrease(double val, double hm)
+/*static double decrease(double val, double hm)
 {
 	if (val > 0.0 && val > hm)
 		return val - hm;
@@ -154,7 +154,7 @@ static double decrease(double val, double hm)
 		return val + hm;
 	else
 		return 0.0;
-}
+}*/
 
 class Game
 {
@@ -164,7 +164,9 @@ class Game
 
 	static int64_t next_chunk_size_n(int64_t val)
 	{
-		int64_t res = val / 2;
+		auto [ures, is_neg] = iabs_save_sign(val);
+		ures /= 2;
+		auto res = iabs_restore_sign(ures, is_neg);
 		while (res * 2 + 2 >= val)
 			res--;
 		return res;
@@ -172,19 +174,23 @@ class Game
 
 	static int64_t next_chunk_size_p(int64_t val)
 	{
-		int64_t res = val / 2;
-		while (res * 2 < val)
+		auto [ures, is_neg] = iabs_save_sign(val);
+		ures /= 2;
+		auto res = iabs_restore_sign(ures, is_neg);
+		while (res * 2 - 2 < val)
+			res++;
+		while (res & 1)
 			res++;
 		return res;
 	}
 
 	void gen_chunks(Pipeline *pipeline, Material *material)
 	{
-		auto pos = ivec2(0);
-		auto pos_end = ivec2(1);
+		auto pos = ivec2(0, 0);
+		auto pos_end = pos + ivec2(1);
 		size_t scale = 0;
 
-		for (size_t i = 0; i < 3; i++) {
+		for (size_t i = 0; i < 8; i++) {
 			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
 			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
 			auto nscale = scale + 1;
@@ -198,7 +204,7 @@ class Game
 				for (int64_t k = npos.x; k < npos_end.x; k++) {
 					auto cpos = ivec2(k, j);
 					auto cpos_sca = cpos * static_cast<int64_t>(2);
-					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.y && cpos_sca.y < pos_end.y)) {
+					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.x && cpos_sca.y < pos_end.y)) {
 						auto model = new Model(m_w.createChunk(m_r, cpos, nscale));
 						auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
 						auto off = glm::dvec3(cpos.x * scav * World::chunk_size, 0.0, cpos.y * scav * World::chunk_size);
@@ -353,15 +359,21 @@ public:
 						camera_pos += dir_side * move * delta;
 				} else {
 					/*if (grounded) {
-						camera_speed =;
+						auto mul = 1.0 - delta;
+						camera_speed.x *= mul;
+						camera_speed.z *= mul;
 					}*/
 					camera_speed.y -= 9.8 * delta;
+					if (grounded) {
+						if (m_r.keyState(GLFW_KEY_SPACE))
+							camera_speed.y = 5.0;
+					}
 					if (m_r.keyState(GLFW_KEY_W))
 						camera_speed += dir_fwd * movenc * delta;
 					if (m_r.keyState(GLFW_KEY_S)) {
 						auto mul = 1.0 - delta;
 						camera_speed.x *= mul;
-						camera_speed.y *= mul;
+						camera_speed.z *= mul;
 					}
 					if (m_r.keyState(GLFW_KEY_A)) {
 						if (!grounded) {

@@ -2,6 +2,7 @@
 
 #include <glm/vec2.hpp>
 #include <cmath>
+#include <tuple>
 
 namespace Rosee {
 
@@ -43,6 +44,22 @@ static inline Vec3 genDiffuseVector(RndGen &&gen, const Vec3 &up, double n)
 	auto nz = up;
 
 	return base_diffuse.x * nx + base_diffuse.y * ny + base_diffuse.z * nz;
+}
+
+static inline std::tuple<uint64_t, bool> iabs_save_sign(int64_t value)
+{
+	if (value < 0)
+		return std::tuple<uint64_t, bool>(-value, true);
+	else
+		return std::tuple<uint64_t, bool>(value, false);
+}
+
+static inline int64_t iabs_restore_sign(uint64_t value, bool is_neg)
+{
+	if (is_neg)
+		return -value;
+	else
+		return value;
 }
 
 }

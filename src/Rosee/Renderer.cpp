@@ -2347,6 +2347,7 @@ size_t Renderer::m_keys_update[Renderer::key_update_count] {
 	GLFW_KEY_LEFT_SHIFT,
 	GLFW_KEY_ESCAPE,
 	GLFW_KEY_N,
+	GLFW_KEY_SPACE
 };
 
 void Renderer::pollEvents(void)
