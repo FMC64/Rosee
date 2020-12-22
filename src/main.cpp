@@ -111,25 +111,27 @@ public:
 
 	Model createChunk(Renderer &r, const ivec2 &pos, size_t scale)
 	{
+		static constexpr int64_t chunk_size_gen = chunk_size + 1;
+
 		int64_t scav = static_cast<int64_t>(1) << scale;
-		auto start = ivec2(pos.x * scav * chunk_size, pos.y * scav * chunk_size);
-		static constexpr size_t vert_count = chunk_size * chunk_size;
+		auto start = ivec2(pos.x * scav * chunk_size_gen, pos.y * scav * chunk_size_gen);
+		static constexpr size_t vert_count = chunk_size_gen * chunk_size_gen;
 		Vertex::pn vertices[vert_count];
-		for (size_t i = 0; i < chunk_size; i++)
-			for (size_t j = 0; j < chunk_size; j++) {
-				auto &cur = vertices[i * chunk_size + j];
+		for (size_t i = 0; i < chunk_size_gen; i++)
+			for (size_t j = 0; j < chunk_size_gen; j++) {
+				auto &cur = vertices[i * chunk_size_gen + j];
 				auto p2d = glm::dvec2(start + ivec2(j * scav, i * scav));
 				cur.p = glm::dvec3(j * scav, sample(p2d).y, i * scav);
 				cur.n = -sample_normal(p2d);
 			}
-		static constexpr size_t ind_stride = chunk_size * 2 + 1;
-		static constexpr size_t ind_count = ind_stride * (chunk_size - 1);
+		static constexpr size_t ind_stride = chunk_size_gen * 2 + 1;
+		static constexpr size_t ind_count = ind_stride * (chunk_size_gen - 1);
 		uint16_t indices[ind_count];
 		std::memset(indices, 0xFF, ind_count * sizeof(uint16_t));
-		for (int64_t i = 0; i < (chunk_size - 1); i++) {
-			for (int64_t j = 0; j < (chunk_size - 1); j++) {
-				indices[ind_stride * i + j * 2] = i * chunk_size + j;
-				indices[ind_stride * i + j * 2 + 1] = (i + 1) * chunk_size + j + 1;
+		for (int64_t i = 0; i < (chunk_size_gen - 1); i++) {
+			for (int64_t j = 0; j < chunk_size_gen; j++) {
+				indices[ind_stride * i + j * 2] = i * chunk_size_gen + j;
+				indices[ind_stride * i + j * 2 + 1] = (i + 1) * chunk_size_gen + j;
 			}
 		}
 
@@ -202,7 +204,7 @@ class Game
 	void gen_chunks(Pipeline *pipeline, Material *material)
 	{
 		auto pos = ivec2(0, 0);
-		auto pos_end = pos + ivec2(1);
+		auto pos_end = pos + ivec2(0);
 		size_t scale = 0;
 
 		{
@@ -211,7 +213,7 @@ class Game
 			for (int64_t j = npos.y; j < npos_end.y; j++)
 				for (int64_t k = npos.x; k < npos_end.x; k++)
 					gen_chunk(pipeline, material, ivec2(k, j), 0);
-			}
+		}
 		for (size_t i = 0; i < 8; i++) {
 			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
 			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
