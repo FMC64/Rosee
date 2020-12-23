@@ -169,7 +169,9 @@ class Game
 		auto [ures, is_neg] = iabs_save_sign(val);
 		ures /= 2;
 		auto res = iabs_restore_sign(ures, is_neg);
-		while (res * 2 + 2 >= val)
+		while (res * 2 + 1 >= val)
+			res--;
+		while ((abs(res) % 2) == 1)
 			res--;
 		return res;
 	}
@@ -179,9 +181,9 @@ class Game
 		auto [ures, is_neg] = iabs_save_sign(val);
 		ures /= 2;
 		auto res = iabs_restore_sign(ures, is_neg);
-		while (res * 2 - 2 < val)
+		while (res * 2 - 1 < val)
 			res++;
-		while ((res % 2) == 1)
+		while ((abs(res) % 2) == 1)
 			res++;
 		return res;
 	}
@@ -205,15 +207,8 @@ class Game
 	{
 		auto pos = ivec2(0, 0);
 		auto pos_end = pos + ivec2(0);
-		size_t scale = 0;
+		size_t scale = -1;
 
-		{
-			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
-			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
-			for (int64_t j = npos.y; j < npos_end.y; j++)
-				for (int64_t k = npos.x; k < npos_end.x; k++)
-					gen_chunk(pipeline, material, ivec2(k, j), 0);
-		}
 		for (size_t i = 0; i < 8; i++) {
 			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
 			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));

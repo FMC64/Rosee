@@ -19,6 +19,12 @@ const T& max(const T &a, const T &b)
 }
 
 template <typename T>
+const T& abs(const T &a)
+{
+	return a >= static_cast<T>(0) ? a : -a;
+}
+
+template <typename T>
 T clamp(const T &val, const T &mn, const T &mx)
 {
 	return min(max(val, mn), mx);
