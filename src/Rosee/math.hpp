@@ -7,19 +7,19 @@
 namespace Rosee {
 
 template <typename T>
-const T& min(const T &a, const T &b)
+T min(const T &a, const T &b)
 {
 	return a < b ? a : b;
 }
 
 template <typename T>
-const T& max(const T &a, const T &b)
+T max(const T &a, const T &b)
 {
 	return a > b ? a : b;
 }
 
 template <typename T>
-const T& abs(const T &a)
+T abs(const T &a)
 {
 	return a >= static_cast<T>(0) ? a : -a;
 }
