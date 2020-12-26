@@ -209,7 +209,7 @@ class Game
 		auto pos_end = pos + ivec2(0);
 		size_t scale = -1;
 
-		for (size_t i = 0; i < 8; i++) {
+		for (size_t i = 0; i < 12; i++) {
 			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
 			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
 			auto nscale = scale + 1;
@@ -245,13 +245,18 @@ public:
 		//auto model_world = model_pool.allocate();
 		//*model_world = world.createChunk(m_r, ivec2(0));
 
+		auto pipeline_opaque_uvgen = pipeline_pool.allocate();
+		*pipeline_opaque_uvgen = m_r.createPipeline3D_pn("sha/opaque_uvgen", sizeof(int32_t));
+		pipeline_opaque_uvgen->pushDynamic<MVP>();
+		pipeline_opaque_uvgen->pushDynamic<MV_normal>();
+		pipeline_opaque_uvgen->pushDynamic<MW_local>();
+
 		auto pipeline_opaque = pipeline_pool.allocate();
-		*pipeline_opaque = m_r.createPipeline3D("sha/opaque", sizeof(int32_t));
+		*pipeline_opaque = m_r.createPipeline3D_pnu("sha/opaque", sizeof(int32_t));
 		pipeline_opaque->pushDynamic<MVP>();
 		pipeline_opaque->pushDynamic<MV_normal>();
-		pipeline_opaque->pushDynamic<MW_local>();
 
-		auto sampler_norm_n = m_r.device.createSampler(VkSamplerCreateInfo{
+		auto sampler_norm_l = m_r.device.createSampler(VkSamplerCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 			.magFilter = VK_FILTER_LINEAR,
 			.minFilter = VK_FILTER_LINEAR,
@@ -263,31 +268,48 @@ public:
 			.maxAnisotropy = 16.0f,
 			.maxLod = VK_LOD_CLAMP_NONE
 		});
+		auto sampler_norm_n = m_r.device.createSampler(VkSamplerCreateInfo{
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.magFilter = VK_FILTER_NEAREST,
+			.minFilter = VK_FILTER_NEAREST,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT
+		});
 
+		auto material_grass = material_pool.allocate();
+		*reinterpret_cast<int32_t*>(material_grass) = 0;
 		auto material_albedo = material_pool.allocate();
-		*reinterpret_cast<int32_t*>(material_albedo) = 0;
+		*reinterpret_cast<int32_t*>(material_albedo) = 1;
 
 		{
 			auto img0 = image_pool.allocate();
 			*img0 = m_r.loadImage("res/img/grass.png", true);
 			auto view0 = image_view_pool.allocate();
 			*view0 = m_r.createImageView(*img0, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+			auto img1 = image_pool.allocate();
+			*img1 = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false);
+			auto view1 = image_view_pool.allocate();
+			*view1 = m_r.createImageView(*img1, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
 			VkDescriptorImageInfo image_infos[] {
-				{sampler_norm_n, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
+				{sampler_norm_l, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+				{sampler_norm_n, *view1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
 			};
 			m_r.bindCombinedImageSamplers(0, array_size(image_infos), image_infos);
 		}
 
 		/*{
-			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
-			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
+			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender>(1);
+			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
 			r.material = material_albedo;
-			r.model = model_world;
+			r.model = model_pool.allocate();
+			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj");
 		}*/
-		gen_chunks(pipeline_opaque, material_albedo);
+		gen_chunks(pipeline_opaque_uvgen, material_grass);
 
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
@@ -337,7 +359,8 @@ public:
 					m_r.setCursorMode(cursor_mode);
 				}
 				const float sensi = 0.1;
-				double move = m_r.keyState(GLFW_KEY_LEFT_SHIFT) ? 1000.0 : 100.0;
+				double move = m_r.keyState(GLFW_KEY_LEFT_SHIFT) ? 20.0 : 2.0;
+				//double move = m_r.keyState(GLFW_KEY_LEFT_SHIFT) ? 1000.0 : 100.0;
 				double movenc = 10.0;
 				auto view_rot = glm::rotate((-cursor.x * ang_rad) * sensi, glm::dvec3(0.0, 1.0, 0.0));
 				view_rot = glm::rotate(std::clamp(-cursor.y * sensi, -90.0, 90.0) * ang_rad, glm::dvec3(1.0, 0.0, 0.0)) * view_rot;
@@ -423,7 +446,6 @@ public:
 					auto size = b.size();
 					auto mvp = b.get<MVP>();
 					auto mv_normal = b.get<MV_normal>();
-					auto mw_local = b.get<MW_local>();
 					auto trans = b.get<Transform>();
 					for (size_t i = 0; i < size; i++) {
 						mvp[i] = vp * trans[i];
@@ -431,6 +453,17 @@ public:
 						for (size_t j = 0; j < 3; j++)
 							for (size_t k = 0; k < 3; k++) {
 								mv_normal[i][j][k] = normal[j][k];
+							}
+					}
+				});
+
+				m_m.query<MW_local>([&](Brush &b){
+					auto size = b.size();
+					auto mw_local = b.get<MW_local>();
+					auto trans = b.get<Transform>();
+					for (size_t i = 0; i < size; i++) {
+						for (size_t j = 0; j < 3; j++)
+							for (size_t k = 0; k < 3; k++) {
 								mw_local[i][j][k] = trans[i][j][k];
 							}
 					}
@@ -442,6 +475,7 @@ public:
 
 		m_r.waitIdle();
 		m_r.device.destroy(sampler_norm_n);
+		m_r.device.destroy(sampler_norm_l);
 		pipeline_pool.destroy(m_r.device);
 		model_pool.destroy(m_r.allocator);
 		image_view_pool.destroyUsing(m_r.device);

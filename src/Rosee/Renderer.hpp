@@ -148,7 +148,7 @@ private:
 	Vk::CommandBuffer m_transfer_cmd;
 
 private:
-	static inline constexpr uint32_t s0_sampler_count = 1;
+	static inline constexpr uint32_t s0_sampler_count = 2;
 	static inline constexpr uint32_t sets_per_frame = 5;
 	static inline constexpr uint32_t sets_per_frame_mip = 1;
 
@@ -333,7 +333,8 @@ private:
 
 public:
 	//Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
-	Pipeline createPipeline3D(const char *stagesPath, uint32_t pushConstantRange);
+	Pipeline createPipeline3D_pn(const char *stagesPath, uint32_t pushConstantRange);
+	Pipeline createPipeline3D_pnu(const char *stagesPath, uint32_t pushConstantRange);
 
 private:
 	Pool<Pipeline> m_pipeline_pool;

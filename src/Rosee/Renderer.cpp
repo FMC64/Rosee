@@ -1585,7 +1585,7 @@ void Model::destroy(Vk::Allocator allocator)
 	return res;
 }*/
 
-Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstantRange)
+Pipeline Renderer::createPipeline3D_pn(const char *stagesPath, uint32_t pushConstantRange)
 {
 	Pipeline res;
 
@@ -1633,6 +1633,113 @@ Pipeline Renderer::createPipeline3D(const char *stagesPath, uint32_t pushConstan
 	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 	input_assembly.primitiveRestartEnable = VK_TRUE;
+	ci.pInputAssemblyState = &input_assembly;
+
+	ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+	VkPipelineRasterizationStateCreateInfo rasterization{};
+	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterization.lineWidth = 1.0f;
+	ci.pRasterizationState = &rasterization;
+
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample.rasterizationSamples = m_sample_count;
+	ci.pMultisampleState = &multisample;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
+	depthStencil.minDepthBounds = 0.0f;
+	depthStencil.maxDepthBounds = 1.0f;
+	ci.pDepthStencilState = &depthStencil;
+
+	VkPipelineColorBlendStateCreateInfo color_blend{};
+	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment,
+		color_blend_attachment,
+		color_blend_attachment
+	};
+	color_blend.attachmentCount = array_size(color_blend_attachments);
+	color_blend.pAttachments = color_blend_attachments;
+	ci.pColorBlendState = &color_blend;
+
+	VkPipelineDynamicStateCreateInfo dynamic{};
+	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	VkDynamicState dynamic_states[] {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	dynamic.dynamicStateCount = array_size(dynamic_states);
+	dynamic.pDynamicStates = dynamic_states;
+	ci.pDynamicState = &dynamic;
+
+	res.pipelineLayout = VK_NULL_HANDLE;
+	res.pushConstantRange = pushConstantRange;
+	ci.layout = m_pipeline_layout_descriptor_set;
+	ci.renderPass = m_opaque_pass;
+
+	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
+	return res;
+}
+
+Pipeline Renderer::createPipeline3D_pnu(const char *stagesPath, uint32_t pushConstantRange)
+{
+	Pipeline res;
+
+	VkGraphicsPipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	auto vert = loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, stagesPath);
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, stagesPath);
+	res.pushShaderModule(vert);
+	res.pushShaderModule(frag);
+	struct FragSpec {
+		int32_t sampler_count;
+	} frag_spec_data{s0_sampler_count};
+	VkSpecializationMapEntry frag_spec_entries[] {
+		{0, offsetof(FragSpec, sampler_count), sizeof(FragSpec::sampler_count)}
+	};
+	VkSpecializationInfo frag_spec;
+	frag_spec.mapEntryCount = array_size(frag_spec_entries);
+	frag_spec.pMapEntries = frag_spec_entries;
+	frag_spec.dataSize = sizeof(FragSpec);
+	frag_spec.pData = &frag_spec_data;
+	VkPipelineShaderStageCreateInfo stages[] {
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, vert),
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
+	};
+	ci.stageCount = array_size(stages);
+	ci.pStages = stages;
+
+	VkPipelineVertexInputStateCreateInfo vertex_input{};
+	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	VkVertexInputBindingDescription vertex_input_bindings[] {
+		{0, sizeof(Vertex::pnu), VK_VERTEX_INPUT_RATE_VERTEX}
+	};
+	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+	VkVertexInputAttributeDescription vertex_input_attributes[] {
+		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pnu, p)},
+		{1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pnu, n)},
+		{2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::pnu, u)}
+	};
+	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+	ci.pVertexInputState = &vertex_input;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	ci.pInputAssemblyState = &input_assembly;
 
 	ci.pViewportState = &m_pipeline_viewport_state.ci;

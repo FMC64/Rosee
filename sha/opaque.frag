@@ -8,38 +8,15 @@ layout(push_constant) uniform PushConstant {
 } p;
 
 layout(location = 0) in vec3 in_n;
-layout(location = 1) in vec3 in_w;
+layout(location = 1) in vec2 in_u;
 
 layout(location = 0) out float out_depth;
 layout(location = 1) out vec4 out_albedo;
 layout(location = 2) out vec3 out_normal;
 
-float tex_diff(float val, float y)
-{
-	float vadj = y - val;
-	if (vadj > 0.0)
-		return vadj;
-	else if (vadj > -1.0)
-		return vadj + 1.0;
-	else
-		return vadj + 2.0;
-}
-
-vec2 tex_3dmap(vec3 pos)
-{
-	vec2 uvf = fract(pos.xz);
-	float yf = fract(pos.y);
-	vec2 ouvf = 1.0 - uvf;
-	float g10 = tex_diff(ouvf.x + uvf.y, yf);
-	float g01 = tex_diff(uvf.x + ouvf.y, yf);
-	float g11 = tex_diff(uvf.x + uvf.y, yf);
-	return vec2(1, 0) * g10 + vec2(0, 1) * g01 + vec2(1) * g11;
-}
-
 void main(void)
 {
-	vec4 t = texture(samplers[p.albedo], tex_3dmap(in_w));
-	//vec4 t = vec4(vec3(v), 1.0);
+	vec4 t = texture(samplers[p.albedo], vec2(in_u.x, -in_u.y));
 	if (t.w < 0.01)
 		discard;
 	out_depth = gl_FragCoord.z;

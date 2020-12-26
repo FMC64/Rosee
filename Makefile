@@ -48,7 +48,7 @@ OBJ = $(SRC:.cpp=.o)
 	glslangValidator $< -V -o $@
 
 SHAD = sha
-SHA = $(SHAD)/opaque.vert $(SHAD)/opaque.frag \
+SHA = $(SHAD)/opaque.vert $(SHAD)/opaque.frag $(SHAD)/opaque_uvgen.vert $(SHAD)/opaque_uvgen.frag \
 	$(SHAD)/fwd_p2.vert $(SHAD)/depth_resolve.frag $(SHAD)/depth_resolve_ms.frag $(SHAD)/depth_acc.frag $(SHAD)/illumination.frag $(SHAD)/wsi.frag
 
 SHA_VERT = $(SHA:.vert=.vert.spv)
