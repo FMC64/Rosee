@@ -147,8 +147,9 @@ private:
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
 
-private:
+public:
 	static inline constexpr uint32_t s0_sampler_count = 2;
+private:
 	static inline constexpr uint32_t sets_per_frame = 5;
 	static inline constexpr uint32_t sets_per_frame_mip = 1;
 

@@ -238,7 +238,7 @@ public:
 		auto pipeline_pool = PipelinePool(64);
 		auto material_pool = MaterialPool(64);
 		auto model_pool = ModelPool(64);
-		size_t image_count = 1;
+		static constexpr size_t image_count = Renderer::s0_sampler_count;
 		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
 		auto image_view_pool = Pool<Vk::ImageView>(image_count);
 
@@ -293,14 +293,14 @@ public:
 			auto view1 = image_view_pool.allocate();
 			*view1 = m_r.createImageView(*img1, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
-			VkDescriptorImageInfo image_infos[] {
+			VkDescriptorImageInfo image_infos[image_count] {
 				{sampler_norm_l, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 				{sampler_norm_n, *view1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
 			};
 			m_r.bindCombinedImageSamplers(0, array_size(image_infos), image_infos);
 		}
 
-		/*{
+		{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
 			auto &r = b.get<OpaqueRender>()[n];
@@ -308,7 +308,7 @@ public:
 			r.material = material_albedo;
 			r.model = model_pool.allocate();
 			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj");
-		}*/
+		}
 		gen_chunks(pipeline_opaque_uvgen, material_grass);
 
 		auto bef = std::chrono::high_resolution_clock::now();
