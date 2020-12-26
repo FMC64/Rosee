@@ -433,10 +433,12 @@ public:
 					grounded = false;
 					if (h > (camera_pos.y - ph)) {
 						camera_pos.y = h + ph;
-						auto len = glm::length(camera_speed);
-						camera_speed = (camera_pos - fpos) * (1.0 / delta);
-						if (glm::length(camera_speed) > len)
-							camera_speed = glm::normalize(camera_speed) * len;
+						if (glm::length(camera_pos - fpos) > 0.0) {
+							auto len = glm::length(camera_speed);
+							camera_speed = (camera_pos - fpos) * (1.0 / delta);
+							if (glm::length(camera_speed) > len)
+								camera_speed = glm::normalize(camera_speed) * len;
+						}
 						grounded = true;
 					}
 				}

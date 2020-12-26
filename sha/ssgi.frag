@@ -134,7 +134,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, int quality, out vec2 pos)
 	vec3 p0, p1;
 	rt_project_ray(origin, dir, p0, p1);
 
-	vec3 normal = normalize(texelFetch(normal, ivec2(p0.xy), 0).xyz);
+	vec3 normal = texelFetch(normal, ivec2(p0.xy), 0).xyz;
 
 	vec2 dir2 = p1.xy - p0.xy;
 	float dir2_len_ni = length(dir2);
@@ -336,7 +336,7 @@ void main(void)
 	if (last_step == 1) {
 		uray_origin = uvec2(pos);
 		ray_origin = view;
-		ray_dir = rnd_diffuse_around_rough(view_norm, normalize(texelFetch(normal, pos, 0).xyz), 0.0, rnd);
+		ray_dir = rnd_diffuse_around_rough(view_norm, texelFetch(normal, pos, 0).xyz, 0.0, rnd);
 		out_path_albedo = alb;
 		out_path_direct_light = vlast_direct_light;
 		quality = 3;
@@ -347,7 +347,7 @@ void main(void)
 		ray_origin = last_end;
 		uray_origin = uvec2(rt_project_point(ray_origin).xy);
 		ray_dir = rnd_diffuse_around_rough((il.view_last_to_cur_normal * vec4(textureLod(last_path_incidence, last_view_pos, 0).xyz, 1.0)).xyz,
-			(il.view_last_to_cur_normal * vec4(normalize(texelFetch(last_normal, ilast_view_pos, 0).xyz), 1.0)).xyz, 0.0, rnd);
+			(il.view_last_to_cur_normal * vec4(texelFetch(last_normal, ilast_view_pos, 0).xyz, 1.0)).xyz, 0.0, rnd);
 		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
 		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
 		quality = 3;
@@ -359,9 +359,9 @@ void main(void)
 	if (last_step == 0) {
 		out_step = 1;
 		out_acc = last_acc;
-		vec3 norm = normalize(texelFetch(normal, pos, 0).xyz);
+		vec3 norm = texelFetch(normal, pos, 0).xyz;
 		float align = dot(norm, il.sun);
-		vec3 direct_light = alb * align * (ray_success ? 0.0 : 1.0) * 2.5;
+		vec3 direct_light = alb * max(0.0, align) * (ray_success ? 0.0 : 1.0) * 2.5;
 		out_direct_light = irradiance_correct_adv(vlast_direct_light, last_alb,
 			direct_light, alb, last_acc.x);
 
