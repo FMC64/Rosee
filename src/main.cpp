@@ -114,7 +114,7 @@ public:
 		static constexpr int64_t chunk_size_gen = chunk_size + 1;
 
 		int64_t scav = static_cast<int64_t>(1) << scale;
-		auto start = ivec2(pos.x * scav * chunk_size_gen, pos.y * scav * chunk_size_gen);
+		auto start = ivec2(pos.x * scav * chunk_size, pos.y * scav * chunk_size);
 		static constexpr size_t vert_count = chunk_size_gen * chunk_size_gen;
 		Vertex::pn vertices[vert_count];
 		for (size_t i = 0; i < chunk_size_gen; i++)
@@ -188,10 +188,10 @@ class Game
 		return res;
 	}
 
-	void gen_chunk(Pipeline *pipeline, Material *material, const ivec2 &cpos, size_t scale)
+	void gen_chunk(Pipeline *pipeline, Material *material, Model *model, const ivec2 &cpos, size_t scale)
 	{
 		int64_t scav = static_cast<int64_t>(1) << scale;
-		auto model = new Model(m_w.createChunk(m_r, cpos, scale));
+		*model = m_w.createChunk(m_r, cpos, scale);
 		auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
 		auto off = glm::dvec3(cpos.x * scav * World::chunk_size, 0.0, cpos.y * scav * World::chunk_size);
 		//std::cout << "chunk kj: " << k << ", " << j << std::endl;
@@ -203,13 +203,14 @@ class Game
 		r.model = model;
 	}
 
-	void gen_chunks(Pipeline *pipeline, Material *material)
+	void gen_chunks(Pipeline *pipeline, Material *material, ModelPool &model_pool)
 	{
 		auto pos = ivec2(0, 0);
 		auto pos_end = pos + ivec2(0);
 		size_t scale = -1;
+		//size_t chunk_count = 0;
 
-		for (size_t i = 0; i < 12; i++) {
+		for (size_t i = 0; i < 8; i++) {
 			auto npos = ivec2(next_chunk_size_n(pos.x), next_chunk_size_n(pos.y));
 			auto npos_end = ivec2(next_chunk_size_p(pos_end.x), next_chunk_size_p(pos_end.y));
 			auto nscale = scale + 1;
@@ -222,14 +223,17 @@ class Game
 				for (int64_t k = npos.x; k < npos_end.x; k++) {
 					auto cpos = ivec2(k, j);
 					auto cpos_sca = cpos * static_cast<int64_t>(2);
-					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.x && cpos_sca.y < pos_end.y))
-						gen_chunk(pipeline, material, cpos, nscale);
+					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.x && cpos_sca.y < pos_end.y)) {
+						//chunk_count++;
+						gen_chunk(pipeline, material, model_pool.allocate(), cpos, nscale);
+					}
 				}
 
 			pos = npos;
 			pos_end = npos_end;
 			scale = nscale;
 		}
+		//std::cout << "chunk count: " << chunk_count << std::endl;
 	}
 
 public:
@@ -237,7 +241,7 @@ public:
 	{
 		auto pipeline_pool = PipelinePool(64);
 		auto material_pool = MaterialPool(64);
-		auto model_pool = ModelPool(64);
+		auto model_pool = ModelPool(512);
 		static constexpr size_t image_count = Renderer::s0_sampler_count;
 		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
 		auto image_view_pool = Pool<Vk::ImageView>(image_count);
@@ -309,7 +313,7 @@ public:
 			r.model = model_pool.allocate();
 			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj");
 		}
-		gen_chunks(pipeline_opaque_uvgen, material_grass);
+		gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool);
 
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
