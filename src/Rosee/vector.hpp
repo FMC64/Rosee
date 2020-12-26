@@ -203,12 +203,15 @@ public:
 
 	bool operator<(const vector &other) const
 	{
-		for (size_t i = 0; i < m_size && i < other.m_size; i++) {
-			if (m_buf[i] == other.m_buf[i])
-				continue;
-			return m_buf[i] < other.m_buf[i];
+		size_t i;
+		size_t max = m_size < other.m_size ? m_size : other.m_size;
+		for (i = 0; i < max; i++) {
+			if (m_buf[i] < other.m_buf[i])
+				return true;
+			if (other.m_buf[i] < m_buf[i])
+				return false;
 		}
-		return (m_size == 0) && (other.m_size > 0);
+		return (i == m_size) && (i != other.m_size);
 	}
 };
 
