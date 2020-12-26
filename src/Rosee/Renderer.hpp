@@ -171,11 +171,48 @@ private:
 	struct IllumTechnique {
 		struct Data {
 			struct Potato {
-				static inline constexpr size_t descriptorCombinedImageSamplerCount = 3;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 3;
+				static inline constexpr uint32_t barrsPerFrame = 0;
+				static inline constexpr uint32_t addBarrsPerFrame = 0;
 			};
 
 			struct Ssgi {
-				static inline constexpr size_t descriptorCombinedImageSamplerCount = 14;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 15;
+				static inline constexpr uint32_t barrsPerFrame = 4;
+				static inline constexpr uint32_t addBarrsPerFrame = 8;
+
+				struct Fbs {
+					Vk::ImageAllocation m_depth;
+					Vk::ImageView m_depth_view;
+					Vk::ImageView m_depth_first_mip_view;
+
+					Vk::Framebuffer m_depth_resolve_fb;
+					Vk::Framebuffer createDepthResolveFb(Renderer &r);
+					VkDescriptorSet m_depth_resolve_set;
+					vector<Vk::ImageView> m_depth_acc_views;
+					vector<Vk::ImageView> createDepthAccViews(Renderer &r);
+					vector<Vk::Framebuffer> m_depth_acc_fbs;
+					vector<Vk::Framebuffer> createDepthAccFbs(Renderer &r);
+					vector<VkDescriptorSet> m_depth_acc_sets;
+					vector<VkDescriptorSet> createDepthAccSets(Renderer &r, const VkDescriptorSet *pDescriptorSetsMip);
+
+					Vk::ImageAllocation m_step;
+					Vk::ImageView m_step_view;
+					Vk::ImageAllocation m_acc;
+					Vk::ImageView m_acc_view;
+					Vk::ImageAllocation m_direct_light;
+					Vk::ImageView m_direct_light_view;
+					Vk::ImageAllocation m_path_pos;
+					Vk::ImageView m_path_pos_view;
+					Vk::ImageAllocation m_path_albedo;
+					Vk::ImageView m_path_albedo_view;
+					Vk::ImageAllocation m_path_direct_light;
+					Vk::ImageView m_path_direct_light_view;
+					Vk::ImageAllocation m_path_incidence;
+					Vk::ImageView m_path_incidence_view;
+
+					void destroy(Vk::Device dev, Vk::Allocator alloc);
+				};
 			};
 		};
 
@@ -187,6 +224,9 @@ private:
 		struct Props {
 			uint32_t descriptorCombinedImageSamplerCount;
 			const char *fragShaderPath;
+			uint32_t fragShaderColorAttachmentCount;
+			uint32_t barrsPerFrame;
+			uint32_t addBarrsPerFrame;
 		};
 	};
 	IllumTechnique::Type m_illum_technique;
@@ -258,42 +298,18 @@ private:
 		Vk::ImageView m_depth_buffer_view;
 		Vk::ImageAllocation m_cdepth;
 		Vk::ImageView m_cdepth_view;
-		Vk::ImageAllocation m_depth;
-		Vk::ImageView m_depth_view;
-		Vk::ImageView m_depth_first_mip_view;
 		Vk::ImageAllocation m_albedo;
 		Vk::ImageView m_albedo_view;
 		Vk::ImageAllocation m_normal;
 		Vk::ImageView m_normal_view;
 
-		Vk::ImageAllocation m_step;
-		Vk::ImageView m_step_view;
-		Vk::ImageAllocation m_acc;
-		Vk::ImageView m_acc_view;
-		Vk::ImageAllocation m_direct_light;
-		Vk::ImageView m_direct_light_view;
-		Vk::ImageAllocation m_path_pos;
-		Vk::ImageView m_path_pos_view;
-		Vk::ImageAllocation m_path_albedo;
-		Vk::ImageView m_path_albedo_view;
-		Vk::ImageAllocation m_path_direct_light;
-		Vk::ImageView m_path_direct_light_view;
-		Vk::ImageAllocation m_path_incidence;
-		Vk::ImageView m_path_incidence_view;
+		IllumTechnique::Data::Ssgi::Fbs m_illum_ssgi_fbs;
+		IllumTechnique::Data::Ssgi::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetDepthResolve, const VkDescriptorSet *pDescriptorSetsMip);
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
 		Vk::Framebuffer m_opaque_fb;
 		Vk::Framebuffer createOpaqueFb(void);
-		Vk::Framebuffer m_depth_resolve_fb;
-		Vk::Framebuffer createDepthResolveFb(void);
-		VkDescriptorSet m_depth_resolve_set;
-		vector<Vk::ImageView> m_depth_acc_views;
-		vector<Vk::ImageView> createDepthAccViews(void);
-		vector<Vk::Framebuffer> m_depth_acc_fbs;
-		vector<Vk::Framebuffer> createDepthAccFbs(void);
-		vector<VkDescriptorSet> m_depth_acc_sets;
-		vector<VkDescriptorSet> createDepthAccSets(const VkDescriptorSet *pDescriptorSetsMip);
 		Vk::Framebuffer m_illumination_fb;
 		Vk::Framebuffer createIlluminationFb(void);
 		VkDescriptorSet m_illumination_set;
