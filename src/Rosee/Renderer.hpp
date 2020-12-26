@@ -150,7 +150,7 @@ private:
 public:
 	static inline constexpr uint32_t s0_sampler_count = 2;
 private:
-	static inline constexpr uint32_t sets_per_frame = 5;
+	static inline constexpr uint32_t const_sets_per_frame = 4;
 	static inline constexpr uint32_t sets_per_frame_mip = 1;
 
 	Vk::DescriptorSetLayout m_descriptor_set_layout_0;

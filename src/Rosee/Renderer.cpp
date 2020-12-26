@@ -1368,13 +1368,16 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 {
 	VkDescriptorPoolCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	uint32_t sets_per_frame = const_sets_per_frame +
+		(m_illum_technique == IllumTechnique::Ssgi ?
+		1	// depth_resolve
+		: 0);
 	ci.maxSets = m_frame_count * sets_per_frame;
 	VkDescriptorPoolSize pool_sizes[] {
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_sampler_count +	// s0
-			1 +			// depth_resolve
 			m_illum_technique_props.descriptorCombinedImageSamplerCount +			// illumination
 			1			// wsi
 		)}
@@ -1401,6 +1404,10 @@ Vk::DescriptorPool Renderer::createDescriptorPoolMip(void)
 
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
+	uint32_t sets_per_frame = const_sets_per_frame +
+		(m_illum_technique == IllumTechnique::Ssgi ?
+		1	// depth_resolve
+		: 0);
 	VkCommandBuffer cmds[m_frame_count * sets_per_frame];
 	device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * sets_per_frame, cmds);
 	VkDescriptorSet sets[m_frame_count * sets_per_frame];
@@ -1408,9 +1415,10 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	for (uint32_t i = 0; i < m_frame_count; i++) {
 		set_layouts[i * sets_per_frame] = m_descriptor_set_layout_0;
 		set_layouts[i * sets_per_frame + 1] = m_descriptor_set_layout_dynamic;
-		set_layouts[i * sets_per_frame + 2] = m_depth_resolve_set_layout;
-		set_layouts[i * sets_per_frame + 3] = m_illumination_set_layout;
-		set_layouts[i * sets_per_frame + 4] = m_wsi_set_layout;
+		set_layouts[i * sets_per_frame + 2] = m_illumination_set_layout;
+		set_layouts[i * sets_per_frame + 3] = m_wsi_set_layout;
+		if (m_illum_technique == IllumTechnique::Ssgi)
+			set_layouts[i * sets_per_frame + 4] = m_depth_resolve_set_layout;
 	}
 	device.allocateDescriptorSets(m_descriptor_pool, m_frame_count * sets_per_frame, set_layouts, sets);
 
@@ -1457,8 +1465,8 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	for (uint32_t i = 0; i < m_frame_count; i++)
 		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1],
 			sets[i * sets_per_frame], sets[i * sets_per_frame + 1],
-			sets[i * sets_per_frame + 2], sets[i * sets_per_frame + 3],
-			sets[i * sets_per_frame + 4],
+			m_illum_technique == IllumTechnique::Ssgi ? sets[i * sets_per_frame + 4] : VK_NULL_HANDLE, sets[i * sets_per_frame + 2],
+			sets[i * sets_per_frame + 3],
 			&sets_mip[i * sets_mip_stride],
 			dyn_buffers[i]);
 	return res;
@@ -2191,7 +2199,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_opaque_pass(createOpaquePass()),
-	m_illum_technique(IllumTechnique::Ssgi),
+	m_illum_technique(IllumTechnique::Potato),
 	m_illum_technique_props(getIllumTechniqueProps()),
 	m_depth_resolve_pass(createDepthResolvePass()),
 	m_depth_resolve_set_layout(createDepthResolveSetLayout()),
@@ -2314,7 +2322,7 @@ void Renderer::bindFrameDescriptors(void)
 
 		if (m_illum_technique == IllumTechnique::Potato) {
 			WriteImgDesc descs[IllumTechnique::Data::Potato::descriptorCombinedImageSamplerCount] {
-				{cur_frame.m_illumination_set, 1, m_sampler_fb_mip, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{cur_frame.m_illumination_set, 1, m_sampler_fb_lin, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 				{cur_frame.m_illumination_set, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 				{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 			};
@@ -2516,7 +2524,7 @@ void Renderer::bindFrameDescriptors(void)
 						images[images_offset++] = imgs[i];
 				}
 
-				{
+				if (m_illum_technique == IllumTechnique::Ssgi) {
 					ImgDesc imgs[IllumTechnique::Data::Ssgi::addBarrsPerFrame] {
 						{m_frames[i].m_illum_ssgi_fbs.m_depth, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_illum_ssgi_fbs.m_step, Vk::ImageLayout::TransferDstOptimal},
