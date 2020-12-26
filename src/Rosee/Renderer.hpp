@@ -159,11 +159,6 @@ private:
 	Vk::DescriptorSetLayout createDescriptorSetLayoutDynamic(void);
 	Vk::PipelineLayout m_pipeline_layout_descriptor_set;
 	Vk::PipelineLayout createPipelineLayoutDescriptorSet(void);
-	Vk::DescriptorPool m_descriptor_pool;
-	Vk::DescriptorPool createDescriptorPool(void);
-	Vk::DescriptorPool m_descriptor_pool_mip;
-	Vk::DescriptorPool createDescriptorPoolMip(void);
-
 	Vk::ShaderModule m_fwd_p2_module;
 	Vk::BufferAllocation m_screen_vertex_buffer;
 	Vk::BufferAllocation createScreenVertexBuffer(void);
@@ -172,6 +167,21 @@ private:
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
+
+	struct IllumTechnique {
+		using Type = uint32_t;
+		static inline constexpr Type Potato = 0;
+		static inline constexpr Type Ssgi = 1;
+		static inline constexpr Type MaxEnum = Ssgi + 1;
+
+		struct Props {
+			uint32_t descriptorCombinedImageSamplerCount;
+		};
+	};
+	IllumTechnique::Type m_illum_technique;
+	IllumTechnique::Props &m_illum_technique_props;
+	IllumTechnique::Props& getIllumTechniqueProps(void);
+
 	Vk::RenderPass m_depth_resolve_pass;
 	Vk::RenderPass createDepthResolvePass(void);
 	Vk::DescriptorSetLayout m_depth_resolve_set_layout;
@@ -199,6 +209,11 @@ private:
 	Vk::Sampler createSamplerFbMip(void);
 	Vk::Sampler m_sampler_fb_lin;
 	Vk::Sampler createSamplerFbLin(void);
+
+	Vk::DescriptorPool m_descriptor_pool;
+	Vk::DescriptorPool createDescriptorPool(void);
+	Vk::DescriptorPool m_descriptor_pool_mip;
+	Vk::DescriptorPool createDescriptorPoolMip(void);
 
 	class Frame
 	{
@@ -237,12 +252,8 @@ private:
 		Vk::ImageView m_depth_first_mip_view;
 		Vk::ImageAllocation m_albedo;
 		Vk::ImageView m_albedo_view;
-		Vk::ImageAllocation m_albedo_resolved;
-		Vk::ImageView m_albedo_resolved_view;
 		Vk::ImageAllocation m_normal;
 		Vk::ImageView m_normal_view;
-		Vk::ImageAllocation m_normal_resolved;
-		Vk::ImageView m_normal_resolved_view;
 
 		Vk::ImageAllocation m_step;
 		Vk::ImageView m_step_view;

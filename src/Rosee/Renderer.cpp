@@ -551,41 +551,6 @@ Vk::PipelineLayout Renderer::createPipelineLayoutDescriptorSet(void)
 	return device.createPipelineLayout(ci);
 }
 
-Vk::DescriptorPool Renderer::createDescriptorPool(void)
-{
-	VkDescriptorPoolCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	ci.maxSets = m_frame_count * sets_per_frame;
-	VkDescriptorPoolSize pool_sizes[] {
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
-			s0_sampler_count +	// s0
-			1 +			// depth_resolve
-			15 +			// illumination
-			1			// wsi
-		)}
-	};
-	ci.poolSizeCount = array_size(pool_sizes);
-	ci.pPoolSizes = pool_sizes;
-	return device.createDescriptorPool(ci);
-}
-
-Vk::DescriptorPool Renderer::createDescriptorPoolMip(void)
-{
-	VkDescriptorPoolCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	ci.maxSets = m_frame_count * sets_per_frame_mip * (m_swapchain_mip_levels - 1);
-	VkDescriptorPoolSize pool_sizes[] {
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			m_frame_count * sets_per_frame_mip * (m_swapchain_mip_levels - 1)
-		}
-	};
-	ci.poolSizeCount = array_size(pool_sizes);
-	ci.pPoolSizes = pool_sizes;
-	return device.createDescriptorPool(ci);
-}
-
 Vk::BufferAllocation Renderer::createScreenVertexBuffer(void)
 {
 	Vertex::p2 vertices[] {
@@ -728,6 +693,20 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 
 		return device.createRenderPass(ci);
 	}
+}
+
+Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
+{
+	static IllumTechnique::Props props[IllumTechnique::MaxEnum] {
+		{
+			.descriptorCombinedImageSamplerCount = 0
+		},
+		{
+			.descriptorCombinedImageSamplerCount = 15
+		}
+	};
+
+	return props[m_illum_technique];
 }
 
 Vk::RenderPass Renderer::createDepthResolvePass(void)
@@ -1338,6 +1317,41 @@ Vk::Sampler Renderer::createSamplerFbLin(void)
 		.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 		.unnormalizedCoordinates = true
 	});
+}
+
+Vk::DescriptorPool Renderer::createDescriptorPool(void)
+{
+	VkDescriptorPoolCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	ci.maxSets = m_frame_count * sets_per_frame;
+	VkDescriptorPoolSize pool_sizes[] {
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
+			s0_sampler_count +	// s0
+			1 +			// depth_resolve
+			m_illum_technique_props.descriptorCombinedImageSamplerCount +			// illumination
+			1			// wsi
+		)}
+	};
+	ci.poolSizeCount = array_size(pool_sizes);
+	ci.pPoolSizes = pool_sizes;
+	return device.createDescriptorPool(ci);
+}
+
+Vk::DescriptorPool Renderer::createDescriptorPoolMip(void)
+{
+	VkDescriptorPoolCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	ci.maxSets = m_frame_count * sets_per_frame_mip * (m_swapchain_mip_levels - 1);
+	VkDescriptorPoolSize pool_sizes[] {
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			m_frame_count * sets_per_frame_mip * (m_swapchain_mip_levels - 1)
+		}
+	};
+	ci.poolSizeCount = array_size(pool_sizes);
+	ci.pPoolSizes = pool_sizes;
+	return device.createDescriptorPool(ci);
 }
 
 vector<Renderer::Frame> Renderer::createFrames(void)
@@ -2116,14 +2130,14 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 		),
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
 	m_pipeline_layout_descriptor_set(createPipelineLayoutDescriptorSet()),
-	m_descriptor_pool(createDescriptorPool()),
-	m_descriptor_pool_mip(createDescriptorPoolMip()),
 
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
 	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_opaque_pass(createOpaquePass()),
+	m_illum_technique(IllumTechnique::Ssgi),
+	m_illum_technique_props(getIllumTechniqueProps()),
 	m_depth_resolve_pass(createDepthResolvePass()),
 	m_depth_resolve_set_layout(createDepthResolveSetLayout()),
 	m_depth_resolve_pipeline(createDepthResolvePipeline()),
@@ -2138,6 +2152,9 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_sampler_fb(createSamplerFb()),
 	m_sampler_fb_mip(createSamplerFbMip()),
 	m_sampler_fb_lin(createSamplerFbLin()),
+
+	m_descriptor_pool(createDescriptorPool()),
+	m_descriptor_pool_mip(createDescriptorPoolMip()),
 
 	m_frames(createFrames()),
 	m_pipeline_pool(4),
@@ -2232,11 +2249,11 @@ void Renderer::bindFrameDescriptors(void)
 			{cur_frame.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{cur_frame.m_illumination_set, 2, m_sampler_fb_mip, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 3, m_sampler_fb_lin, cur_frame.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 6, m_sampler_fb_lin, cur_frame.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 6, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+			{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 9, m_sampler_fb, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{next_frame.m_illumination_set, 10, m_sampler_fb_lin, cur_frame.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -2648,9 +2665,7 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 			m_depth_buffer_view,
 			m_cdepth_view,
 			m_albedo_view,
-			m_normal_view,
-			m_albedo_resolved_view,
-			m_normal_resolved_view
+			m_normal_view
 		};
 		ci.attachmentCount = array_size(atts);
 		ci.pAttachments = atts;
@@ -2793,12 +2808,8 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 		0, 1)),
 	m_albedo_view(createFbImageMs(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_albedo)),
-	m_albedo_resolved_view(createFbImageResolved(VK_FORMAT_R8G8B8A8_SRGB, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_albedo_resolved)),
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal)),
-	m_normal_resolved_view(createFbImageResolved(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal_resolved)),
 	m_step_view(createFbImage(VK_FORMAT_R8_SINT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_step)),
 	m_acc_view(createFbImage(VK_FORMAT_R16G16_UINT, Vk::ImageAspect::ColorBit,
@@ -2827,10 +2838,6 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_wsi_fb(createWsiFb()),
 	m_wsi_set(descriptorSetWsi)
 {
-	if (m_r.m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
-		m_albedo_resolved_view = m_albedo_view;
-		m_normal_resolved_view = m_normal_view;
-	}
 }
 
 void Renderer::Frame::destroy(bool with_ext_res)
@@ -2862,16 +2869,8 @@ void Renderer::Frame::destroy(bool with_ext_res)
 	m_r.device.destroy(m_step_view);
 	m_r.allocator.destroy(m_step);
 
-	if (m_r.m_sample_count != VK_SAMPLE_COUNT_1_BIT) {
-		m_r.device.destroy(m_normal_resolved_view);
-		m_r.allocator.destroy(m_normal_resolved);
-	}
 	m_r.device.destroy(m_normal_view);
 	m_r.allocator.destroy(m_normal);
-	if (m_r.m_sample_count != VK_SAMPLE_COUNT_1_BIT) {
-		m_r.device.destroy(m_albedo_resolved_view);
-		m_r.allocator.destroy(m_albedo_resolved);
-	}
 	m_r.device.destroy(m_albedo_view);
 	m_r.allocator.destroy(m_albedo);
 	m_r.device.destroy(m_depth_first_mip_view);
