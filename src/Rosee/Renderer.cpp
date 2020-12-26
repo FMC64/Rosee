@@ -695,14 +695,16 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	}
 }
 
-Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
+const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 {
-	static IllumTechnique::Props props[IllumTechnique::MaxEnum] {
+	static const IllumTechnique::Props props[IllumTechnique::MaxEnum] {
 		{
-			.descriptorCombinedImageSamplerCount = 0
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Potato::descriptorCombinedImageSamplerCount,
+			.fragShaderPath = "sha/potato"
 		},
 		{
-			.descriptorCombinedImageSamplerCount = 15
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Ssgi::descriptorCombinedImageSamplerCount,
+			.fragShaderPath = "sha/ssgi"
 		}
 	};
 
@@ -1014,21 +1016,20 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	VkDescriptorSetLayoutBinding bindings[] {
 		{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth_buffer
-		{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth
-		{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
-		{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// normal
-		{5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_depth
-		{6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_albedo
-		{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_normal
-		{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_step
-		{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_acc
-		{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_direct_light
-		{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_pos
-		{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_albedo
-		{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
-		{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_incidence
-		{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
+		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth
+		{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
+		{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// normal
+		{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_depth
+		{5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_albedo
+		{6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_normal
+		{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_step
+		{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_acc
+		{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_direct_light
+		{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_pos
+		{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_albedo
+		{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
+		{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_incidence
+		{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -1041,7 +1042,7 @@ Pipeline Renderer::createIlluminationPipeline(void)
 
 	VkGraphicsPipelineCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, "sha/illumination");
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, m_illum_technique_props.fragShaderPath);
 	res.pushShaderModule(frag);
 	struct FragSpec {
 		int32_t sample_count;
@@ -1464,19 +1465,29 @@ Vk::ShaderModule Renderer::loadShaderModule(VkShaderStageFlagBits stage, const c
 	return device.createShaderModule(ci);
 }
 
-VkPipelineShaderStageCreateInfo Renderer::initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module)
+VkPipelineShaderStageCreateInfo Renderer::initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule shaderModule)
 {
+	struct VkPipelineShaderStageCreateInfo_cpp20 {
+		VkStructureType                     sType;
+		const void*                         pNext;
+		VkPipelineShaderStageCreateFlags    flags;
+		VkShaderStageFlagBits               stage;
+		VkShaderModule                      shaderModule;
+		const char*                         pName;
+		const VkSpecializationInfo*         pSpecializationInfo;
+	};
+
 	VkPipelineShaderStageCreateInfo res{};
 	res.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	res.stage = stage;
-	res.module = module;
+	reinterpret_cast<VkPipelineShaderStageCreateInfo_cpp20&>(res).shaderModule = shaderModule;
 	res.pName = "main";
 	return res;
 }
 
-void Pipeline::pushShaderModule(VkShaderModule module)
+void Pipeline::pushShaderModule(VkShaderModule shaderModule)
 {
-	shaderModules[shaderModuleCount++] = module;
+	shaderModules[shaderModuleCount++] = shaderModule;
 }
 
 void Pipeline::pushDynamic(cmp_id cmp)
@@ -2219,14 +2230,16 @@ Renderer::~Renderer(void)
 
 void Renderer::bindFrameDescriptors(void)
 {
-	static constexpr uint32_t img_writes_per_frame =
+	static constexpr uint32_t const_img_writes_per_frame =
 		1 +	// depth_resolve: depth_buffer
-		15 +	// illum
 		1;	// wsi: output
-	static constexpr uint32_t img_writes_offset = 0;
+	uint32_t img_writes_per_frame =
+		const_img_writes_per_frame +
+		m_illum_technique_props.descriptorCombinedImageSamplerCount;	// illum
+	uint32_t img_writes_offset = 0;
 	static constexpr uint32_t buf_writes_per_frame =
 		1;	// illum: buffer
-	static constexpr uint32_t buf_writes_offset = img_writes_per_frame;
+	uint32_t buf_writes_offset = img_writes_per_frame;
 	uint32_t img_mip_writes_per_frame = 
 		m_swapchain_mip_levels - 1;	// depth_acc
 	uint32_t img_mip_writes_offset = img_writes_per_frame + buf_writes_per_frame;
@@ -2245,25 +2258,38 @@ void Renderer::bindFrameDescriptors(void)
 			VkSampler sampler;
 			VkImageView imageView;
 			VkImageLayout imageLayout;
-		} write_img_descs[img_writes_per_frame] {
-			{cur_frame.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 2, m_sampler_fb_mip, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 6, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 9, m_sampler_fb, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 10, m_sampler_fb_lin, cur_frame.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 13, m_sampler_fb, cur_frame.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 14, m_sampler_fb, cur_frame.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{next_frame.m_illumination_set, 15, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
-		};
+		} write_img_descs[img_writes_per_frame];
+		size_t write_img_descs_offset = 0;
+
+		{
+			WriteImgDesc descs[const_img_writes_per_frame] {
+				{cur_frame.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+			};
+			for (size_t i = 0; i < array_size(descs); i++)
+				write_img_descs[write_img_descs_offset++] = descs[i];
+		}
+
+		if (m_illum_technique == IllumTechnique::Ssgi) {
+			WriteImgDesc descs[IllumTechnique::Data::Ssgi::descriptorCombinedImageSamplerCount] {
+				{cur_frame.m_illumination_set, 1, m_sampler_fb_mip, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{cur_frame.m_illumination_set, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 4, m_sampler_fb_lin, cur_frame.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 6, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 9, m_sampler_fb_lin, cur_frame.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 13, m_sampler_fb, cur_frame.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{next_frame.m_illumination_set, 14, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+			};
+			for (size_t i = 0; i < array_size(descs); i++)
+				write_img_descs[write_img_descs_offset++] = descs[i];
+		}
 
 		for (uint32_t j = 0; j < img_writes_per_frame; j++) {
 			auto &ii = image_infos[i * (img_writes_per_frame + img_mip_writes_per_frame) + j];

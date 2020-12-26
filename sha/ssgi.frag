@@ -27,22 +27,22 @@ layout(set = 0, binding = 0) uniform Illum {
 	float cam_a;
 	float cam_b;
 } il;
-//layout(set = 0, binding = 1) uniform sampler2D cdepth;
-layout(set = 0, binding = 2) uniform sampler2D depth;
-layout(set = 0, binding = 3) uniform sampler2D albedo;
-layout(set = 0, binding = 4) uniform sampler2D normal;
-layout(set = 0, binding = 5) uniform sampler2D last_depth;
-layout(set = 0, binding = 6) uniform sampler2D last_albedo;
-layout(set = 0, binding = 7) uniform sampler2D last_normal;
 
-layout(set = 0, binding = 8) uniform isampler2D last_step;
-layout(set = 0, binding = 9) uniform usampler2D last_acc;
-layout(set = 0, binding = 10) uniform sampler2D last_direct_light;
-layout(set = 0, binding = 11) uniform usampler2D last_path_pos;
-layout(set = 0, binding = 12) uniform sampler2D last_path_albedo;
-layout(set = 0, binding = 13) uniform sampler2D last_path_direct_light;
-layout(set = 0, binding = 14) uniform sampler2D last_path_incidence;
-layout(set = 0, binding = 15) uniform sampler2D last_output;
+layout(set = 0, binding = 1) uniform sampler2D depth;
+layout(set = 0, binding = 2) uniform sampler2D albedo;
+layout(set = 0, binding = 3) uniform sampler2D normal;
+layout(set = 0, binding = 4) uniform sampler2D last_depth;
+layout(set = 0, binding = 5) uniform sampler2D last_albedo;
+layout(set = 0, binding = 6) uniform sampler2D last_normal;
+
+layout(set = 0, binding = 7) uniform isampler2D last_step;
+layout(set = 0, binding = 8) uniform usampler2D last_acc;
+layout(set = 0, binding = 9) uniform sampler2D last_direct_light;
+layout(set = 0, binding = 10) uniform usampler2D last_path_pos;
+layout(set = 0, binding = 11) uniform sampler2D last_path_albedo;
+layout(set = 0, binding = 12) uniform sampler2D last_path_direct_light;
+layout(set = 0, binding = 13) uniform sampler2D last_path_incidence;
+layout(set = 0, binding = 14) uniform sampler2D last_output;
 
 layout(location = 0) out int out_step;
 layout(location = 1) out uvec2 out_acc;

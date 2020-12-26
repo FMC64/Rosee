@@ -169,6 +169,16 @@ private:
 	Vk::RenderPass createOpaquePass(void);
 
 	struct IllumTechnique {
+		struct Data {
+			struct Potato {
+				static inline constexpr size_t descriptorCombinedImageSamplerCount = 3;
+			};
+
+			struct Ssgi {
+				static inline constexpr size_t descriptorCombinedImageSamplerCount = 14;
+			};
+		};
+
 		using Type = uint32_t;
 		static inline constexpr Type Potato = 0;
 		static inline constexpr Type Ssgi = 1;
@@ -176,11 +186,12 @@ private:
 
 		struct Props {
 			uint32_t descriptorCombinedImageSamplerCount;
+			const char *fragShaderPath;
 		};
 	};
 	IllumTechnique::Type m_illum_technique;
-	IllumTechnique::Props &m_illum_technique_props;
-	IllumTechnique::Props& getIllumTechniqueProps(void);
+	const IllumTechnique::Props &m_illum_technique_props;
+	const IllumTechnique::Props& getIllumTechniqueProps(void);
 
 	Vk::RenderPass m_depth_resolve_pass;
 	Vk::RenderPass createDepthResolvePass(void);
@@ -341,7 +352,7 @@ private:
 	void recreateSwapchain(void);
 
 	Vk::ShaderModule loadShaderModule(VkShaderStageFlagBits stage, const char *path) const;
-	static VkPipelineShaderStageCreateInfo initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule module);
+	static VkPipelineShaderStageCreateInfo initPipelineStage(VkShaderStageFlagBits stage, VkShaderModule shaderModule);
 
 public:
 	//Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
