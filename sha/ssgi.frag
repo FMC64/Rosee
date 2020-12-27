@@ -36,22 +36,20 @@ layout(set = 0, binding = 5) uniform sampler2D last_albedo;
 layout(set = 0, binding = 6) uniform sampler2D last_normal;
 
 layout(set = 0, binding = 7) uniform isampler2D last_step;
-layout(set = 0, binding = 8) uniform usampler2D last_acc;
+layout(set = 0, binding = 8) uniform usampler2D last_acc_path_pos;
 layout(set = 0, binding = 9) uniform sampler2D last_direct_light;
-layout(set = 0, binding = 10) uniform usampler2D last_path_pos;
-layout(set = 0, binding = 11) uniform sampler2D last_path_albedo;
-layout(set = 0, binding = 12) uniform sampler2D last_path_direct_light;
-layout(set = 0, binding = 13) uniform sampler2D last_path_incidence;
-layout(set = 0, binding = 14) uniform sampler2D last_output;
+layout(set = 0, binding = 10) uniform sampler2D last_path_albedo;
+layout(set = 0, binding = 11) uniform sampler2D last_path_direct_light;
+layout(set = 0, binding = 12) uniform sampler2D last_path_incidence;
+layout(set = 0, binding = 13) uniform sampler2D last_output;
 
 layout(location = 0) out int out_step;
-layout(location = 1) out uvec2 out_acc;
+layout(location = 1) out uvec4 out_acc_path_pos;
 layout(location = 2) out vec3 out_direct_light;
-layout(location = 3) out uvec4 out_path_pos;
-layout(location = 4) out vec3 out_path_albedo;
-layout(location = 5) out vec3 out_path_direct_light;
-layout(location = 6) out vec3 out_path_incidence;
-layout(location = 7) out vec3 out_output;
+layout(location = 3) out vec3 out_path_albedo;
+layout(location = 4) out vec3 out_path_direct_light;
+layout(location = 5) out vec3 out_path_incidence;
+layout(location = 6) out vec3 out_output;
 
 float rt_depth_to_z(float d)
 {
@@ -315,7 +313,8 @@ void main(void)
 	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 256;
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
-	uvec2 last_acc = texelFetch(last_acc, ilast_view_pos, 0).xy;
+	uvec4 last_acc_path_pos = texelFetch(last_acc_path_pos, ilast_view_pos, 0).xyzw;
+	uvec2 last_acc = last_acc_path_pos.xy;
 	vec3 vlast_direct_light = correct_nan(textureLod(last_direct_light, last_view_pos, 0).xyz);
 	vec3 last_alb = textureLod(last_albedo, last_view_pos, 0).xyz;
 	if (!repr_success) {
@@ -342,8 +341,8 @@ void main(void)
 		quality = 3;
 	}
 	if (last_step == 2) {
-		uvec4 last_path_pos = textureLod(last_path_pos, last_view_pos, 0);
-		vec3 last_end = (il.view_last_to_cur * vec4(last_pos_view(last_path_pos.zw), 1.0)).xyz;
+		uvec2 last_path_pos = last_acc_path_pos.zw;
+		vec3 last_end = (il.view_last_to_cur * vec4(last_pos_view(last_path_pos), 1.0)).xyz;
 		ray_origin = last_end;
 		uray_origin = uvec2(rt_project_point(ray_origin).xy);
 		ray_dir = rnd_diffuse_around_rough((il.view_last_to_cur_normal * vec4(textureLod(last_path_incidence, last_view_pos, 0).xyz, 1.0)).xyz,
@@ -358,7 +357,7 @@ void main(void)
 
 	if (last_step == 0) {
 		out_step = 1;
-		out_acc = last_acc;
+		out_acc_path_pos.xy = last_acc;
 		vec3 norm = texelFetch(normal, pos, 0).xyz;
 		float align = dot(norm, il.sun);
 		vec3 direct_light = alb * max(0.0, align) * (ray_success ? 0.0 : 1.0) * 2.5;
@@ -370,16 +369,16 @@ void main(void)
 
 		if (sharp_divergence(last_view_pos) > 0.0) {
 			if (length(vlast_direct_light - direct_light) > 0.01)
-				out_acc.x = 0;
+				out_acc_path_pos.x = 0;
 		}
 	}
 	if (last_step >= 1) {
 		out_step = ray_success ? 2 : 0;
-		out_acc.x = min(last_acc.x + (ray_success ? 0 : 1), 65000);
-		out_acc.y = last_acc.y;
+		out_acc_path_pos.x = min(last_acc.x + (ray_success ? 0 : 1), 65000);
+		out_acc_path_pos.y = last_acc.y;
 		out_direct_light = irradiance_correct(vlast_direct_light, last_alb, alb);
 
-		out_path_pos = uvec4(uray_origin, uvec2(ray_pos));
+		out_acc_path_pos.zw = uvec2(ray_pos);
 		out_path_incidence = ray_dir;
 		vec3 foutput = correct_nan(textureLod(last_output, last_view_pos, 0).xyz);
 		if (ray_success) {
@@ -392,7 +391,7 @@ void main(void)
 		}
 		if (sharp_divergence(last_view_pos) > 0.0) {
 			if (length(vlast_direct_light - out_direct_light) > 0.01)
-				out_acc.x = 0;
+				out_acc_path_pos.x = 0;
 		}
 	}
 

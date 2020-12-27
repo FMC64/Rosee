@@ -651,7 +651,7 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 		{
 			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Ssgi::descriptorCombinedImageSamplerCount,
 			.fragShaderPath = "sha/ssgi",
-			.fragShaderColorAttachmentCount = 8,
+			.fragShaderColorAttachmentCount = 7,
 			.barrsPerFrame = IllumTechnique::Data::Ssgi::barrsPerFrame,
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::addBarrsPerFrame
 		}
@@ -667,7 +667,7 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 		{
 			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Ssgi::msDescriptorCombinedImageSamplerCount,
 			.fragShaderPath = "sha/ssgi_ms",
-			.fragShaderColorAttachmentCount = 8,
+			.fragShaderColorAttachmentCount = 7,
 			.barrsPerFrame = IllumTechnique::Data::Ssgi::msBarrsPerFrame,
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::msAddBarrsPerFrame
 		}
@@ -1100,42 +1100,37 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 			{0, VK_FORMAT_R8_SINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// step 0
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16_UINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// acc 1
+			{0, VK_FORMAT_R16G16B16A16_UINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// acc 1
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// direct_light 2
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_UINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_pos 3
+			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_albedo 3
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_albedo 4
+			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_direct_light 4
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_direct_light 5
+			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_incidence 5
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// path_incidence 6
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// output 7
+			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// output 6
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
 		};
 		VkAttachmentReference step {0, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference acc {1, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference acc_path_pos {1, Vk::ImageLayout::ColorAttachmentOptimal};
 		VkAttachmentReference direct_light {2, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference path_pos {3, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference path_albedo {4, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference path_direct_light {5, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference path_incidence {6, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference output {7, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference path_albedo {3, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference path_direct_light {4, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference path_incidence {5, Vk::ImageLayout::ColorAttachmentOptimal};
+		VkAttachmentReference output {6, Vk::ImageLayout::ColorAttachmentOptimal};
 
 		VkAttachmentReference color_atts[] {
 			step,
-			acc,
+			acc_path_pos,
 			direct_light,
-			path_pos,
 			path_albedo,
 			path_direct_light,
 			path_incidence,
@@ -1187,13 +1182,12 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 				{5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_albedo
 				{6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_normal
 				{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_step
-				{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_acc
+				{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_acc_path_pos
 				{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_direct_light
-				{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_pos
-				{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_albedo
-				{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
-				{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_incidence
-				{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
+				{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_albedo
+				{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
+				{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_incidence
+				{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
 			};
 			ci.bindingCount = array_size(bindings);
 			ci.pBindings = bindings;
@@ -1217,7 +1211,6 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 				{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_direct_light
 				{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_path_incidence
 				{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// last_output
-				{17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}	// last_output
 			};
 			ci.bindingCount = array_size(bindings);
 			ci.pBindings = bindings;
@@ -2499,13 +2492,12 @@ void Renderer::bindFrameDescriptors(void)
 					{next_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, 6, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, 9, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 13, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 14, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 13, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -2525,13 +2517,12 @@ void Renderer::bindFrameDescriptors(void)
 					{next_frame.m_illumination_set, 8, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, 9, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, 12, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 13, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 14, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 15, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 16, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 17, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{next_frame.m_illumination_set, 13, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 14, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 15, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, 16, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -2633,7 +2624,7 @@ void Renderer::bindFrameDescriptors(void)
 						VkImage imgs[IllumTechnique::Data::Ssgi::barrsPerFrame] {
 							m_frames[i].m_illum_ssgi_fbs.m_depth,
 							m_frames[i].m_illum_ssgi_fbs.m_step,
-							m_frames[i].m_illum_ssgi_fbs.m_acc,
+							m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos,
 							m_frames[i].m_illum_ssgi_fbs.m_direct_light
 						};
 						for (uint32_t i = 0; i < array_size(imgs); i++)
@@ -2644,7 +2635,7 @@ void Renderer::bindFrameDescriptors(void)
 							m_frames[i].m_illum_ssgi_fbs.m_albedo_resolved,
 							m_frames[i].m_illum_ssgi_fbs.m_normal_resolved,
 							m_frames[i].m_illum_ssgi_fbs.m_step,
-							m_frames[i].m_illum_ssgi_fbs.m_acc,
+							m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos,
 							m_frames[i].m_illum_ssgi_fbs.m_direct_light
 						};
 						for (uint32_t i = 0; i < array_size(imgs); i++)
@@ -2690,7 +2681,7 @@ void Renderer::bindFrameDescriptors(void)
 						ImgDesc imgs[IllumTechnique::Data::Ssgi::barrsPerFrame] {
 							{m_frames[i].m_illum_ssgi_fbs.m_depth, &cv_f32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_step, &cv_i32_zero},
-							{m_frames[i].m_illum_ssgi_fbs.m_acc, &cv_i32_zero},
+							{m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos, &cv_i32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_direct_light, &cv_f32_zero},
 						};
 						for (uint32_t i = 0; i < array_size(imgs); i++)
@@ -2701,7 +2692,7 @@ void Renderer::bindFrameDescriptors(void)
 							{m_frames[i].m_illum_ssgi_fbs.m_albedo_resolved, &cv_f32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_normal_resolved, &cv_f32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_step, &cv_i32_zero},
-							{m_frames[i].m_illum_ssgi_fbs.m_acc, &cv_i32_zero},
+							{m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos, &cv_i32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_direct_light, &cv_f32_zero},
 						};
 						for (uint32_t i = 0; i < array_size(imgs); i++)
@@ -2742,9 +2733,8 @@ void Renderer::bindFrameDescriptors(void)
 						ImgDesc imgs[IllumTechnique::Data::Ssgi::addBarrsPerFrame] {
 							{m_frames[i].m_illum_ssgi_fbs.m_depth, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_step, Vk::ImageLayout::TransferDstOptimal},
-							{m_frames[i].m_illum_ssgi_fbs.m_acc, Vk::ImageLayout::TransferDstOptimal},
+							{m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_direct_light, Vk::ImageLayout::TransferDstOptimal},
-							{m_frames[i].m_illum_ssgi_fbs.m_path_pos, Vk::ImageLayout::Undefined},
 							{m_frames[i].m_illum_ssgi_fbs.m_path_albedo, Vk::ImageLayout::Undefined},
 							{m_frames[i].m_illum_ssgi_fbs.m_path_direct_light, Vk::ImageLayout::Undefined},
 							{m_frames[i].m_illum_ssgi_fbs.m_path_incidence, Vk::ImageLayout::Undefined}
@@ -2757,9 +2747,8 @@ void Renderer::bindFrameDescriptors(void)
 							{m_frames[i].m_illum_ssgi_fbs.m_albedo_resolved, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_normal_resolved, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_step, Vk::ImageLayout::TransferDstOptimal},
-							{m_frames[i].m_illum_ssgi_fbs.m_acc, Vk::ImageLayout::TransferDstOptimal},
+							{m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_direct_light, Vk::ImageLayout::TransferDstOptimal},
-							{m_frames[i].m_illum_ssgi_fbs.m_path_pos, Vk::ImageLayout::Undefined},
 							{m_frames[i].m_illum_ssgi_fbs.m_path_albedo, Vk::ImageLayout::Undefined},
 							{m_frames[i].m_illum_ssgi_fbs.m_path_direct_light, Vk::ImageLayout::Undefined},
 							{m_frames[i].m_illum_ssgi_fbs.m_path_incidence, Vk::ImageLayout::Undefined}
@@ -3037,12 +3026,10 @@ Renderer::IllumTechnique::Data::Ssgi::Fbs Renderer::Frame::createIllumSsgiFbs(Vk
 
 	res.m_step_view = createFbImage(VK_FORMAT_R8_SINT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &res.m_step);
-	res.m_acc_view = createFbImage(VK_FORMAT_R16G16_UINT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &res.m_acc);
+	res.m_acc_path_pos_view = createFbImage(VK_FORMAT_R16G16B16A16_UINT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &res.m_acc_path_pos);
 	res.m_direct_light_view = createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &res.m_direct_light);
-	res.m_path_pos_view = createFbImage(VK_FORMAT_R16G16B16A16_UINT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &res.m_path_pos);
 	res.m_path_albedo_view = createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &res.m_path_albedo);
 	res.m_path_direct_light_view = createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
@@ -3138,12 +3125,10 @@ void Renderer::IllumTechnique::Data::Ssgi::Fbs::destroy(Renderer &r)
 	r.allocator.destroy(m_path_direct_light);
 	r.device.destroy(m_path_albedo_view);
 	r.allocator.destroy(m_path_albedo);
-	r.device.destroy(m_path_pos_view);
-	r.allocator.destroy(m_path_pos);
 	r.device.destroy(m_direct_light_view);
 	r.allocator.destroy(m_direct_light);
-	r.device.destroy(m_acc_view);
-	r.allocator.destroy(m_acc);
+	r.device.destroy(m_acc_path_pos_view);
+	r.allocator.destroy(m_acc_path_pos);
 	r.device.destroy(m_step_view);
 	r.allocator.destroy(m_step);
 
@@ -3202,9 +3187,8 @@ Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 		ci.renderPass = m_r.m_illumination_pass;
 		VkImageView atts[] {
 			m_illum_ssgi_fbs.m_step_view,
-			m_illum_ssgi_fbs.m_acc_view,
+			m_illum_ssgi_fbs.m_acc_path_pos_view,
 			m_illum_ssgi_fbs.m_direct_light_view,
-			m_illum_ssgi_fbs.m_path_pos_view,
 			m_illum_ssgi_fbs.m_path_albedo_view,
 			m_illum_ssgi_fbs.m_path_direct_light_view,
 			m_illum_ssgi_fbs.m_path_incidence_view,

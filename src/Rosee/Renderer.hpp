@@ -177,13 +177,13 @@ private:
 			};
 
 			struct Ssgi {
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 15;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 14;
 				static inline constexpr uint32_t msDescriptorCombinedImageSamplerCount = 3 +	// color_resolve
-					18;
+					17;
 				static inline constexpr uint32_t barrsPerFrame = 4;
 				static inline constexpr uint32_t msBarrsPerFrame = 4 + 2;
-				static inline constexpr uint32_t addBarrsPerFrame = 8;
-				static inline constexpr uint32_t msAddBarrsPerFrame = 8 + 2;
+				static inline constexpr uint32_t addBarrsPerFrame = 7;
+				static inline constexpr uint32_t msAddBarrsPerFrame = 7 + 2;
 
 				struct Fbs {
 					Vk::ImageAllocation m_albedo_resolved;
@@ -210,12 +210,10 @@ private:
 
 					Vk::ImageAllocation m_step;
 					Vk::ImageView m_step_view;
-					Vk::ImageAllocation m_acc;
-					Vk::ImageView m_acc_view;
+					Vk::ImageAllocation m_acc_path_pos;
+					Vk::ImageView m_acc_path_pos_view;
 					Vk::ImageAllocation m_direct_light;
 					Vk::ImageView m_direct_light_view;
-					Vk::ImageAllocation m_path_pos;
-					Vk::ImageView m_path_pos_view;
 					Vk::ImageAllocation m_path_albedo;
 					Vk::ImageView m_path_albedo_view;
 					Vk::ImageAllocation m_path_direct_light;
