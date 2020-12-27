@@ -178,10 +178,22 @@ private:
 
 			struct Ssgi {
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 15;
+				static inline constexpr uint32_t msDescriptorCombinedImageSamplerCount = 3 +	// color_resolve
+					17;
 				static inline constexpr uint32_t barrsPerFrame = 4;
+				static inline constexpr uint32_t msBarrsPerFrame = 4 + 2;
 				static inline constexpr uint32_t addBarrsPerFrame = 8;
+				static inline constexpr uint32_t msAddBarrsPerFrame = 8 + 2;
 
 				struct Fbs {
+					Vk::ImageAllocation m_albedo_resolved;
+					Vk::ImageView m_albedo_resolved_view;
+					Vk::ImageAllocation m_normal_resolved;
+					Vk::ImageView m_normal_resolved_view;
+					Vk::Framebuffer m_color_resolve_fb;
+					Vk::Framebuffer createColorResolveFb(Renderer &r);
+					VkDescriptorSet m_color_resolve_set;
+
 					Vk::ImageAllocation m_depth;
 					Vk::ImageView m_depth_view;
 					Vk::ImageView m_depth_first_mip_view;
@@ -211,7 +223,7 @@ private:
 					Vk::ImageAllocation m_path_incidence;
 					Vk::ImageView m_path_incidence_view;
 
-					void destroy(Vk::Device dev, Vk::Allocator alloc);
+					void destroy(Renderer &r);
 				};
 			};
 		};
@@ -232,6 +244,13 @@ private:
 	IllumTechnique::Type m_illum_technique;
 	const IllumTechnique::Props &m_illum_technique_props;
 	const IllumTechnique::Props& getIllumTechniqueProps(void);
+
+	Vk::RenderPass m_color_resolve_pass;
+	Vk::RenderPass createColorResolvePass(void);
+	Vk::DescriptorSetLayout m_color_resolve_set_layout;
+	Vk::DescriptorSetLayout createColorResolveSetLayout(void);
+	Pipeline m_color_resolve_pipeline;
+	Pipeline createColorResolvePipeline(void);
 
 	Vk::RenderPass m_depth_resolve_pass;
 	Vk::RenderPass createDepthResolvePass(void);
@@ -304,7 +323,8 @@ private:
 		Vk::ImageView m_normal_view;
 
 		IllumTechnique::Data::Ssgi::Fbs m_illum_ssgi_fbs;
-		IllumTechnique::Data::Ssgi::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetDepthResolve, const VkDescriptorSet *pDescriptorSetsMip);
+		IllumTechnique::Data::Ssgi::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
+			const VkDescriptorSet *pDescriptorSetsMip);
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
@@ -347,7 +367,7 @@ private:
 	public:
 		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
 			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
-			VkDescriptorSet descriptorSetDepthResolve,
+			VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
 			VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
 			const VkDescriptorSet *pDescriptorSetsMip,
 			Vk::BufferAllocation dynBuffer);

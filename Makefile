@@ -49,8 +49,8 @@ OBJ = $(SRC:.cpp=.o)
 
 SHAD = sha
 SHA = $(SHAD)/opaque.vert $(SHAD)/opaque.frag $(SHAD)/opaque_uvgen.vert $(SHAD)/opaque_uvgen.frag \
-	$(SHAD)/fwd_p2.vert $(SHAD)/depth_resolve.frag $(SHAD)/depth_resolve_ms.frag $(SHAD)/depth_acc.frag \
-	$(SHAD)/potato.frag $(SHAD)/potato_ms.frag $(SHAD)/ssgi.frag $(SHAD)/wsi.frag
+	$(SHAD)/fwd_p2.vert $(SHAD)/color_resolve.frag $(SHAD)/depth_resolve.frag $(SHAD)/depth_resolve_ms.frag $(SHAD)/depth_acc.frag \
+	$(SHAD)/potato.frag $(SHAD)/potato_ms.frag $(SHAD)/ssgi.frag $(SHAD)/ssgi_ms.frag $(SHAD)/wsi.frag
 
 SHA_VERT = $(SHA:.vert=.vert.spv)
 SHA_FRAG = $(SHA:.frag=.frag.spv)
