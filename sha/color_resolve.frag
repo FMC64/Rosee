@@ -13,11 +13,11 @@ layout(location = 1) out vec3 out_normal;
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
-	float max_depth = -1.0;
+	float min_depth = 2.0;
 	for (int i = 0; i < sample_count; i++) {
 		float cur_d = texelFetch(cdepth, pos, i).x;
-		if (cur_d > max_depth) {
-			max_depth = cur_d;
+		if (cur_d < min_depth) {
+			min_depth = cur_d;
 			out_albedo = texelFetch(albedo, pos, i);
 			out_normal = texelFetch(normal, pos, i).xyz;
 		}

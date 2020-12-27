@@ -53,6 +53,7 @@ layout(location = 3) out vec3 out_path_albedo;
 layout(location = 4) out vec3 out_path_direct_light;
 layout(location = 5) out vec3 out_path_incidence;
 layout(location = 6) out vec3 out_output;
+layout(location = 7) out vec3 out_ms_output;
 
 float rt_depth_to_z(float d)
 {
@@ -493,11 +494,21 @@ void main(void)
 		}
 	}
 
-	if (texelFetch(depth, pos, 0).x == 0.0)
-		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 	/*float env_count = 0.0;
 	for (int i = 0; i < sample_count; i++)
 		env_count += texelFetch(cdepth, pos, i).x == 0.0 ? sample_factor : 0.0;
-	out_output += env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz * env_count);*/
-	//out_output = out_direct_light;
+	out_ms_output = correct_nan(out_output) + env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz) * env_count;*/
+
+	out_output = correct_nan(out_output);
+	float max_d = 0.0;
+	for (int i = 0; i < sample_count; i++)
+		max_d = max(max_d, texelFetch(cdepth, pos, i).x);
+
+	if (max_d == 0.0)
+		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+	out_ms_output = out_output;
+	float env_count = 0.0;
+	for (int i = 0; i < sample_count; i++)
+		env_count += texelFetch(cdepth, pos, i).x == 0.0 ? sample_factor : 0.0;
+	out_ms_output = mix(out_ms_output, env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz), env_count);
 }

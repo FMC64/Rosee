@@ -221,6 +221,9 @@ private:
 					Vk::ImageAllocation m_path_incidence;
 					Vk::ImageView m_path_incidence_view;
 
+					Vk::ImageAllocation m_ms_output;
+					Vk::ImageView m_ms_output_view;
+
 					void destroy(Renderer &r);
 				};
 			};
