@@ -597,102 +597,45 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 	VkRenderPassCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
-	if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
-		VkAttachmentDescription atts[] {
-			{0, format_depth, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
-			{0, VK_FORMAT_R32_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// cdepth 1
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R8G8B8A8_SRGB, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 2
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 3
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
-		};
-		VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
-		VkAttachmentReference cdepth {1, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference albedo {2, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference normal {3, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentDescription atts[] {
+		{0, format_depth, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
+		{0, VK_FORMAT_R32_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// cdepth 1
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+		{0, VK_FORMAT_R8G8B8A8_SRGB, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 2
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 3
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
+	};
+	VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
+	VkAttachmentReference cdepth {1, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference albedo {2, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference normal {3, Vk::ImageLayout::ColorAttachmentOptimal};
 
-		VkAttachmentReference color_atts[] {
-			cdepth,
-			albedo,
-			normal
-		};
+	VkAttachmentReference color_atts[] {
+		cdepth,
+		albedo,
+		normal
+	};
 
-		VkSubpassDescription subpasses[] {
-			{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
-				0, nullptr,		// input
-				array_size(color_atts), color_atts, nullptr,	// color, resolve
-				&depth,			// depth
-				0, nullptr}		// preserve
-		};
+	VkSubpassDescription subpasses[] {
+		{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			0, nullptr,		// input
+			array_size(color_atts), color_atts, nullptr,	// color, resolve
+			&depth,			// depth
+			0, nullptr}		// preserve
+	};
 
-		ci.attachmentCount = array_size(atts);
-		ci.pAttachments = atts;
-		ci.subpassCount = array_size(subpasses);
-		ci.pSubpasses = subpasses;
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.subpassCount = array_size(subpasses);
+	ci.pSubpasses = subpasses;
 
-		return device.createRenderPass(ci);
-	} else {
-			VkAttachmentDescription atts[] {
-			{0, format_depth, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// depth 0
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::DepthStencilReadOnlyOptimal},
-			{0, VK_FORMAT_R32_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// cdepth 1
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R8G8B8A8_SRGB, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// albedo 2
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 3
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R8G8B8A8_SRGB, VK_SAMPLE_COUNT_1_BIT, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// albedo_resolved 4
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, VK_SAMPLE_COUNT_1_BIT, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// normal_resolved 5
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
-		};
-		VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
-		VkAttachmentReference cdepth {1, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference albedo {2, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference normal {3, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference cdepth_resolved {VK_ATTACHMENT_UNUSED, Vk::ImageLayout::Undefined};
-		VkAttachmentReference albedo_resolved {4, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference normal_resolved {5, Vk::ImageLayout::ColorAttachmentOptimal};
-
-		VkAttachmentReference color_atts[] {
-			cdepth,
-			albedo,
-			normal
-		};
-
-		VkAttachmentReference resolve_atts[] {
-			cdepth_resolved,
-			albedo_resolved,
-			normal_resolved
-		};
-
-		VkSubpassDescription subpasses[] {
-			{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
-				0, nullptr,		// input
-				array_size(color_atts), color_atts, resolve_atts,	// color, resolve
-				&depth,			// depth
-				0, nullptr}		// preserve
-		};
-
-		ci.attachmentCount = array_size(atts);
-		ci.pAttachments = atts;
-		ci.subpassCount = array_size(subpasses);
-		ci.pSubpasses = subpasses;
-
-		return device.createRenderPass(ci);
-	}
+	return device.createRenderPass(ci);
 }
 
 const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
@@ -713,8 +656,27 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::addBarrsPerFrame
 		}
 	};
+	static const IllumTechnique::Props props_ms[IllumTechnique::MaxEnum] {
+		{
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Potato::descriptorCombinedImageSamplerCount,
+			.fragShaderPath = "sha/potato_ms",
+			.fragShaderColorAttachmentCount = 1,
+			.barrsPerFrame = IllumTechnique::Data::Potato::barrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Potato::addBarrsPerFrame
+		},
+		{
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Ssgi::descriptorCombinedImageSamplerCount,
+			.fragShaderPath = "sha/ssgi_ms",
+			.fragShaderColorAttachmentCount = 8,
+			.barrsPerFrame = IllumTechnique::Data::Ssgi::barrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::addBarrsPerFrame
+		}
+	};
 
-	return props[m_illum_technique];
+	if (m_sample_count == VK_SAMPLE_COUNT_1_BIT)
+		return props[m_illum_technique];
+	else
+		return props_ms[m_illum_technique];
 }
 
 Vk::RenderPass Renderer::createDepthResolvePass(void)
@@ -2197,9 +2159,9 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
-	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
+	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_64_BIT)),
 	m_opaque_pass(createOpaquePass()),
-	m_illum_technique(IllumTechnique::Ssgi),
+	m_illum_technique(IllumTechnique::Potato),
 	m_illum_technique_props(getIllumTechniqueProps()),
 	m_depth_resolve_pass(createDepthResolvePass()),
 	m_depth_resolve_set_layout(createDepthResolveSetLayout()),
@@ -2901,33 +2863,18 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	ci.renderPass = m_r.m_opaque_pass;
 
-	if (m_r.m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
-		VkImageView atts[] {
-			m_depth_buffer_view,
-			m_cdepth_view,
-			m_albedo_view,
-			m_normal_view
-		};
-		ci.attachmentCount = array_size(atts);
-		ci.pAttachments = atts;
-		ci.width = m_r.m_swapchain_extent.width;
-		ci.height = m_r.m_swapchain_extent.height;
-		ci.layers = 1;
-		return m_r.device.createFramebuffer(ci);
-	} else {
-		VkImageView atts[] {
-			m_depth_buffer_view,
-			m_cdepth_view,
-			m_albedo_view,
-			m_normal_view
-		};
-		ci.attachmentCount = array_size(atts);
-		ci.pAttachments = atts;
-		ci.width = m_r.m_swapchain_extent.width;
-		ci.height = m_r.m_swapchain_extent.height;
-		ci.layers = 1;
-		return m_r.device.createFramebuffer(ci);
-	}
+	VkImageView atts[] {
+		m_depth_buffer_view,
+		m_cdepth_view,
+		m_albedo_view,
+		m_normal_view
+	};
+	ci.attachmentCount = array_size(atts);
+	ci.pAttachments = atts;
+	ci.width = m_r.m_swapchain_extent.width;
+	ci.height = m_r.m_swapchain_extent.height;
+	ci.layers = 1;
+	return m_r.device.createFramebuffer(ci);
 }
 
 Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
