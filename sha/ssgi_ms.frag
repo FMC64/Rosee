@@ -137,7 +137,10 @@ bool rt_traceRay(vec3 origin, vec3 dir, int quality, out vec2 pos)
 	vec3 p0, p1;
 	rt_project_ray(origin, dir, p0, p1);
 
-	vec3 normal = texelFetch(normal_resolved, ivec2(p0.xy), 0).xyz;
+	vec3 norm = vec3(0.0);
+	for (int i = 0; i < sample_count; i++)
+		norm += texelFetch(normal, ivec2(p0.xy), i).xyz;
+	norm = normalize(norm);
 
 	vec2 dir2 = p1.xy - p0.xy;
 	float dir2_len_ni = length(dir2);
@@ -153,7 +156,7 @@ bool rt_traceRay(vec3 origin, vec3 dir, int quality, out vec2 pos)
 		return false;
 
 	vec3 p = p0;
-	if (dot(normal, dir) < 0.0) {
+	if (dot(norm, dir) < 0.0) {
 		pos = p.xy;
 		return true;
 	}
@@ -372,8 +375,11 @@ void main(void)
 
 			float d = texelFetch(cdepth, pos, i).x;
 			vec3 norm = texelFetch(normal, pos, i).xyz;
+			vec3 alb = texelFetch(albedo, pos, i).xyz;
 			float align = dot(norm, il.sun);
 			vec3 cur_direct_light = alb * max(0.0, align) * (ray_success ? 0.0 : 1.0) * 2.5;
+			if (d == 0.0)
+				cur_direct_light = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 
 			float count = 0;
 			for (int j = 0; j < sample_count; j++) {

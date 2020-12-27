@@ -293,13 +293,13 @@ public:
 			auto view0 = image_view_pool.allocate();
 			*view0 = m_r.createImageView(*img0, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 			auto img1 = image_pool.allocate();
-			*img1 = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", true);
+			*img1 = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false);
 			auto view1 = image_view_pool.allocate();
 			*view1 = m_r.createImageView(*img1, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
 			VkDescriptorImageInfo image_infos[image_count] {
 				{sampler_norm_l, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-				{sampler_norm_l, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
+				{sampler_norm_n, *view1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
 			};
 			m_r.bindCombinedImageSamplers(0, array_size(image_infos), image_infos);
 		}
