@@ -50,10 +50,10 @@ vec2 rt_ndc_to_ss(vec2 p)
 	return ((p * 0.5) + 0.5) * size;
 }
 
-vec3 rt_pos_view(vec2 pos)
+vec3 rt_pos_view(vec2 pos, int samp)
 {
 	vec2 size = vec2(1.0) / textureSize(albedo);
-	float d = texelFetch(cdepth, ivec2(pos), 0).x;
+	float d = texelFetch(cdepth, ivec2(pos), samp).x;
 	float z = rt_depth_to_z(d);
 	vec2 uv = pos * size;
 	vec2 ndc2 = (uv - 0.5) * 2.0;
@@ -62,9 +62,9 @@ vec3 rt_pos_view(vec2 pos)
 	return vec3(ndc2, z);
 }
 
-vec3 rt_current_view()
+vec3 rt_current_view(int samp)
 {
-	return rt_pos_view(gl_FragCoord.xy);
+	return rt_pos_view(gl_FragCoord.xy, samp);
 }
 
 vec3 env_sample_novoid(vec3 dir)
@@ -88,16 +88,44 @@ vec3 env_sample(vec3 dir)
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
-	vec3 view = rt_current_view();
-	vec3 view_norm = normalize(view);
 
-	vec3 alb = texelFetch(albedo, pos, 0).xyz;
-	vec3 norm = texelFetch(normal, pos, 0).xyz;
-	float align = dot(norm, il.sun);
-	vec3 direct_light = alb * max(0.0, align) * 2.5;
-	direct_light += alb * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz);
+	int sample_done[sample_count];
+	for (int i = 0; i < sample_count; i++)
+		sample_done[i] = 0;
+	int i = 0;
+	out_output = vec3(0.0);
+	for (int k = 0; k < sample_count; k++) {
 
-	out_output = direct_light;
-	if (texelFetch(cdepth, pos, 0).x == 0.0)
-		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+		vec3 view = rt_current_view(i);
+		vec3 view_norm = normalize(view);
+
+		float d = texelFetch(cdepth, pos, i).x;
+		vec3 alb = texelFetch(albedo, pos, i).xyz;
+		vec3 norm = texelFetch(normal, pos, i).xyz;
+		float align = dot(norm, il.sun);
+		vec3 direct_light = alb * max(0.0, align) * 2.5;
+		direct_light += alb * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz);
+
+		vec3 outp = direct_light;
+		if (d == 0.0)
+			outp = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+
+		float count = 0;
+		for (int j = 0; j < sample_count; j++) {
+			bool same = texelFetch(cdepth, pos, j).x == d;
+			sample_done[j] += same ? 1 : 0;
+			count += same ? 1.0 : 0.0;
+		}
+		out_output += outp * count;
+
+		for (int j = 0; j < sample_count; j++) {
+			if (sample_done[i] == 0)
+				break;
+			i++;
+			if (i >= sample_count) {
+				out_output *= sample_factor;
+				return;
+			}
+		}
+	}
 }
