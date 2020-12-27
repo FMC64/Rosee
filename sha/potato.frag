@@ -82,7 +82,7 @@ vec3 env_sample_novoid(vec3 dir)
 
 vec3 env_sample(vec3 dir)
 {
-	return env_sample_novoid(dir) * (dir.y > 0.0 ? 1.0 : 1.0 + dir.y);
+	return env_sample_novoid(dir) * ((dir.y + 1.0) * 0.5);
 }
 
 void main(void)
