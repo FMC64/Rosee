@@ -179,7 +179,7 @@ private:
 			struct Ssgi {
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 15;
 				static inline constexpr uint32_t msDescriptorCombinedImageSamplerCount = 3 +	// color_resolve
-					17;
+					18;
 				static inline constexpr uint32_t barrsPerFrame = 4;
 				static inline constexpr uint32_t msBarrsPerFrame = 4 + 2;
 				static inline constexpr uint32_t addBarrsPerFrame = 8;

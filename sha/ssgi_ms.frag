@@ -28,23 +28,24 @@ layout(set = 0, binding = 0) uniform Illum {
 	float cam_b;
 } il;
 
-layout(set = 0, binding = 1) uniform sampler2D depth;
-layout(set = 0, binding = 2) uniform sampler2DMS albedo;
-layout(set = 0, binding = 3) uniform sampler2DMS normal;
-layout(set = 0, binding = 4) uniform sampler2D albedo_resolved;
-layout(set = 0, binding = 5) uniform sampler2D normal_resolved;
-layout(set = 0, binding = 6) uniform sampler2D last_depth;
-layout(set = 0, binding = 7) uniform sampler2D last_albedo_resolved;
-layout(set = 0, binding = 8) uniform sampler2D last_normal_resolved;
+layout(set = 0, binding = 1) uniform sampler2DMS cdepth;
+layout(set = 0, binding = 2) uniform sampler2D depth;
+layout(set = 0, binding = 3) uniform sampler2DMS albedo;
+layout(set = 0, binding = 4) uniform sampler2DMS normal;
+layout(set = 0, binding = 5) uniform sampler2D albedo_resolved;
+layout(set = 0, binding = 6) uniform sampler2D normal_resolved;
+layout(set = 0, binding = 7) uniform sampler2D last_depth;
+layout(set = 0, binding = 8) uniform sampler2D last_albedo_resolved;
+layout(set = 0, binding = 9) uniform sampler2D last_normal_resolved;
 
-layout(set = 0, binding = 9) uniform isampler2D last_step;
-layout(set = 0, binding = 10) uniform usampler2D last_acc;
-layout(set = 0, binding = 11) uniform sampler2D last_direct_light;
-layout(set = 0, binding = 12) uniform usampler2D last_path_pos;
-layout(set = 0, binding = 13) uniform sampler2D last_path_albedo;
-layout(set = 0, binding = 14) uniform sampler2D last_path_direct_light;
-layout(set = 0, binding = 15) uniform sampler2D last_path_incidence;
-layout(set = 0, binding = 16) uniform sampler2D last_output;
+layout(set = 0, binding = 10) uniform isampler2D last_step;
+layout(set = 0, binding = 11) uniform usampler2D last_acc;
+layout(set = 0, binding = 12) uniform sampler2D last_direct_light;
+layout(set = 0, binding = 13) uniform usampler2D last_path_pos;
+layout(set = 0, binding = 14) uniform sampler2D last_path_albedo;
+layout(set = 0, binding = 15) uniform sampler2D last_path_direct_light;
+layout(set = 0, binding = 16) uniform sampler2D last_path_incidence;
+layout(set = 0, binding = 17) uniform sampler2D last_output;
 
 layout(location = 0) out int out_step;
 layout(location = 1) out uvec2 out_acc;
@@ -315,7 +316,7 @@ void main(void)
 		texelFetch(depth, pos, 0).x < 0.9999999;
 
 	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 256;
-	vec3 alb = texelFetch(albedo, pos, 0).xyz;
+	vec3 alb = texelFetch(albedo_resolved, pos, 0).xyz;
 	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
 	uvec2 last_acc = texelFetch(last_acc, ilast_view_pos, 0).xy;
 	vec3 vlast_direct_light = correct_nan(textureLod(last_direct_light, last_view_pos, 0).xyz);
@@ -338,7 +339,7 @@ void main(void)
 	if (last_step == 1) {
 		uray_origin = uvec2(pos);
 		ray_origin = view;
-		ray_dir = rnd_diffuse_around_rough(view_norm, texelFetch(normal, pos, 0).xyz, 0.0, rnd);
+		ray_dir = rnd_diffuse_around_rough(view_norm, texelFetch(normal_resolved, pos, 0).xyz, 0.0, rnd);
 		out_path_albedo = alb;
 		out_path_direct_light = vlast_direct_light;
 		quality = 3;
@@ -361,9 +362,42 @@ void main(void)
 	if (last_step == 0) {
 		out_step = 1;
 		out_acc = last_acc;
-		vec3 norm = texelFetch(normal, pos, 0).xyz;
-		float align = dot(norm, il.sun);
-		vec3 direct_light = alb * max(0.0, align) * (ray_success ? 0.0 : 1.0) * 2.5;
+
+		int sample_done[sample_count];
+		for (int i = 0; i < sample_count; i++)
+			sample_done[i] = 0;
+		int i = 0;
+		vec3 direct_light = vec3(0.0);
+		for (int k = 0; k < sample_count; k++) {
+
+			float d = texelFetch(cdepth, pos, i).x;
+			vec3 norm = texelFetch(normal, pos, i).xyz;
+			float align = dot(norm, il.sun);
+			vec3 cur_direct_light = alb * max(0.0, align) * (ray_success ? 0.0 : 1.0) * 2.5;
+
+			float count = 0;
+			for (int j = 0; j < sample_count; j++) {
+				bool same = texelFetch(cdepth, pos, j).x == d;
+				sample_done[j] += same ? 1 : 0;
+				count += same ? 1.0 : 0.0;
+			}
+			direct_light += cur_direct_light * count;
+
+			bool done = false;
+			for (int j = 0; j < sample_count; j++) {
+				if (sample_done[i] == 0)
+					break;
+				i++;
+				if (i >= sample_count) {
+					direct_light *= sample_factor;
+					done = true;
+					break;
+				}
+			}
+			if (done)
+				break;
+		}
+
 		out_direct_light = irradiance_correct_adv(vlast_direct_light, last_alb,
 			direct_light, alb, last_acc.x);
 
@@ -400,4 +434,5 @@ void main(void)
 
 	if (texelFetch(depth, pos, 0).x == 0.0)
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+	//out_output = out_direct_light;
 }
