@@ -345,6 +345,7 @@ void main(void)
 	vec3 ray_dir[sample_count];
 	vec3 ray_normal[sample_count];
 	vec3 ray_albedo[sample_count];
+	bool ray_inhibit[sample_count];
 	int ray_query_count = 0;
 	int quality;
 	if (last_step == 0) {
@@ -361,6 +362,7 @@ void main(void)
 			ray_origin[ray_query_count] = rt_current_view(i);
 			ray_dir[ray_query_count] = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
 			ray_normal[ray_query_count] = texelFetch(normal, pos, i).xyz;
+			ray_inhibit[ray_query_count] = d == 0.0;
 			ray_query_count++;
 
 			float count = 0;
@@ -395,11 +397,14 @@ void main(void)
 		for (int k = 0; k < sample_count; k++) {
 
 			float d = texelFetch(cdepth, pos, i).x;
-			ray_origin[ray_query_count] = rt_current_view(i);
-			vec3 norm = texelFetch(normal, pos, i).xyz;
-			ray_dir[ray_query_count] = rnd_diffuse_around_rough(normalize(ray_origin[ray_query_count]), norm, 0.0, rnd);
-			ray_normal[ray_query_count] = norm;
-			ray_albedo[ray_query_count] = texelFetch(albedo, pos, i).xyz;
+			ray_inhibit[ray_query_count] = d == 0.0;
+			if (!ray_inhibit[ray_query_count]) {
+				ray_origin[ray_query_count] = rt_current_view(i);
+				vec3 norm = texelFetch(normal, pos, i).xyz;
+				ray_dir[ray_query_count] = rnd_diffuse_around_rough(normalize(ray_origin[ray_query_count]), norm, 0.0, rnd);
+				ray_normal[ray_query_count] = norm;
+				ray_albedo[ray_query_count] = texelFetch(albedo, pos, i).xyz;
+			}
 			ray_query_count++;
 
 			float count = 0;
@@ -436,6 +441,7 @@ void main(void)
 		ray_dir[0] = rnd_diffuse_around_rough(norm,
 			(il.view_last_to_cur_normal * vec4(texelFetch(last_normal_resolved, ilast_view_pos, 0).xyz, 1.0)).xyz, 0.0, rnd);
 		ray_normal[0] = norm;
+		ray_inhibit[0] = false;
 		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
 		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
 		quality = 3;
@@ -444,7 +450,7 @@ void main(void)
 	vec2 ray_pos[sample_count];
 	bool ray_success[sample_count];
 	for (int i = 0; i < ray_query_count; i++)
-		ray_success[i] = rt_traceRay(ray_origin[i], ray_dir[i], ray_normal[i], quality, ray_pos[i]);
+		ray_success[i] = ray_inhibit[i] ? false : rt_traceRay(ray_origin[i], ray_dir[i], ray_normal[i], quality, ray_pos[i]);
 
 	if (last_step == 0) {
 		out_step = 1;
@@ -463,8 +469,6 @@ void main(void)
 			vec3 alb = texelFetch(albedo, pos, i).xyz;
 			float align = dot(norm, il.sun);
 			vec3 cur_direct_light = alb * max(0.0, align) * (ray_success[cur_query] ? 0.0 : 1.0) * 2.5;
-			if (d == 0.0)
-				cur_direct_light = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 
 			float count = 0;
 			for (int j = 0; j < sample_count; j++) {
@@ -522,10 +526,14 @@ void main(void)
 
 				float d = texelFetch(cdepth, pos, i).x;
 				vec3 pdl;
-				if (ray_success[query])
-					pdl = correct_nan(textureLod(last_direct_light, ray_pos[query], 0).xyz) * ray_albedo[query];
-				else
-					pdl = env_sample(ray_dir[query]) * ray_albedo[query];
+				if (ray_inhibit[query])
+					pdl = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+				else {
+					if (ray_success[query])
+						pdl = correct_nan(textureLod(last_direct_light, ray_pos[query], 0).xyz) * ray_albedo[query];
+					else
+						pdl = env_sample(ray_dir[query]) * ray_albedo[query];
+				}
 				query++;
 
 				float count = 0;
@@ -568,23 +576,12 @@ void main(void)
 		}
 	}
 
-	/*float env_count = 0.0;
-	for (int i = 0; i < sample_count; i++)
-		env_count += texelFetch(cdepth, pos, i).x == 0.0 ? sample_factor : 0.0;
-	out_ms_output = correct_nan(out_output) + env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz) * env_count;*/
-
 	out_output = correct_nan(out_output);
-	float max_d = 0.0;
+	bool env_full = true;
 	for (int i = 0; i < sample_count; i++)
-		max_d = max(max_d, texelFetch(cdepth, pos, i).x);
-
-	bool env_reset = max_d == 0.0;
-	if (env_reset)
+		if (texelFetch(cdepth, pos, i).x != 0.0)
+			env_full = false;
+	if (env_full)
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 	out_ms_output = out_output;
-	float env_count = 0.0;
-	for (int i = 0; i < sample_count; i++)
-		env_count += texelFetch(cdepth, pos, i).x == 0.0 ? sample_factor : 0.0;
-	//if (!env_reset)
-	//	out_ms_output += env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz) * env_count;
 }

@@ -14,12 +14,25 @@ void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
 	float min_depth = 2.0;
+	float min_depth_l = 2.0;
+	int res_i = 0;
+	int res_i_l = 0;
 	for (int i = 0; i < sample_count; i++) {
-		float cur_d = texelFetch(cdepth, pos, i).x;
-		if (cur_d < min_depth) {
-			min_depth = cur_d;
-			out_albedo = texelFetch(albedo, pos, i);
-			out_normal = texelFetch(normal, pos, i).xyz;
+		float d = texelFetch(cdepth, pos, i).x;
+		if (d < min_depth) {
+			min_depth = d;
+			res_i = i;
 		}
+		if ((d == 0.0 ? 2.0 : d) < min_depth_l) {
+			min_depth_l = d;
+			res_i_l = i;
+		}
+	}
+	if (min_depth_l != 2.0) {
+		out_albedo = texelFetch(albedo, pos, res_i_l);
+		out_normal = texelFetch(normal, pos, res_i_l).xyz;
+	} else {
+		out_albedo = texelFetch(albedo, pos, res_i);
+		out_normal = texelFetch(normal, pos, res_i).xyz;
 	}
 }

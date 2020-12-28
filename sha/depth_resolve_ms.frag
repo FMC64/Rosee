@@ -10,7 +10,13 @@ layout(location = 0) out float out_depth;
 void main(void)
 {
 	ivec2 pos = ivec2(gl_FragCoord.xy);
-	out_depth = 1.0;
-	for (int i = 0; i < sample_count; i++)
-		out_depth = min(out_depth, texelFetch(cdepth, pos, i).x);
+	out_depth = 2.0;
+	float depth_l = 2.0;
+	for (int i = 0; i < sample_count; i++) {
+		float d = texelFetch(cdepth, pos, i).x;
+		out_depth = min(out_depth, d);
+		depth_l = min(depth_l, d == 0.0 ? 2.0 : d);
+	}
+	if (depth_l != 2.0)
+		out_depth = depth_l;
 }
