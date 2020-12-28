@@ -53,11 +53,12 @@ Vk::Instance Renderer::createInstance(void)
 			m_instance_version = VK_API_VERSION_1_0;
 	}
 	if (m_instance_version == VK_API_VERSION_1_0)
-		std::cout << "Vulkan 1.0" << std::endl;
+		std::cout << "Instance version: Vulkan 1.0" << std::endl;
 	else if (m_instance_version == VK_API_VERSION_1_1)
-		std::cout << "Vulkan 1.1" << std::endl;
+		std::cout << "Instance version: Vulkan 1.1" << std::endl;
 	else
-		std::cout << "Vulkan v" << m_instance_version << std::endl;
+		std::cout << "Instance version: Vulkan v" << m_instance_version << std::endl;
+	std::cout << std::endl;
 
 	VkInstanceCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -95,11 +96,11 @@ Vk::Instance Renderer::createInstance(void)
 	ci.enabledExtensionCount = ext_count;
 	ci.ppEnabledExtensionNames = exts;
 
-	std::cout << "VkInstance layers:" << std::endl;
+	std::cout << "Instance layers:" << std::endl;
 	for (size_t i = 0; i < layer_count; i++)
 		std::cout << layers[i] << std::endl;
 	std::cout << std::endl;
-	std::cout << "VkInstance extensions:" << std::endl;
+	std::cout << "Instance extensions:" << std::endl;
 	for (size_t i = 0; i < ext_count; i++)
 		std::cout << exts[i] << std::endl;
 	std::cout << std::endl;
@@ -113,13 +114,6 @@ Vk::Instance Renderer::createInstance(void)
 	EXT(vkGetPhysicalDeviceSurfaceFormatsKHR);
 	EXT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 	EXT(vkDestroySurfaceKHR);
-	EXT(vkCreateSwapchainKHR);
-	EXT(vkDestroySwapchainKHR);
-	EXT(vkGetSwapchainImagesKHR);
-	EXT(vkQueuePresentKHR);
-	EXT(vkAcquireNextImageKHR);
-
-	// VK_KHR_acceleration_structure
 #undef EXT
 	return res;
 }
@@ -199,6 +193,7 @@ Vk::Device Renderer::createDevice(void)
 	VkPhysicalDeviceFeatures physical_devices_features[physical_device_count];
 	uint32_t physical_devices_gqueue_families[physical_device_count];
 	vkAssert(vkEnumeratePhysicalDevices(m_instance, &physical_device_count, physical_devices));
+	ExtSupport ext_supports[physical_device_count];
 
 	for (uint32_t i = 0; i < physical_device_count; i++) {
 		vkGetPhysicalDeviceProperties(physical_devices[i], &physical_devices_properties[i]);
@@ -237,6 +232,7 @@ Vk::Device Renderer::createDevice(void)
 		VkExtensionProperties exts[ext_count];
 		vkEnumerateDeviceExtensionProperties(dev, nullptr, &ext_count, exts);
 		bool ext_missing = false;
+		ext_supports[i] = ExtSupport{};
 		for (size_t j = 0; j < array_size(required_exts); j++) {
 			bool found = false;
 			for (size_t k = 0; k < ext_count; k++)
@@ -251,6 +247,10 @@ Vk::Device Renderer::createDevice(void)
 		}
 		if (ext_missing)
 			continue;
+		for (size_t k = 0; k < ext_count; k++) {
+			if (std::strcmp(exts[k].extensionName, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME) == 0)
+				ext_supports[i].ray_tracing = true;
+		}
 
 		uint32_t queue_family_count;
 		vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_family_count, nullptr);
@@ -335,7 +335,7 @@ Vk::Device Renderer::createDevice(void)
 
 	m_queue_family_graphics = physical_devices_gqueue_families[chosen];
 
-	std::cout << "Vulkan device: " << m_properties.deviceName << std::endl;
+	std::cout << "Device name: " << m_properties.deviceName << std::endl;
 	std::cout << std::endl;
 
 	VkDeviceCreateInfo ci{};
@@ -355,10 +355,49 @@ Vk::Device Renderer::createDevice(void)
 	ci.queueCreateInfoCount = array_size(qcis);
 	ci.pQueueCreateInfos = qcis;
 	ci.pEnabledFeatures = &required_features;
-	ci.enabledExtensionCount = array_size(required_exts);
-	ci.ppEnabledExtensionNames = required_exts;
 
-	return Vk::createDevice(physical_devices[chosen], ci);
+	m_ext_support = ext_supports[chosen];
+	static const char *ray_tracing_exts[] {
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+			VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+				VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
+			VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+				VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+					VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+				VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+				VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
+	};
+	const char* extensions[array_size(required_exts) + array_size(ray_tracing_exts)];
+	uint32_t extension_count = 0;
+	for (size_t i = 0; i < array_size(required_exts); i++)
+		extensions[extension_count++] = required_exts[i];
+	if (m_ext_support.ray_tracing)
+	for (size_t i = 0; i < array_size(ray_tracing_exts); i++)
+		extensions[extension_count++] = ray_tracing_exts[i];
+
+	std::cout << "Device extensions:" << std::endl;
+	for (size_t i = 0; i < extension_count; i++)
+		std::cout << extensions[i] << std::endl;
+	std::cout << std::endl;
+	ci.enabledExtensionCount = extension_count;
+	ci.ppEnabledExtensionNames = extensions;
+
+	auto res = Vk::createDevice(physical_devices[chosen], ci);
+	auto &e = Vk::ext;
+#define EXT(name) e.name = m_instance.getProcAddr<PFN_ ## name>(#name)
+	EXT(vkCreateSwapchainKHR);
+	EXT(vkDestroySwapchainKHR);
+	EXT(vkGetSwapchainImagesKHR);
+	EXT(vkQueuePresentKHR);
+	EXT(vkAcquireNextImageKHR);
+
+	if (m_ext_support.ray_tracing) {
+		// VK_KHR_acceleration_structure
+		EXT(vkCreateAccelerationStructureKHR);
+		EXT(vkDestroyAccelerationStructureKHR);
+	}
+#undef EXT
+	return res;
 }
 
 VkFormat Renderer::getFormatDepth(void)

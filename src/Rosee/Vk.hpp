@@ -25,6 +25,8 @@ struct Ext {
 	EXT(vkAcquireNextImageKHR);
 
 	// VK_KHR_acceleration_structure
+	EXT(vkCreateAccelerationStructureKHR);
+	EXT(vkDestroyAccelerationStructureKHR);
 #undef EXT
 };
 extern Ext ext;

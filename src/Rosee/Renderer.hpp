@@ -81,6 +81,11 @@ class Renderer
 	uint32_t m_queue_family_graphics = ~0U;
 	VkPhysicalDevice m_physical_device;
 
+	struct ExtSupport {
+		bool ray_tracing;
+	};
+	ExtSupport m_ext_support;
+
 public:
 	Vk::Device device;
 
