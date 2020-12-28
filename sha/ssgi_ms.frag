@@ -326,8 +326,7 @@ void main(void)
 	const float repr_dist_tres = 0.5;
 	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
 		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
-		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz) < repr_dist_tres &&
-		texelFetch(depth, pos, 0).x < 0.9999999;
+		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz) < repr_dist_tres;
 
 	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 256;
 	vec3 alb = texelFetch(albedo_resolved, pos, 0).xyz;
@@ -345,6 +344,7 @@ void main(void)
 	vec3 ray_origin[sample_count];
 	vec3 ray_dir[sample_count];
 	vec3 ray_normal[sample_count];
+	vec3 ray_albedo[sample_count];
 	int ray_query_count = 0;
 	int quality;
 	if (last_step == 0) {
@@ -392,7 +392,6 @@ void main(void)
 		for (int i = 0; i < sample_count; i++)
 			sample_done[i] = 0;
 		int i = 0;
-		vec3 albr = vec3(0.0);
 		for (int k = 0; k < sample_count; k++) {
 
 			float d = texelFetch(cdepth, pos, i).x;
@@ -400,6 +399,7 @@ void main(void)
 			vec3 norm = texelFetch(normal, pos, i).xyz;
 			ray_dir[ray_query_count] = rnd_diffuse_around_rough(normalize(ray_origin[ray_query_count]), norm, 0.0, rnd);
 			ray_normal[ray_query_count] = norm;
+			ray_albedo[ray_query_count] = texelFetch(albedo, pos, i).xyz;
 			ray_query_count++;
 
 			float count = 0;
@@ -408,7 +408,6 @@ void main(void)
 				sample_done[j] += same ? 1 : 0;
 				count += same ? 1.0 : 0.0;
 			}
-			albr += texelFetch(albedo, pos, i).xyz * count;
 
 			bool done = false;
 			for (int j = 0; j < sample_count; j++) {
@@ -423,7 +422,7 @@ void main(void)
 			if (done)
 				break;
 		}
-		out_path_albedo = albr * sample_factor;
+		out_path_albedo = ray_albedo[0];
 		out_path_direct_light = vlast_direct_light;
 		quality = 3;
 	}
@@ -512,45 +511,52 @@ void main(void)
 		out_path_incidence = ray_dir[0];
 		vec3 foutput = correct_nan(textureLod(last_output, last_view_pos, 0).xyz);
 
-		vec3 path_direct_light = vec3(0.0);
-		int sample_done[sample_count];
-		for (int i = 0; i < sample_count; i++)
-			sample_done[i] = 0;
-		int i = 0;
-		int query = 0;
-		for (int k = 0; k < sample_count; k++) {
+		if (last_step == 1) {
+			vec3 path_direct_light = vec3(0.0);
+			int sample_done[sample_count];
+			for (int i = 0; i < sample_count; i++)
+				sample_done[i] = 0;
+			int i = 0;
+			int query = 0;
+			for (int k = 0; k < sample_count; k++) {
 
-			float d = texelFetch(cdepth, pos, i).x;
-			vec3 pdl;
-			if (ray_success[query])
-				pdl = correct_nan(textureLod(last_direct_light, ray_pos[query], 0).xyz) * out_path_albedo;
-			else
-				pdl = env_sample(ray_dir[0]) * out_path_albedo;
-			query++;
+				float d = texelFetch(cdepth, pos, i).x;
+				vec3 pdl;
+				if (ray_success[query])
+					pdl = correct_nan(textureLod(last_direct_light, ray_pos[query], 0).xyz) * ray_albedo[query];
+				else
+					pdl = env_sample(ray_dir[query]) * ray_albedo[query];
+				query++;
 
-			float count = 0;
-			for (int j = 0; j < sample_count; j++) {
-				bool same = texelFetch(cdepth, pos, j).x == d;
-				sample_done[j] += same ? 1 : 0;
-				count += same ? 1.0 : 0.0;
-			}
-			path_direct_light += pdl * count;
-
-			bool done = false;
-			for (int j = 0; j < sample_count; j++) {
-				if (sample_done[i] == 0)
-					break;
-				i++;
-				if (i >= sample_count) {
-					done = true;
-					break;
+				float count = 0;
+				for (int j = 0; j < sample_count; j++) {
+					bool same = texelFetch(cdepth, pos, j).x == d;
+					sample_done[j] += same ? 1 : 0;
+					count += same ? 1.0 : 0.0;
 				}
+				path_direct_light += pdl * count;
+
+				bool done = false;
+				for (int j = 0; j < sample_count; j++) {
+					if (sample_done[i] == 0)
+						break;
+					i++;
+					if (i >= sample_count) {
+						done = true;
+						break;
+					}
+				}
+				if (done)
+					break;
 			}
-			if (done)
-				break;
+			path_direct_light *= sample_factor;
+			out_path_direct_light += path_direct_light;
+		} else {
+			if (ray_success[0])
+				out_path_direct_light += correct_nan(textureLod(last_direct_light, ray_pos[0], 0).xyz) * out_path_albedo;
+			else
+				out_path_direct_light += env_sample(ray_dir[0]) * out_path_albedo;
 		}
-		path_direct_light *= sample_factor;
-		out_path_direct_light += path_direct_light;
 		if (ray_success[0]) {
 			out_path_albedo *= textureLod(albedo_resolved, ray_pos[0], 0).xyz;
 			out_output = irradiance_correct(foutput, last_alb, alb);
@@ -572,11 +578,13 @@ void main(void)
 	for (int i = 0; i < sample_count; i++)
 		max_d = max(max_d, texelFetch(cdepth, pos, i).x);
 
-	if (max_d == 0.0)
+	bool env_reset = max_d == 0.0;
+	if (env_reset)
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 	out_ms_output = out_output;
 	float env_count = 0.0;
 	for (int i = 0; i < sample_count; i++)
 		env_count += texelFetch(cdepth, pos, i).x == 0.0 ? sample_factor : 0.0;
-	out_ms_output = mix(out_ms_output, env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz), env_count);
+	//if (!env_reset)
+	//	out_ms_output += env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz) * env_count;
 }
