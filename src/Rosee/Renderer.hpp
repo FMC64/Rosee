@@ -79,6 +79,7 @@ class Renderer
 	VkSurfaceFormatKHR m_surface_format;
 	VkSurfaceCapabilitiesKHR m_surface_capabilities;
 	uint32_t m_queue_family_graphics = ~0U;
+	uint32_t m_queue_family_compute = ~0U;
 	VkPhysicalDevice m_physical_device;
 
 	struct ExtSupport {
@@ -110,12 +111,15 @@ public:
 private:
 	Vk::Allocator createAllocator(void);
 
-	Vk::Queue m_queue;
+	Vk::Queue m_gqueue;
+	Vk::Queue m_cqueue;
 
 public:
 	void waitIdle(void)
 	{
-		m_queue.waitIdle();
+		m_gqueue.waitIdle();
+		if (m_cqueue != VK_NULL_HANDLE)
+			m_cqueue.waitIdle();
 	}
 
 private:

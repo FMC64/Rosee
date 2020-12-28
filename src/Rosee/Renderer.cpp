@@ -192,6 +192,7 @@ Vk::Device Renderer::createDevice(void)
 	VkPhysicalDeviceProperties physical_devices_properties[physical_device_count];
 	VkPhysicalDeviceFeatures physical_devices_features[physical_device_count];
 	uint32_t physical_devices_gqueue_families[physical_device_count];
+	uint32_t physical_devices_cqueue_families[physical_device_count];
 	vkAssert(vkEnumeratePhysicalDevices(m_instance, &physical_device_count, physical_devices));
 	ExtSupport ext_supports[physical_device_count];
 
@@ -258,7 +259,9 @@ Vk::Device Renderer::createDevice(void)
 		vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_family_count, queue_families);
 
 		physical_devices_gqueue_families[i] = ~0U;
+		physical_devices_cqueue_families[i] = ~0U;
 		size_t gbits = ~0ULL;
+		size_t cbits = ~0ULL;
 		for (uint32_t j = 0; j < queue_family_count; j++) {
 			auto &cur = queue_families[j];
 			size_t fbits = 0;
@@ -271,8 +274,16 @@ Vk::Device Renderer::createDevice(void)
 				physical_devices_gqueue_families[i] = j;
 				gbits = fbits;
 			}
+			if (ext_supports[i].ray_tracing) {
+				if ((cur.queueFlags & VK_QUEUE_COMPUTE_BIT) && fbits < cbits) {
+					physical_devices_cqueue_families[i] = j;
+					cbits = fbits;
+				}
+			}
 		}
 		if (physical_devices_gqueue_families[i] == ~0U)
+			continue;
+		if (ext_supports[i].ray_tracing && (physical_devices_cqueue_families[i] == ~0U))
 			continue;
 
 		uint32_t present_mode_count;
@@ -334,6 +345,7 @@ Vk::Device Renderer::createDevice(void)
 	}
 
 	m_queue_family_graphics = physical_devices_gqueue_families[chosen];
+	m_queue_family_compute = physical_devices_cqueue_families[chosen];
 
 	std::cout << "Device name: " << m_properties.deviceName << std::endl;
 	std::cout << std::endl;
@@ -341,18 +353,27 @@ Vk::Device Renderer::createDevice(void)
 	VkDeviceCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-	VkDeviceQueueCreateInfo qci{};
-	qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	qci.queueFamilyIndex = m_queue_family_graphics;
-	qci.queueCount = 1;
+	VkDeviceQueueCreateInfo gqci{};
+	gqci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	gqci.queueFamilyIndex = m_queue_family_graphics;
+	gqci.queueCount = 1;
+	VkDeviceQueueCreateInfo cqci{};
+	cqci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	cqci.queueFamilyIndex = m_queue_family_compute;
+	cqci.queueCount = 1;
 
 	const float prio[] {
 		1.0f
 	};
-	qci.pQueuePriorities = prio;
+	gqci.pQueuePriorities = prio;
+	cqci.pQueuePriorities = prio;
 
-	VkDeviceQueueCreateInfo qcis[] {qci};
-	ci.queueCreateInfoCount = array_size(qcis);
+	VkDeviceQueueCreateInfo qcis[2];
+	uint32_t qci_count = 0;
+	qcis[qci_count++] = gqci;
+	if (m_queue_family_compute != ~0U && m_queue_family_graphics != m_queue_family_compute)
+		qcis[qci_count++] = cqci;
+	ci.queueCreateInfoCount = qci_count;
 	ci.pQueueCreateInfos = qcis;
 	ci.pEnabledFeatures = &required_features;
 
@@ -661,8 +682,8 @@ Vk::BufferAllocation Renderer::createScreenVertexBuffer(void)
 		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submit.commandBufferCount = 1;
 		submit.pCommandBuffers = m_transfer_cmd.ptr();
-		m_queue.submit(1, &submit, VK_NULL_HANDLE);
-		m_queue.waitIdle();
+		m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
+		m_gqueue.waitIdle();
 
 		allocator.destroy(s);
 	}
@@ -2145,8 +2166,8 @@ void Renderer::loadBuffer(VkBuffer buffer, size_t size, const void *data)
 	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submit.commandBufferCount = 1;
 	submit.pCommandBuffers = m_transfer_cmd.ptr();
-	m_queue.submit(1, &submit, VK_NULL_HANDLE);
-	m_queue.waitIdle();
+	m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
+	m_gqueue.waitIdle();
 
 	allocator.destroy(s);
 }
@@ -2239,8 +2260,8 @@ Model Renderer::loadModel(const char *path)
 		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submit.commandBufferCount = 1;
 		submit.pCommandBuffers = m_transfer_cmd.ptr();
-		m_queue.submit(1, &submit, VK_NULL_HANDLE);
-		m_queue.waitIdle();
+		m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
+		m_gqueue.waitIdle();
 
 		allocator.destroy(s);
 	}
@@ -2362,8 +2383,8 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submit.commandBufferCount = 1;
 		submit.pCommandBuffers = m_transfer_cmd.ptr();
-		m_queue.submit(1, &submit, VK_NULL_HANDLE);
-		m_queue.waitIdle();
+		m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
+		m_gqueue.waitIdle();
 
 		allocator.destroy(s);
 	}
@@ -2400,7 +2421,8 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_supported_sample_counts(getSupportedSampleCounts()),
 	m_pipeline_cache(VK_NULL_HANDLE),
 	allocator(createAllocator()),
-	m_queue(device.getQueue(m_queue_family_graphics, 0)),
+	m_gqueue(device.getQueue(m_queue_family_graphics, 0)),
+	m_cqueue(m_queue_family_compute != ~0U ? device.getQueue(m_queue_family_compute, 0) : Vk::Queue(VK_NULL_HANDLE)),
 	m_swapchain(createSwapchain()),
 	m_swapchain_images(device.getSwapchainImages(m_swapchain)),
 	m_swapchain_image_views(createSwapchainImageViews()),
@@ -2456,7 +2478,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 Renderer::~Renderer(void)
 {
-	m_queue.waitIdle();
+	m_gqueue.waitIdle();
 
 	m_model_pool.destroy(allocator);
 	m_pipeline_pool.destroy(device);
@@ -2851,13 +2873,13 @@ void Renderer::bindFrameDescriptors(void)
 	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submit.commandBufferCount = 1;
 	submit.pCommandBuffers = m_transfer_cmd.ptr();
-	m_queue.submit(1, &submit, VK_NULL_HANDLE);
-	m_queue.waitIdle();
+	m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
+	m_gqueue.waitIdle();
 }
 
 void Renderer::recreateSwapchain(void)
 {
-	m_queue.waitIdle();
+	m_gqueue.waitIdle();
 	for (auto &f : m_frames)
 		f.destroy();
 	device.destroy(m_descriptor_pool_mip);
@@ -3623,7 +3645,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			array_size(cmds), cmds,
 			1, m_render_done.ptr()}
 	};
-	m_r.m_queue.submit(array_size(si), si, m_frame_done);
+	m_r.m_gqueue.submit(array_size(si), si, m_frame_done);
 
 	VkPresentInfoKHR pi{};
 	pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -3633,7 +3655,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 	pi.pSwapchains = m_r.m_swapchain.ptr();
 	pi.pImageIndices = &swapchain_index;
 	{
-		auto pres_res = m_r.m_queue.present(pi);
+		auto pres_res = m_r.m_gqueue.present(pi);
 		if (pres_res != VK_SUCCESS) {
 			if (pres_res == VK_SUBOPTIMAL_KHR || pres_res == VK_ERROR_OUT_OF_DATE_KHR) {
 				m_r.recreateSwapchain();
