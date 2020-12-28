@@ -667,7 +667,7 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 		{
 			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Ssgi::msDescriptorCombinedImageSamplerCount,
 			.fragShaderPath = "sha/ssgi_ms",
-			.fragShaderColorAttachmentCount = 8,
+			.fragShaderColorAttachmentCount = 7,
 			.barrsPerFrame = IllumTechnique::Data::Ssgi::msBarrsPerFrame,
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::msAddBarrsPerFrame
 		}
@@ -1117,9 +1117,6 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
 			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// output 6
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
-				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
-			{0, VK_FORMAT_R16G16B16A16_SFLOAT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// (optional) ms_output 7
-				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 				Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
 		};
 		VkAttachmentReference step {0, Vk::ImageLayout::ColorAttachmentOptimal};
@@ -1129,7 +1126,6 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 		VkAttachmentReference path_direct_light {4, Vk::ImageLayout::ColorAttachmentOptimal};
 		VkAttachmentReference path_incidence {5, Vk::ImageLayout::ColorAttachmentOptimal};
 		VkAttachmentReference output {6, Vk::ImageLayout::ColorAttachmentOptimal};
-		VkAttachmentReference ms_output {7, Vk::ImageLayout::ColorAttachmentOptimal};
 
 		VkAttachmentReference color_atts[] {
 			step,
@@ -1138,22 +1134,18 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 			path_albedo,
 			path_direct_light,
 			path_incidence,
-			output,
-			ms_output
+			output
 		};
 
-		uint32_t a_count = m_sample_count == VK_SAMPLE_COUNT_1_BIT ?
-					static_cast<uint32_t>(array_size(color_atts)) - 1 :
-					static_cast<uint32_t>(array_size(color_atts));
 		VkSubpassDescription subpasses[] {
 			{0, VK_PIPELINE_BIND_POINT_GRAPHICS,
 				0, nullptr,		// input
-				a_count, color_atts, nullptr,	// color, resolve
+				array_size(color_atts), color_atts, nullptr,	// color, resolve
 				nullptr,			// depth
 				0, nullptr}		// preserve
 		};
 
-		ci.attachmentCount = a_count;
+		ci.attachmentCount = array_size(atts);
 		ci.pAttachments = atts;
 		ci.subpassCount = array_size(subpasses);
 		ci.pSubpasses = subpasses;
@@ -2474,10 +2466,7 @@ void Renderer::bindFrameDescriptors(void)
 
 		{
 			WriteImgDesc descs[const_img_writes_per_frame] {
-				{cur_frame.m_wsi_set, 0, m_sampler_fb,
-					m_illum_technique == IllumTechnique::Ssgi && m_sample_count > VK_SAMPLE_COUNT_1_BIT ?
-						cur_frame.m_illum_ssgi_fbs.m_ms_output_view:
-						cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+				{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 			};
 			for (size_t i = 0; i < array_size(descs); i++)
 				write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3022,9 +3011,6 @@ Renderer::IllumTechnique::Data::Ssgi::Fbs Renderer::Frame::createIllumSsgiFbs(Vk
 
 		res.m_color_resolve_fb = res.createColorResolveFb(m_r);
 		res.m_color_resolve_set = descriptorSetColorResolve;
-
-		res.m_ms_output_view = createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
-			Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit, &res.m_ms_output);
 	}
 
 	res.m_depth_view = createFbImageMip(VK_FORMAT_R32_SFLOAT, Vk::ImageAspect::ColorBit,
@@ -3151,9 +3137,6 @@ void Renderer::IllumTechnique::Data::Ssgi::Fbs::destroy(Renderer &r)
 	r.allocator.destroy(m_depth);
 
 	if (r.m_sample_count > VK_SAMPLE_COUNT_1_BIT) {
-		r.device.destroy(m_ms_output_view);
-		r.allocator.destroy(m_ms_output);
-
 		r.device.destroy(m_color_resolve_fb);
 
 		r.device.destroy(m_normal_resolved_view);
@@ -3209,12 +3192,9 @@ Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 			m_illum_ssgi_fbs.m_path_albedo_view,
 			m_illum_ssgi_fbs.m_path_direct_light_view,
 			m_illum_ssgi_fbs.m_path_incidence_view,
-			m_output_view,
-			m_illum_ssgi_fbs.m_ms_output_view
+			m_output_view
 		};
-		ci.attachmentCount = m_r.m_sample_count == VK_SAMPLE_COUNT_1_BIT ?
-			static_cast<uint32_t>(array_size(atts)) - 1 :
-			static_cast<uint32_t>(array_size(atts));
+		ci.attachmentCount = array_size(atts);
 		ci.pAttachments = atts;
 		ci.width = m_r.m_swapchain_extent.width;
 		ci.height = m_r.m_swapchain_extent.height;

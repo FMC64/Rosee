@@ -53,7 +53,6 @@ layout(location = 3) out vec3 out_path_albedo;
 layout(location = 4) out vec3 out_path_direct_light;
 layout(location = 5) out vec3 out_path_incidence;
 layout(location = 6) out vec3 out_output;
-layout(location = 7) out vec3 out_ms_output;
 
 float rt_depth_to_z(float d)
 {
@@ -583,5 +582,4 @@ void main(void)
 			env_full = false;
 	if (env_full)
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-	out_ms_output = out_output;
 }
