@@ -65,6 +65,7 @@ class Renderer
 	GLFWwindow *createWindow(void);
 	svec2 getWindowSize(void) const;
 
+	uint32_t m_instance_version;
 	Vk::Instance m_instance;
 	Vk::Instance createInstance(void);
 	Vk::DebugUtilsMessengerEXT m_debug_messenger;

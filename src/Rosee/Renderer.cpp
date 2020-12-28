@@ -41,6 +41,24 @@ svec2 Renderer::getWindowSize(void) const
 
 Vk::Instance Renderer::createInstance(void)
 {
+	auto enum_instance = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion"));
+	if (enum_instance == nullptr)
+		m_instance_version = VK_API_VERSION_1_0;
+	else {
+		uint32_t max_version;
+		vkAssert(enum_instance(&max_version));
+		if (max_version >= VK_API_VERSION_1_1)
+			m_instance_version = VK_API_VERSION_1_1;
+		else
+			m_instance_version = VK_API_VERSION_1_0;
+	}
+	if (m_instance_version == VK_API_VERSION_1_0)
+		std::cout << "Vulkan 1.0" << std::endl;
+	else if (m_instance_version == VK_API_VERSION_1_1)
+		std::cout << "Vulkan 1.1" << std::endl;
+	else
+		std::cout << "Vulkan v" << m_instance_version << std::endl;
+
 	VkInstanceCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 
@@ -50,7 +68,7 @@ Vk::Instance Renderer::createInstance(void)
 	ai.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
 	ai.pEngineName = "Rosee";
 	ai.engineVersion = VK_MAKE_VERSION(0, 1, 0);
-	ai.apiVersion = VK_API_VERSION_1_0;
+	ai.apiVersion = m_instance_version;
 	ci.pApplicationInfo = &ai;
 
 	uint32_t glfw_ext_count;
@@ -86,7 +104,24 @@ Vk::Instance Renderer::createInstance(void)
 		std::cout << exts[i] << std::endl;
 	std::cout << std::endl;
 
-	return Vk::createInstance(ci);
+	auto res = Vk::createInstance(ci);
+	auto &e = Vk::ext;
+#define EXT(name) e.name = res.getProcAddr<PFN_ ## name>(#name)
+	// VK_KHR_swapchain
+	EXT(vkGetPhysicalDeviceSurfaceSupportKHR);
+	EXT(vkGetPhysicalDeviceSurfacePresentModesKHR);
+	EXT(vkGetPhysicalDeviceSurfaceFormatsKHR);
+	EXT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
+	EXT(vkDestroySurfaceKHR);
+	EXT(vkCreateSwapchainKHR);
+	EXT(vkDestroySwapchainKHR);
+	EXT(vkGetSwapchainImagesKHR);
+	EXT(vkQueuePresentKHR);
+	EXT(vkAcquireNextImageKHR);
+
+	// VK_KHR_acceleration_structure
+#undef EXT
+	return res;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_cb(
@@ -185,6 +220,9 @@ Vk::Device Renderer::createDevice(void)
 		auto &properties = physical_devices_properties[i];
 		auto &features = physical_devices_features[i];
 
+		if (properties.apiVersion < m_instance_version)
+			continue;
+
 		constexpr size_t f_b_count = sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
 		auto req_f_set = reinterpret_cast<VkBool32*>(&required_features);
 		auto got_f_set = reinterpret_cast<VkBool32*>(&features);
@@ -228,7 +266,7 @@ Vk::Device Renderer::createDevice(void)
 				if (cur.queueFlags & (1 << k))
 					fbits++;
 			VkBool32 present_supported;
-			vkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(dev, j, m_surface, &present_supported));
+			vkAssert(Vk::ext.vkGetPhysicalDeviceSurfaceSupportKHR(dev, j, m_surface, &present_supported));
 			if (present_supported && (cur.queueFlags & VK_QUEUE_GRAPHICS_BIT) && fbits < gbits) {
 				physical_devices_gqueue_families[i] = j;
 				gbits = fbits;
@@ -238,11 +276,11 @@ Vk::Device Renderer::createDevice(void)
 			continue;
 
 		uint32_t present_mode_count;
-		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(dev, m_surface, &present_mode_count, nullptr));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfacePresentModesKHR(dev, m_surface, &present_mode_count, nullptr));
 		if (present_mode_count == 0)
 			continue;
 		uint32_t surface_format_count;
-		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(dev, m_surface, &surface_format_count, nullptr));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfaceFormatsKHR(dev, m_surface, &surface_format_count, nullptr));
 		if (surface_format_count == 0)
 			continue;
 
@@ -264,9 +302,9 @@ Vk::Device Renderer::createDevice(void)
 
 	{
 		uint32_t present_mode_count;
-		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, nullptr));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, nullptr));
 		VkPresentModeKHR present_modes[present_mode_count];
-		vkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, present_modes));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[chosen], m_surface, &present_mode_count, present_modes));
 		m_present_mode = present_modes[0];
 		bool has_mailbox = false;
 		bool has_immediate = false;
@@ -282,9 +320,9 @@ Vk::Device Renderer::createDevice(void)
 			m_present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
 		uint32_t surface_format_count;
-		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, nullptr));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, nullptr));
 		VkSurfaceFormatKHR surface_formats[surface_format_count];
-		vkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, surface_formats));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, surface_formats));
 		m_surface_format = surface_formats[0];
 		for (size_t i = 0; i < surface_format_count; i++)
 			if (surface_formats[i].format == VK_FORMAT_B8G8R8A8_SRGB) {
@@ -292,7 +330,7 @@ Vk::Device Renderer::createDevice(void)
 				break;
 			}
 
-		vkAssert(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices[chosen], m_surface, &m_surface_capabilities));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices[chosen], m_surface, &m_surface_capabilities));
 	}
 
 	m_queue_family_graphics = physical_devices_gqueue_families[chosen];
@@ -405,7 +443,7 @@ uint32_t Renderer::nextExtentMip(uint32_t extent)
 Vk::SwapchainKHR Renderer::createSwapchain(void)
 {
 	while (true) {
-		vkAssert(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physical_device, m_surface, &m_surface_capabilities));
+		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physical_device, m_surface, &m_surface_capabilities));
 
 		auto wins = getWindowSize();
 		m_swapchain_extent = VkExtent2D{clamp(static_cast<uint32_t>(wins.x), max(m_surface_capabilities.minImageExtent.width, static_cast<uint32_t>(1)), m_surface_capabilities.maxImageExtent.width),
@@ -3312,7 +3350,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 	auto &sex_mip = m_r.m_swapchain_extent_mip;
 
 	uint32_t swapchain_index;
-	vkAssert(vkAcquireNextImageKHR(m_r.device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
+	vkAssert(Vk::ext.vkAcquireNextImageKHR(m_r.device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
 
 	m_dyn_buffer_size = 0;
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);

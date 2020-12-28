@@ -10,6 +10,25 @@ void vkAssert(VkResult res);
 
 namespace Vk {
 
+struct Ext {
+#define EXT(name) PFN_ ## name name
+	// VK_KHR_swapchain
+	EXT(vkGetPhysicalDeviceSurfaceSupportKHR);
+	EXT(vkGetPhysicalDeviceSurfacePresentModesKHR);
+	EXT(vkGetPhysicalDeviceSurfaceFormatsKHR);
+	EXT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
+	EXT(vkDestroySurfaceKHR);
+	EXT(vkCreateSwapchainKHR);
+	EXT(vkDestroySwapchainKHR);
+	EXT(vkGetSwapchainImagesKHR);
+	EXT(vkQueuePresentKHR);
+	EXT(vkAcquireNextImageKHR);
+
+	// VK_KHR_acceleration_structure
+#undef EXT
+};
+extern Ext ext;
+
 template <typename HandleType>
 class Handle
 {
@@ -53,7 +72,7 @@ public:
 
 	void destroy(VkSurfaceKHR surface) const
 	{
-		vkDestroySurfaceKHR(*this, surface, nullptr);
+		ext.vkDestroySurfaceKHR(*this, surface, nullptr);
 	}
 
 	void destroy(void)
@@ -236,7 +255,7 @@ public:
 	// dont assert because suboptimal must be handled
 	VkResult present(const VkPresentInfoKHR &pi) const
 	{
-		return vkQueuePresentKHR(*this, &pi);
+		return ext.vkQueuePresentKHR(*this, &pi);
 	}
 };
 
@@ -288,7 +307,7 @@ public:
 	SwapchainKHR createSwapchainKHR(const VkSwapchainCreateInfoKHR &ci) const
 	{
 		VkSwapchainKHR res;
-		vkAssert(vkCreateSwapchainKHR(*this, &ci, nullptr, &res));
+		vkAssert(ext.vkCreateSwapchainKHR(*this, &ci, nullptr, &res));
 		return res;
 	}
 
@@ -390,7 +409,7 @@ public:
 
 	void destroy(VkSwapchainKHR swapchain) const
 	{
-		vkDestroySwapchainKHR(*this, swapchain, nullptr);
+		ext.vkDestroySwapchainKHR(*this, swapchain, nullptr);
 	}
 
 	void destroy(VkCommandPool commandPool) const

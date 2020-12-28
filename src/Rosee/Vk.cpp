@@ -4,6 +4,8 @@
 
 namespace Rosee {
 
+Vk::Ext Vk::ext{};
+
 void vkAssert(VkResult res)
 {
 	static const std::map<VkResult, const char*> table {
@@ -58,9 +60,9 @@ void* Vk::Instance::getProcAddrImpl(const char *name) const
 vector<VkImage> Vk::Device::getSwapchainImages(VkSwapchainKHR swapchain) const
 {
 	uint32_t count;
-	vkAssert(vkGetSwapchainImagesKHR(*this, swapchain, &count, nullptr));
+	vkAssert(ext.vkGetSwapchainImagesKHR(*this, swapchain, &count, nullptr));
 	vector<VkImage> res(count);
-	vkAssert(vkGetSwapchainImagesKHR(*this, swapchain, &count, res.data()));
+	vkAssert(ext.vkGetSwapchainImagesKHR(*this, swapchain, &count, res.data()));
 	return res;
 }
 
