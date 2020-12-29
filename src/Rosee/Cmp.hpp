@@ -22,10 +22,11 @@ struct OpaqueRender;
 struct MVP;
 struct MV_normal;
 struct MW_local;
+struct RT_instance;
 
 namespace Cmp {
 
-using list = List<Id, Transform, Point2D, OpaqueRender, MVP, MV_normal, MW_local>;
+using list = List<Id, Transform, Point2D, OpaqueRender, MVP, MV_normal, MW_local, RT_instance>;
 
 #include "Cmp/Id_t.hpp"
 
@@ -119,6 +120,17 @@ struct Render
 
 struct OpaqueRender : public Render, public Cmp::Id_t<OpaqueRender>
 {
+};
+
+struct RT_instance : public Cmp::Id_t<RT_instance>
+{
+	static Cmp::init_fun_t init;
+	static Cmp::destr_fun_t destr;
+
+	uint32_t instanceCustomIndex:24;
+	uint32_t mask:8;
+	uint32_t instanceShaderBindingTableRecordOffset:24;
+	uint64_t accelerationStructureReference;
 };
 
 }

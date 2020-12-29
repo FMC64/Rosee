@@ -59,6 +59,14 @@ void MW_local::destr(void*, size_t)
 {
 }
 
+void RT_instance::init(void*, size_t)
+{
+}
+
+void RT_instance::destr(void*, size_t)
+{
+}
+
 namespace Cmp {
 
 static constexpr sarray<size_t, max> get_sizes(void)

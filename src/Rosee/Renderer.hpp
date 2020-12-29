@@ -19,6 +19,19 @@ using PipelinePool = Pool<Pipeline>;
 using MaterialPool = Pool<Material>;
 using ModelPool = Pool<Model>;
 
+struct AccelerationStructure : public Vk::Handle<VkAccelerationStructureKHR>
+{
+public:
+	AccelerationStructure(void) = default;
+
+	using Vk::Handle<VkAccelerationStructureKHR>::operator=;
+
+	Vk::BufferAllocation buffer;
+	VkDeviceAddress reference;
+};
+
+using AccelerationStructurePool = Pool<AccelerationStructure>;
+
 struct Camera {
 	glm::mat4 last_view;
 	glm::mat4 view;
@@ -89,9 +102,8 @@ class Renderer
 	struct ExtSupport {
 		bool ray_tracing;
 	};
-	ExtSupport m_ext_support;
-
 public:
+	ExtSupport ext_support;
 	Vk::Device device;
 
 private:
@@ -420,8 +432,10 @@ public:
 	void loadBufferCompute(VkBuffer buffer, size_t size, const void *data);
 	Model loadModel(const char *path);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
-	VkAccelerationStructureKHR createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
+
+	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
 		uint32_t indexCount, const uint16_t *pIndices);
+	void destroy(AccelerationStructure &accelerationStructure);
 
 	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);
 

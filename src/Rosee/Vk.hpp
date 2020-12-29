@@ -254,6 +254,12 @@ public:
 	{
 		vkCmdBlitImage(*this, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter);
 	}
+
+	void buildAccelerationStructuresKHR(uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
+		const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos)
+	{
+		ext.vkCmdBuildAccelerationStructuresKHR(*this, infoCount, pInfos, ppBuildRangeInfos);
+	}
 };
 
 class Queue : public Handle<VkQueue>
@@ -323,6 +329,7 @@ public:
 	void wait(VkFence fence) const;
 	void reset(VkFence fence) const;
 	VkDeviceAddress getBufferDeviceAddressKHR(VkBuffer buffer) const;
+	VkDeviceAddress getAccelerationStructureDeviceAddressKHR(VkAccelerationStructureKHR accelerationStructure) const;
 
 	SwapchainKHR createSwapchainKHR(const VkSwapchainCreateInfoKHR &ci) const
 	{
@@ -422,6 +429,13 @@ public:
 		return res;
 	}
 
+	VkAccelerationStructureKHR createAccelerationStructure(const VkAccelerationStructureCreateInfoKHR &ci) const
+	{
+		VkAccelerationStructureKHR res;
+		vkAssert(ext.vkCreateAccelerationStructureKHR(*this, &ci, nullptr, &res));
+		return res;
+	}
+
 	void destroy(VkRenderPass renderPass) const
 	{
 		vkDestroyRenderPass(*this, renderPass, nullptr);
@@ -490,6 +504,11 @@ public:
 	void destroy(VkSampler sampler) const
 	{
 		vkDestroySampler(*this, sampler, nullptr);
+	}
+
+	void destroy(VkAccelerationStructureKHR accelerationStructure) const
+	{
+		ext.vkDestroyAccelerationStructureKHR(*this, accelerationStructure, nullptr);
 	}
 
 	void destroy(void)

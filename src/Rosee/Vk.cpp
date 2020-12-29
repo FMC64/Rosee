@@ -121,6 +121,14 @@ VkDeviceAddress Vk::Device::getBufferDeviceAddressKHR(VkBuffer buffer) const
 	return Vk::ext.vkGetBufferDeviceAddressKHR(*this, &ai);
 }
 
+VkDeviceAddress Vk::Device::getAccelerationStructureDeviceAddressKHR(VkAccelerationStructureKHR accelerationStructure) const
+{
+	VkAccelerationStructureDeviceAddressInfoKHR ai{};
+	ai.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+	ai.accelerationStructure = accelerationStructure;
+	return Vk::ext.vkGetAccelerationStructureDeviceAddressKHR(*this, &ai);
+}
+
 void Vk::Device::allocateCommandBuffers(VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t commandBufferCount, VkCommandBuffer *commandBuffers) const
 {
 	VkCommandBufferAllocateInfo ai{};

@@ -376,7 +376,7 @@ Vk::Device Renderer::createDevice(void)
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acc_features{};
 	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR buffer_device_address_features{};
 	auto pnext = &ci.pNext;
-	if (m_ext_support.ray_tracing) {
+	if (ext_support.ray_tracing) {
 		rt_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
 		rt_features.rayTracingPipeline = VK_TRUE;
 		*pnext = &rt_features;
@@ -417,12 +417,12 @@ Vk::Device Renderer::createDevice(void)
 	ci.pQueueCreateInfos = qcis;
 	ci.pEnabledFeatures = &required_features;
 
-	m_ext_support = ext_supports[chosen];
+	ext_support = ext_supports[chosen];
 	const char* extensions[array_size(required_exts) + array_size(ray_tracing_exts)];
 	uint32_t extension_count = 0;
 	for (size_t i = 0; i < array_size(required_exts); i++)
 		extensions[extension_count++] = required_exts[i];
-	if (m_ext_support.ray_tracing)
+	if (ext_support.ray_tracing)
 		for (size_t i = 0; i < array_size(ray_tracing_exts); i++)
 			extensions[extension_count++] = ray_tracing_exts[i];
 
@@ -442,7 +442,7 @@ Vk::Device Renderer::createDevice(void)
 	EXT(vkQueuePresentKHR);
 	EXT(vkAcquireNextImageKHR);
 
-	if (m_ext_support.ray_tracing) {
+	if (ext_support.ray_tracing) {
 		// VK_KHR_acceleration_structure
 		EXT(vkBuildAccelerationStructuresKHR);
 		EXT(vkCmdBuildAccelerationStructuresIndirectKHR);
@@ -523,7 +523,7 @@ VkSampleCountFlagBits Renderer::fitSampleCount(VkSampleCountFlagBits sampleCount
 Vk::Allocator Renderer::createAllocator(void)
 {
 	VmaAllocatorCreateInfo ci{};
-	if (m_ext_support.ray_tracing)
+	if (ext_support.ray_tracing)
 		ci.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	ci.vulkanApiVersion = VK_API_VERSION_1_0;
 	ci.physicalDevice = m_physical_device;
@@ -2473,7 +2473,7 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 	return res;
 }
 
-VkAccelerationStructureKHR Renderer::createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
+AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
 	uint32_t indexCount, const uint16_t *pIndices)
 {
 	VkAccelerationStructureBuildGeometryInfoKHR bi{};
@@ -2534,17 +2534,45 @@ VkAccelerationStructureKHR Renderer::createBottomAccelerationStructure(uint32_t 
 	t.indexData.deviceAddress = device.getBufferDeviceAddressKHR(index);
 	bi.scratchData.deviceAddress = device.getBufferDeviceAddressKHR(scratch);
 
-	std::cout << "a: " << device.getBufferDeviceAddressKHR(acc) << std::endl;
-	std::cout << "v: " << t.vertexData.deviceAddress << std::endl;
-	std::cout << "i: " << t.indexData.deviceAddress << std::endl;
-	std::cout << "s: " << bi.scratchData.deviceAddress << std::endl;
+	VkAccelerationStructureCreateInfoKHR ci{};
+	ci.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	ci.buffer = acc;
+	ci.size = size.accelerationStructureSize;
+	ci.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	AccelerationStructure res;
+	res = device.createAccelerationStructure(ci);
+	res.buffer = acc;
+	res.reference = device.getAccelerationStructureDeviceAddressKHR(res);
+
+	bi.dstAccelerationStructure = res;
+
+	m_ctransfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	VkAccelerationStructureBuildRangeInfoKHR bri{};
+	bri.primitiveCount = prim_count;
+	bri.primitiveOffset = 0;
+	bri.firstVertex = 0;
+	VkAccelerationStructureBuildRangeInfoKHR *ppbri[] {
+		&bri
+	};
+	m_ctransfer_cmd.buildAccelerationStructuresKHR(1, &bi, ppbri);
+	m_ctransfer_cmd.end();
+	VkSubmitInfo submit{};
+	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit.commandBufferCount = 1;
+	submit.pCommandBuffers = m_ctransfer_cmd.ptr();
+	m_cqueue.submit(1, &submit, VK_NULL_HANDLE);
+	m_cqueue.waitIdle();
 
 	allocator.destroy(index);
 	allocator.destroy(vertex);
 	allocator.destroy(scratch);
+	return res;
+}
 
-	allocator.destroy(acc);	// to remove when acc created
-	return VK_NULL_HANDLE;
+void Renderer::destroy(AccelerationStructure &accelerationStructure)
+{
+	device.destroy(accelerationStructure);
+	allocator.destroy(accelerationStructure.buffer);
 }
 
 void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos)

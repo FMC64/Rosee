@@ -109,7 +109,7 @@ public:
 		return glm::normalize(glm::cross(b - a, c - a));
 	}
 
-	Model createChunk(Renderer &r, const ivec2 &pos, size_t scale)
+	Model createChunk(Renderer &r, const ivec2 &pos, size_t scale, AccelerationStructure *acc)
 	{
 		static constexpr int64_t chunk_size_gen = chunk_size + 1;
 
@@ -145,20 +145,22 @@ public:
 		r.loadBuffer(res.vertexBuffer, buf_size, vertices);
 		r.loadBuffer(res.indexBuffer, ind_size, indices);
 
-		size_t a_ind_stride = (chunk_size_gen - 1) * 6;
-		size_t a_ind_count = (chunk_size_gen - 1) * a_ind_stride;
-		uint16_t a_indices[a_ind_count];
-		for (int64_t i = 0; i < (chunk_size_gen - 1); i++) {
-			for (int64_t j = 0; j < (chunk_size_gen - 1); j++) {
-				a_indices[a_ind_stride * i + j * 6] = i * chunk_size_gen + j;
-				a_indices[a_ind_stride * i + j * 6 + 1] = (i + 1) * chunk_size_gen + j + 1;
-				a_indices[a_ind_stride * i + j * 6 + 2] = (i + 1) * chunk_size_gen + j;
-				a_indices[a_ind_stride * i + j * 6 + 3] = i * chunk_size_gen + j;
-				a_indices[a_ind_stride * i + j * 6 + 4] = i * chunk_size_gen + j + 1;
-				a_indices[a_ind_stride * i + j * 6 + 5] = (i + 1) * chunk_size_gen + j + 1;
+		if (r.ext_support.ray_tracing) {
+			size_t a_ind_stride = (chunk_size_gen - 1) * 6;
+			size_t a_ind_count = (chunk_size_gen - 1) * a_ind_stride;
+			uint16_t a_indices[a_ind_count];
+			for (int64_t i = 0; i < (chunk_size_gen - 1); i++) {
+				for (int64_t j = 0; j < (chunk_size_gen - 1); j++) {
+					a_indices[a_ind_stride * i + j * 6] = i * chunk_size_gen + j;
+					a_indices[a_ind_stride * i + j * 6 + 1] = (i + 1) * chunk_size_gen + j + 1;
+					a_indices[a_ind_stride * i + j * 6 + 2] = (i + 1) * chunk_size_gen + j;
+					a_indices[a_ind_stride * i + j * 6 + 3] = i * chunk_size_gen + j;
+					a_indices[a_ind_stride * i + j * 6 + 4] = i * chunk_size_gen + j + 1;
+					a_indices[a_ind_stride * i + j * 6 + 5] = (i + 1) * chunk_size_gen + j + 1;
+				}
 			}
+			*acc = r.createBottomAccelerationStructure(vert_count, sizeof(Vertex::pn), vertices, a_ind_count, a_indices);
 		}
-		r.createBottomAccelerationStructure(vert_count, sizeof(Vertex::pn), vertices, a_ind_count, a_indices);
 		return res;
 	}
 };
@@ -203,11 +205,14 @@ class Game
 		return res;
 	}
 
-	void gen_chunk(Pipeline *pipeline, Material *material, Model *model, const ivec2 &cpos, size_t scale)
+	void gen_chunk(Pipeline *pipeline, Material *material, Model *model, AccelerationStructurePool &acc_pool, const ivec2 &cpos, size_t scale)
 	{
 		int64_t scav = static_cast<int64_t>(1) << scale;
-		*model = m_w.createChunk(m_r, cpos, scale);
-		auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender>(1);
+		AccelerationStructure *acc = nullptr;
+		if (m_r.ext_support.ray_tracing)
+			acc = acc_pool.allocate();
+		*model = m_w.createChunk(m_r, cpos, scale, acc);
+		auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender, RT_instance>(1);
 		auto off = glm::dvec3(cpos.x * scav * World::chunk_size, 0.0, cpos.y * scav * World::chunk_size);
 		//std::cout << "chunk kj: " << k << ", " << j << std::endl;
 		//std::cout << "chunk: " << off.x << ", " << off.y << std::endl;
@@ -216,9 +221,16 @@ class Game
 		r.pipeline = pipeline;
 		r.material = material;
 		r.model = model;
+		if (m_r.ext_support.ray_tracing) {
+			auto &rt = b.get<RT_instance>()[n];
+			rt.instanceCustomIndex = 0;
+			rt.mask = 1;
+			rt.instanceShaderBindingTableRecordOffset = 0;
+			rt.accelerationStructureReference = acc->reference;
+		}
 	}
 
-	void gen_chunks(Pipeline *pipeline, Material *material, ModelPool &model_pool)
+	void gen_chunks(Pipeline *pipeline, Material *material, ModelPool &model_pool, AccelerationStructurePool &acc_pool)
 	{
 		auto pos = ivec2(0, 0);
 		auto pos_end = pos + ivec2(0);
@@ -240,7 +252,7 @@ class Game
 					auto cpos_sca = cpos * static_cast<int64_t>(2);
 					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.x && cpos_sca.y < pos_end.y)) {
 						//chunk_count++;
-						gen_chunk(pipeline, material, model_pool.allocate(), cpos, nscale);
+						gen_chunk(pipeline, material, model_pool.allocate(), acc_pool, cpos, nscale);
 					}
 				}
 
@@ -257,6 +269,7 @@ public:
 		auto pipeline_pool = PipelinePool(64);
 		auto material_pool = MaterialPool(64);
 		auto model_pool = ModelPool(512);
+		auto acc_pool = AccelerationStructurePool(512);
 		static constexpr size_t image_count = Renderer::s0_sampler_count;
 		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
 		auto image_view_pool = Pool<Vk::ImageView>(image_count);
@@ -328,7 +341,7 @@ public:
 			r.model = model_pool.allocate();
 			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj");
 		}
-		gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool);
+		gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool, acc_pool);
 
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;
@@ -498,6 +511,7 @@ public:
 		m_r.device.destroy(sampler_norm_n);
 		m_r.device.destroy(sampler_norm_l);
 		pipeline_pool.destroy(m_r.device);
+		acc_pool.destroyUsing(m_r);
 		model_pool.destroy(m_r.allocator);
 		image_view_pool.destroyUsing(m_r.device);
 		image_pool.destroyUsing(m_r.allocator);
