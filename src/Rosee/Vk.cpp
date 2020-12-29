@@ -108,9 +108,17 @@ void Vk::Device::wait(VkFence fence) const
 	vkAssert(vkWaitForFences(*this, 1, &fence, VK_TRUE, ~0ULL));
 }
 
-void Vk::Device::reset(VkFence fence)
+void Vk::Device::reset(VkFence fence) const
 {
 	vkAssert(vkResetFences(*this, 1, &fence));
+}
+
+VkDeviceAddress Vk::Device::getBufferDeviceAddressKHR(VkBuffer buffer) const
+{
+	VkBufferDeviceAddressInfo ai{};
+	ai.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+	ai.buffer = buffer;
+	return Vk::ext.vkGetBufferDeviceAddressKHR(*this, &ai);
 }
 
 void Vk::Device::allocateCommandBuffers(VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t commandBufferCount, VkCommandBuffer *commandBuffers) const

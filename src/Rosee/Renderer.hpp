@@ -38,14 +38,18 @@ struct p2
 struct pn
 {
 	glm::vec3 p;
+	//float _pad0;
 	glm::vec3 n;
 };
 
 struct pnu
 {
 	glm::vec3 p;
+	//float _pad0;
 	glm::vec3 n;
+	//float _pad1;
 	glm::vec2 u;
+	//glm::vec2 _pad2;
 };
 
 }
@@ -156,6 +160,8 @@ private:
 	Vk::CommandPool m_command_pool;
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
+	Vk::CommandPool m_ctransfer_command_pool;
+	Vk::CommandBuffer m_ctransfer_cmd;
 
 public:
 	static inline constexpr uint32_t s0_sampler_count = 2;
@@ -411,8 +417,11 @@ public:
 	Vk::BufferAllocation createVertexBuffer(size_t size);
 	Vk::BufferAllocation createIndexBuffer(size_t size);
 	void loadBuffer(VkBuffer buffer, size_t size, const void *data);
+	void loadBufferCompute(VkBuffer buffer, size_t size, const void *data);
 	Model loadModel(const char *path);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
+	VkAccelerationStructureKHR createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
+		uint32_t indexCount, const uint16_t *pIndices);
 
 	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);
 

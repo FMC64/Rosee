@@ -208,6 +208,18 @@ Vk::Device Renderer::createDevice(void)
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
 
+	static const char *ray_tracing_exts[] {
+		// core ray tracing
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+			VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+				VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
+			VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+				VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+					VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+				VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+				VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+	};
+
 	uint32_t chosen = ~0U;
 	size_t chosen_score = 0;
 
@@ -232,25 +244,35 @@ Vk::Device Renderer::createDevice(void)
 		vkEnumerateDeviceExtensionProperties(dev, nullptr, &ext_count, nullptr);
 		VkExtensionProperties exts[ext_count];
 		vkEnumerateDeviceExtensionProperties(dev, nullptr, &ext_count, exts);
-		bool ext_missing = false;
+		bool req_ext_supported = true;
 		ext_supports[i] = ExtSupport{};
 		for (size_t j = 0; j < array_size(required_exts); j++) {
 			bool found = false;
 			for (size_t k = 0; k < ext_count; k++)
-				if (std::strcmp(required_exts[j], exts[k].extensionName) == 0) {
+				if (std::strcmp(exts[k].extensionName, required_exts[j]) == 0) {
 					found = true;
 					break;
 				}
 			if (!found) {
-				ext_missing = true;
+				req_ext_supported = false;
 				break;
 			}
 		}
-		if (ext_missing)
+		if (!req_ext_supported)
 			continue;
-		for (size_t k = 0; k < ext_count; k++) {
-			if (std::strcmp(exts[k].extensionName, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME) == 0)
-				ext_supports[i].ray_tracing = true;
+		ext_supports[i].ray_tracing = true;
+		for (size_t j = 0; j < array_size(ray_tracing_exts); j++) {
+			bool found = false;
+			for (size_t k = 0; k < ext_count; k++) {
+				if (std::strcmp(exts[k].extensionName, ray_tracing_exts[j]) == 0) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				ext_supports[i].ray_tracing = false;
+				break;
+			}
 		}
 
 		uint32_t queue_family_count;
@@ -274,16 +296,14 @@ Vk::Device Renderer::createDevice(void)
 				physical_devices_gqueue_families[i] = j;
 				gbits = fbits;
 			}
-			if (ext_supports[i].ray_tracing) {
-				if ((cur.queueFlags & VK_QUEUE_COMPUTE_BIT) && fbits < cbits) {
-					physical_devices_cqueue_families[i] = j;
-					cbits = fbits;
-				}
+			if ((cur.queueFlags & VK_QUEUE_COMPUTE_BIT) && fbits < cbits) {
+				physical_devices_cqueue_families[i] = j;
+				cbits = fbits;
 			}
 		}
 		if (physical_devices_gqueue_families[i] == ~0U)
 			continue;
-		if (ext_supports[i].ray_tracing && (physical_devices_cqueue_families[i] == ~0U))
+		if (physical_devices_cqueue_families[i] == ~0U)
 			continue;
 
 		uint32_t present_mode_count;
@@ -352,6 +372,26 @@ Vk::Device Renderer::createDevice(void)
 
 	VkDeviceCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt_features{};
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR acc_features{};
+	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR buffer_device_address_features{};
+	auto pnext = &ci.pNext;
+	if (m_ext_support.ray_tracing) {
+		rt_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+		rt_features.rayTracingPipeline = VK_TRUE;
+		*pnext = &rt_features;
+		pnext = const_cast<const void**>(&rt_features.pNext);
+
+		acc_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+		acc_features.accelerationStructure = VK_TRUE;
+		*pnext = &acc_features;
+		pnext = const_cast<const void**>(&acc_features.pNext);
+
+		buffer_device_address_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR;
+		buffer_device_address_features.bufferDeviceAddress = VK_TRUE;
+		*pnext = &buffer_device_address_features;
+		pnext = const_cast<const void**>(&buffer_device_address_features.pNext);
+	}
 
 	VkDeviceQueueCreateInfo gqci{};
 	gqci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -371,30 +411,20 @@ Vk::Device Renderer::createDevice(void)
 	VkDeviceQueueCreateInfo qcis[2];
 	uint32_t qci_count = 0;
 	qcis[qci_count++] = gqci;
-	if (m_queue_family_compute != ~0U && m_queue_family_graphics != m_queue_family_compute)
+	if (m_queue_family_graphics != m_queue_family_compute)
 		qcis[qci_count++] = cqci;
 	ci.queueCreateInfoCount = qci_count;
 	ci.pQueueCreateInfos = qcis;
 	ci.pEnabledFeatures = &required_features;
 
 	m_ext_support = ext_supports[chosen];
-	static const char *ray_tracing_exts[] {
-		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-			VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-				VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
-			VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-				VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-					VK_KHR_MAINTENANCE3_EXTENSION_NAME,
-				VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-				VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
-	};
 	const char* extensions[array_size(required_exts) + array_size(ray_tracing_exts)];
 	uint32_t extension_count = 0;
 	for (size_t i = 0; i < array_size(required_exts); i++)
 		extensions[extension_count++] = required_exts[i];
 	if (m_ext_support.ray_tracing)
-	for (size_t i = 0; i < array_size(ray_tracing_exts); i++)
-		extensions[extension_count++] = ray_tracing_exts[i];
+		for (size_t i = 0; i < array_size(ray_tracing_exts); i++)
+			extensions[extension_count++] = ray_tracing_exts[i];
 
 	std::cout << "Device extensions:" << std::endl;
 	for (size_t i = 0; i < extension_count; i++)
@@ -414,8 +444,25 @@ Vk::Device Renderer::createDevice(void)
 
 	if (m_ext_support.ray_tracing) {
 		// VK_KHR_acceleration_structure
+		EXT(vkBuildAccelerationStructuresKHR);
+		EXT(vkCmdBuildAccelerationStructuresIndirectKHR);
+		EXT(vkCmdBuildAccelerationStructuresKHR);
+		EXT(vkCmdCopyAccelerationStructureKHR);
+		EXT(vkCmdCopyAccelerationStructureToMemoryKHR);
+		EXT(vkCmdCopyMemoryToAccelerationStructureKHR);
+		EXT(vkCmdWriteAccelerationStructuresPropertiesKHR);
+		EXT(vkCopyAccelerationStructureKHR);
+		EXT(vkCopyAccelerationStructureToMemoryKHR);
+		EXT(vkCopyMemoryToAccelerationStructureKHR);
 		EXT(vkCreateAccelerationStructureKHR);
 		EXT(vkDestroyAccelerationStructureKHR);
+		EXT(vkGetAccelerationStructureBuildSizesKHR);
+		EXT(vkGetAccelerationStructureDeviceAddressKHR);
+		EXT(vkGetDeviceAccelerationStructureCompatibilityKHR);
+		EXT(vkWriteAccelerationStructuresPropertiesKHR);
+
+		// VK_KHR_buffer_device_address
+		EXT(vkGetBufferDeviceAddressKHR);
 	}
 #undef EXT
 	return res;
@@ -476,6 +523,8 @@ VkSampleCountFlagBits Renderer::fitSampleCount(VkSampleCountFlagBits sampleCount
 Vk::Allocator Renderer::createAllocator(void)
 {
 	VmaAllocatorCreateInfo ci{};
+	if (m_ext_support.ray_tracing)
+		ci.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	ci.vulkanApiVersion = VK_API_VERSION_1_0;
 	ci.physicalDevice = m_physical_device;
 	ci.device = device;
@@ -2172,6 +2221,39 @@ void Renderer::loadBuffer(VkBuffer buffer, size_t size, const void *data)
 	allocator.destroy(s);
 }
 
+void Renderer::loadBufferCompute(VkBuffer buffer, size_t size, const void *data)
+{
+	VkBufferCreateInfo bci{};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = size;
+	bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	VmaAllocationCreateInfo aci{};
+	aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+	aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	void *mdata;
+	auto s = allocator.createBuffer(bci, aci, &mdata);
+	std::memcpy(mdata, data, size);
+	allocator.invalidateAllocation(s, 0, size);
+
+	m_ctransfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	VkBufferCopy region;
+	region.srcOffset = 0;
+	region.dstOffset = 0;
+	region.size = size;
+	m_ctransfer_cmd.copyBuffer(s, buffer, 1, &region);
+	m_ctransfer_cmd.end();
+
+	VkSubmitInfo submit{};
+	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit.commandBufferCount = 1;
+	submit.pCommandBuffers = m_ctransfer_cmd.ptr();
+	m_cqueue.submit(1, &submit, VK_NULL_HANDLE);
+	m_cqueue.waitIdle();
+
+	allocator.destroy(s);
+}
+
+
 Model Renderer::loadModel(const char *path)
 {
 	std::ifstream file(path);
@@ -2391,6 +2473,80 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 	return res;
 }
 
+VkAccelerationStructureKHR Renderer::createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
+	uint32_t indexCount, const uint16_t *pIndices)
+{
+	VkAccelerationStructureBuildGeometryInfoKHR bi{};
+	bi.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	bi.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	bi.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	bi.geometryCount = 1;
+	VkAccelerationStructureGeometryKHR geometry{};
+	geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+	auto &t = geometry.geometry.triangles;
+	t = VkAccelerationStructureGeometryTrianglesDataKHR{};
+	t.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+	t.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+	t.vertexData.hostAddress = nullptr;
+	t.vertexStride = vertexStride;
+	t.maxVertex = vertexCount;
+	t.indexType = VK_INDEX_TYPE_UINT16;
+	t.indexData.hostAddress = nullptr;
+	t.transformData.hostAddress = nullptr;
+	bi.pGeometries = &geometry;
+	bi.scratchData.hostAddress = nullptr;
+
+	uint32_t prim_count = indexCount / 3;
+	VkAccelerationStructureBuildSizesInfoKHR size{};
+	size.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+	Vk::ext.vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &bi, &prim_count, &size);
+
+	VmaAllocationCreateInfo aci{
+		.usage = VMA_MEMORY_USAGE_GPU_ONLY
+	};
+
+	VkBufferCreateInfo acc_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = size.accelerationStructureSize,
+		.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+	};
+	auto acc = allocator.createBuffer(acc_bci, aci);
+
+	VkBufferCreateInfo scratch_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = size.buildScratchSize,
+		.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+	};
+	auto scratch = allocator.createBuffer(scratch_bci, aci);
+	VkBufferCreateInfo vertex_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = vertexCount * vertexStride,
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	auto vertex = allocator.createBuffer(vertex_bci, aci);
+	VkBufferCreateInfo index_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = vertexCount * vertexStride,
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	auto index = allocator.createBuffer(index_bci, aci);
+	loadBuffer(vertex, vertexCount * vertexStride, pVertices);
+	loadBuffer(index, indexCount * sizeof(uint16_t), pIndices);
+
+	t.vertexData.deviceAddress = device.getBufferDeviceAddressKHR(vertex);
+	t.indexData.deviceAddress = device.getBufferDeviceAddressKHR(index);
+	bi.scratchData.deviceAddress = device.getBufferDeviceAddressKHR(scratch);
+
+	std::cout << "a: " << device.getBufferDeviceAddressKHR(acc) << std::endl;
+	std::cout << "v: " << t.vertexData.deviceAddress << std::endl;
+	std::cout << "i: " << t.indexData.deviceAddress << std::endl;
+	std::cout << "s: " << bi.scratchData.deviceAddress << std::endl;
+
+	allocator.destroy(index);
+	allocator.destroy(vertex);
+	allocator.destroy(scratch);
+
+	allocator.destroy(acc);	// to remove when acc created
+	return VK_NULL_HANDLE;
+}
+
 void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos)
 {
 	VkWriteDescriptorSet writes[m_frame_count];
@@ -2422,7 +2578,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_pipeline_cache(VK_NULL_HANDLE),
 	allocator(createAllocator()),
 	m_gqueue(device.getQueue(m_queue_family_graphics, 0)),
-	m_cqueue(m_queue_family_compute != ~0U ? device.getQueue(m_queue_family_compute, 0) : Vk::Queue(VK_NULL_HANDLE)),
+	m_cqueue(device.getQueue(m_queue_family_compute, 0)),
 	m_swapchain(createSwapchain()),
 	m_swapchain_images(device.getSwapchainImages(m_swapchain)),
 	m_swapchain_image_views(createSwapchainImageViews()),
@@ -2430,8 +2586,11 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 		m_queue_family_graphics)),
 	m_transfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
+	m_ctransfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		m_queue_family_compute)),
 	m_descriptor_set_layout_0(
-		(device.allocateCommandBuffers(m_transfer_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, m_transfer_cmd.ptr()),
+			(device.allocateCommandBuffers(m_transfer_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, m_transfer_cmd.ptr()),
+			device.allocateCommandBuffers(m_ctransfer_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1, m_ctransfer_cmd.ptr()),
 		createDescriptorSetLayout0())
 		),
 	m_descriptor_set_layout_dynamic(createDescriptorSetLayoutDynamic()),
@@ -2516,6 +2675,7 @@ Renderer::~Renderer(void)
 	device.destroy(m_descriptor_set_layout_dynamic);
 	device.destroy(m_descriptor_set_layout_0);
 
+	device.destroy(m_ctransfer_command_pool);
 	device.destroy(m_transfer_command_pool);
 	device.destroy(m_command_pool);
 	for (auto &v : m_swapchain_image_views)

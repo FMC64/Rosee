@@ -25,8 +25,25 @@ struct Ext {
 	EXT(vkAcquireNextImageKHR);
 
 	// VK_KHR_acceleration_structure
+	EXT(vkBuildAccelerationStructuresKHR);
+	EXT(vkCmdBuildAccelerationStructuresIndirectKHR);
+	EXT(vkCmdBuildAccelerationStructuresKHR);
+	EXT(vkCmdCopyAccelerationStructureKHR);
+	EXT(vkCmdCopyAccelerationStructureToMemoryKHR);
+	EXT(vkCmdCopyMemoryToAccelerationStructureKHR);
+	EXT(vkCmdWriteAccelerationStructuresPropertiesKHR);
+	EXT(vkCopyAccelerationStructureKHR);
+	EXT(vkCopyAccelerationStructureToMemoryKHR);
+	EXT(vkCopyMemoryToAccelerationStructureKHR);
 	EXT(vkCreateAccelerationStructureKHR);
 	EXT(vkDestroyAccelerationStructureKHR);
+	EXT(vkGetAccelerationStructureBuildSizesKHR);
+	EXT(vkGetAccelerationStructureDeviceAddressKHR);
+	EXT(vkGetDeviceAccelerationStructureCompatibilityKHR);
+	EXT(vkWriteAccelerationStructuresPropertiesKHR);
+
+	// VK_KHR_buffer_device_address
+	EXT(vkGetBufferDeviceAddressKHR);
 #undef EXT
 };
 extern Ext ext;
@@ -304,7 +321,8 @@ public:
 
 	Queue getQueue(uint32_t family, uint32_t index) const;
 	void wait(VkFence fence) const;
-	void reset(VkFence fence);
+	void reset(VkFence fence) const;
+	VkDeviceAddress getBufferDeviceAddressKHR(VkBuffer buffer) const;
 
 	SwapchainKHR createSwapchainKHR(const VkSwapchainCreateInfoKHR &ci) const
 	{

@@ -144,6 +144,21 @@ public:
 		res.indexType = VK_INDEX_TYPE_UINT16;
 		r.loadBuffer(res.vertexBuffer, buf_size, vertices);
 		r.loadBuffer(res.indexBuffer, ind_size, indices);
+
+		size_t a_ind_stride = (chunk_size_gen - 1) * 6;
+		size_t a_ind_count = (chunk_size_gen - 1) * a_ind_stride;
+		uint16_t a_indices[a_ind_count];
+		for (int64_t i = 0; i < (chunk_size_gen - 1); i++) {
+			for (int64_t j = 0; j < (chunk_size_gen - 1); j++) {
+				a_indices[a_ind_stride * i + j * 6] = i * chunk_size_gen + j;
+				a_indices[a_ind_stride * i + j * 6 + 1] = (i + 1) * chunk_size_gen + j + 1;
+				a_indices[a_ind_stride * i + j * 6 + 2] = (i + 1) * chunk_size_gen + j;
+				a_indices[a_ind_stride * i + j * 6 + 3] = i * chunk_size_gen + j;
+				a_indices[a_ind_stride * i + j * 6 + 4] = i * chunk_size_gen + j + 1;
+				a_indices[a_ind_stride * i + j * 6 + 5] = (i + 1) * chunk_size_gen + j + 1;
+			}
+		}
+		r.createBottomAccelerationStructure(vert_count, sizeof(Vertex::pn), vertices, a_ind_count, a_indices);
 		return res;
 	}
 };
