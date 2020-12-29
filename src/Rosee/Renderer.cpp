@@ -3553,10 +3553,13 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_wsi_fb(createWsiFb()),
 	m_wsi_set(descriptorSetWsi)
 {
+	m_top_acc_structure = VK_NULL_HANDLE;
 }
 
 void Renderer::Frame::destroy(bool with_ext_res)
 {
+	if (m_top_acc_structure != VK_NULL_HANDLE)
+		m_r.destroy(m_top_acc_structure);
 	m_r.device.destroy(m_wsi_fb);
 	m_r.allocator.destroy(m_illumination_buffer);
 	m_r.device.destroy(m_illumination_fb);
@@ -3661,6 +3664,109 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
 				Vk::PipelineStage::FragmentShaderBit, 0,
 				1, &barrier, 0, nullptr, 0, nullptr);
+		}
+
+		if (m_r.ext_support.ray_tracing) {
+			uint32_t instance_count = 0;
+			map.query<RT_instance>([&](Brush &b){
+				instance_count += b.size();
+			});
+			std::vector<VkAccelerationStructureInstanceKHR> instances(instance_count);
+			uint32_t instance_offset = 0;
+			map.query<RT_instance>([&](Brush &b){
+				auto t = b.get<Transform>();
+				auto rt_i = b.get<RT_instance>();
+				for (size_t i = 0; i < b.size(); i++) {
+					auto &ins = instances[instance_offset + i];
+					auto &ct = t[i];
+					auto &crt_i = rt_i[i];
+					for (size_t j = 0; j < 3; j++)
+						for (size_t k = 0; k < 3; k++)
+							ins.transform.matrix[j][k] = ct[j][k];
+					ins.instanceCustomIndex = crt_i.instanceCustomIndex;
+					ins.mask = crt_i.mask;
+					ins.instanceShaderBindingTableRecordOffset = crt_i.instanceShaderBindingTableRecordOffset;
+					ins.flags = 0;
+					ins.accelerationStructureReference = crt_i.accelerationStructureReference;
+				}
+				instance_offset += b.size();
+			});
+
+			VkAccelerationStructureBuildGeometryInfoKHR bi{};
+			bi.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+			bi.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+			bi.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+			bi.geometryCount = 1;
+			VkAccelerationStructureGeometryKHR geometry{};
+			geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+			geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+			auto &i = geometry.geometry.instances;
+			i = VkAccelerationStructureGeometryInstancesDataKHR{};
+			i.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+			i.data.hostAddress = nullptr;
+			bi.pGeometries = &geometry;
+			bi.scratchData.hostAddress = nullptr;
+
+			VkAccelerationStructureBuildSizesInfoKHR size{};
+			size.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+			Vk::ext.vkGetAccelerationStructureBuildSizesKHR(m_r.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &bi, &instance_count, &size);
+
+			VmaAllocationCreateInfo aci{
+				.usage = VMA_MEMORY_USAGE_GPU_ONLY
+			};
+
+			VkBufferCreateInfo acc_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+				.size = size.accelerationStructureSize,
+				.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+			};
+			auto acc = m_r.allocator.createBuffer(acc_bci, aci);
+
+			VkBufferCreateInfo scratch_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+				.size = size.buildScratchSize,
+				.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+			};
+			auto scratch = m_r.allocator.createBuffer(scratch_bci, aci);
+			VkBufferCreateInfo instance_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+				.size = instance_count * sizeof(VkAccelerationStructureInstanceKHR),
+				.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+			};
+			auto instance = m_r.allocator.createBuffer(instance_bci, aci);
+			m_r.loadBuffer(instance, instance_count * sizeof(VkAccelerationStructureInstanceKHR), instances.data());
+
+			i.data.deviceAddress = m_r.device.getBufferDeviceAddressKHR(instance);
+			bi.scratchData.deviceAddress = m_r.device.getBufferDeviceAddressKHR(scratch);
+
+			VkAccelerationStructureCreateInfoKHR ci{};
+			ci.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+			ci.buffer = acc;
+			ci.size = size.accelerationStructureSize;
+			ci.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+			if (m_top_acc_structure != VK_NULL_HANDLE)
+				m_r.destroy(m_top_acc_structure);
+			m_top_acc_structure = m_r.device.createAccelerationStructure(ci);
+			m_top_acc_structure.buffer = acc;
+			m_top_acc_structure.reference = m_r.device.getAccelerationStructureDeviceAddressKHR(m_top_acc_structure);
+
+			bi.dstAccelerationStructure = m_top_acc_structure;
+
+			m_r.m_ctransfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+			VkAccelerationStructureBuildRangeInfoKHR bri{};
+			bri.primitiveCount = instance_count;
+			bri.primitiveOffset = 0;
+			VkAccelerationStructureBuildRangeInfoKHR *ppbri[] {
+				&bri
+			};
+			m_r.m_ctransfer_cmd.buildAccelerationStructuresKHR(1, &bi, ppbri);
+			m_r.m_ctransfer_cmd.end();
+			VkSubmitInfo submit{};
+			submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submit.commandBufferCount = 1;
+			submit.pCommandBuffers = m_r.m_ctransfer_cmd.ptr();
+			m_r.m_cqueue.submit(1, &submit, VK_NULL_HANDLE);
+			m_r.m_cqueue.waitIdle();
+
+			m_r.allocator.destroy(instance);
+			m_r.allocator.destroy(scratch);
 		}
 
 		if (m_r.m_illum_technique == IllumTechnique::Ssgi) {

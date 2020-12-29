@@ -390,6 +390,8 @@ private:
 			float cam_b;
 		};
 
+		AccelerationStructure m_top_acc_structure;
+
 	public:
 		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
 			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
