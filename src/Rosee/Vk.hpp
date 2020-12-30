@@ -44,6 +44,15 @@ struct Ext {
 
 	// VK_KHR_buffer_device_address
 	EXT(vkGetBufferDeviceAddressKHR);
+
+	// VK_KHR_ray_tracing_pipeline
+	EXT(vkCmdSetRayTracingPipelineStackSizeKHR);
+	EXT(vkCmdTraceRaysIndirectKHR);
+	EXT(vkCmdTraceRaysKHR);
+	EXT(vkCreateRayTracingPipelinesKHR);
+	EXT(vkGetRayTracingCaptureReplayShaderGroupHandlesKHR);
+	EXT(vkGetRayTracingShaderGroupHandlesKHR);
+	EXT(vkGetRayTracingShaderGroupStackSizeKHR);
 #undef EXT
 };
 extern Ext ext;

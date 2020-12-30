@@ -257,7 +257,8 @@ private:
 		using Type = uint32_t;
 		static inline constexpr Type Potato = 0;
 		static inline constexpr Type Ssgi = 1;
-		static inline constexpr Type MaxEnum = Ssgi + 1;
+		static inline constexpr Type RayTracing = 2;
+		static inline constexpr Type MaxEnum = RayTracing + 1;
 
 		struct Props {
 			uint32_t descriptorCombinedImageSamplerCount;

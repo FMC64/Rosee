@@ -41,20 +41,44 @@ OBJ_DEP = $(ROSEED)/Vma.o $(ROSEED)/tinyobjloader.o $(ROSEED)/stb_image.o
 SRC = $(SRCD)/main.cpp $(ROSEE_SRC)
 OBJ = $(SRC:.cpp=.o)
 
+GLSL_RT_FLAGS = --target-env spirv1.4
+
 %.vert.spv: %.vert
 	glslangValidator $< -V -o $@
-
 %.frag.spv: %.frag
 	glslangValidator $< -V -o $@
+%.comp.spv: %.comp
+	glslangValidator $< -V -o $@
+%.rgen.spv: %.rgen
+	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+%.rint.spv: %.rint
+	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+%.rahit.spv: %.rahit
+	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+%.rchit.spv: %.rchit
+	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+%.rmiss.spv: %.rmiss
+	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+%.rcall.spv: %.rcall
+	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
 
 SHAD = sha
 SHA = $(SHAD)/opaque.vert $(SHAD)/opaque.frag $(SHAD)/opaque_uvgen.vert $(SHAD)/opaque_uvgen.frag \
 	$(SHAD)/fwd_p2.vert $(SHAD)/color_resolve.frag $(SHAD)/depth_resolve.frag $(SHAD)/depth_resolve_ms.frag $(SHAD)/depth_acc.frag \
-	$(SHAD)/potato.frag $(SHAD)/potato_ms.frag $(SHAD)/ssgi.frag $(SHAD)/ssgi_ms.frag $(SHAD)/wsi.frag
+	$(SHAD)/potato.frag $(SHAD)/potato_ms.frag $(SHAD)/ssgi.frag $(SHAD)/ssgi_ms.frag \
+	$(SHAD)/ray_tracing.rgen \
+	$(SHAD)/wsi.frag
 
 SHA_VERT = $(SHA:.vert=.vert.spv)
 SHA_FRAG = $(SHA:.frag=.frag.spv)
-SHAS = $(filter-out $(SHA), $(SHA_VERT) $(SHA_FRAG))
+SHA_COMP = $(SHA:.comp=.comp.spv)
+SHA_RGEN = $(SHA:.rgen=.rgen.spv)
+SHA_RINT = $(SHA:.rint=.rint.spv)
+SHA_RAHIT = $(SHA:.rahit=.rahit.spv)
+SHA_RCHIT = $(SHA:.rchit=.rchit.spv)
+SHA_MISS = $(SHA:.rmiss=.rmiss.spv)
+SHA_CALL = $(SHA:.rcall=.rcall.spv)
+SHAS = $(filter-out $(SHA), $(SHA_VERT) $(SHA_FRAG) $(SHA_COMP) $(SHA_RGEN) $(SHA_RINT) $(SHA_RAHIT) $(SHA_RCHIT) $(SHA_MISS) $(SHA_CALL))
 
 TARGET = rosee
 

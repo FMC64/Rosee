@@ -463,6 +463,15 @@ Vk::Device Renderer::createDevice(void)
 
 		// VK_KHR_buffer_device_address
 		EXT(vkGetBufferDeviceAddressKHR);
+
+		// VK_KHR_ray_tracing_pipeline
+		EXT(vkCmdSetRayTracingPipelineStackSizeKHR);
+		EXT(vkCmdTraceRaysIndirectKHR);
+		EXT(vkCmdTraceRaysKHR);
+		EXT(vkCreateRayTracingPipelinesKHR);
+		EXT(vkGetRayTracingCaptureReplayShaderGroupHandlesKHR);
+		EXT(vkGetRayTracingShaderGroupHandlesKHR);
+		EXT(vkGetRayTracingShaderGroupStackSizeKHR);
 	}
 #undef EXT
 	return res;
@@ -801,6 +810,13 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 			.fragShaderColorAttachmentCount = 7,
 			.barrsPerFrame = IllumTechnique::Data::Ssgi::barrsPerFrame,
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::addBarrsPerFrame
+		},
+		{
+			.descriptorCombinedImageSamplerCount = 0,
+			.fragShaderPath = nullptr,
+			.fragShaderColorAttachmentCount = 0,
+			.barrsPerFrame = 0,
+			.addBarrsPerFrame = 0
 		}
 	};
 	static const IllumTechnique::Props props_ms[IllumTechnique::MaxEnum] {
@@ -817,6 +833,13 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 			.fragShaderColorAttachmentCount = 7,
 			.barrsPerFrame = IllumTechnique::Data::Ssgi::msBarrsPerFrame,
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::msAddBarrsPerFrame
+		},
+		{
+			.descriptorCombinedImageSamplerCount = 0,
+			.fragShaderPath = nullptr,
+			.fragShaderColorAttachmentCount = 0,
+			.barrsPerFrame = 0,
+			.addBarrsPerFrame = 0
 		}
 	};
 
@@ -1299,6 +1322,8 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 
 		return device.createRenderPass(ci);
 	}
+	if (m_illum_technique == IllumTechnique::RayTracing)
+		return VK_NULL_HANDLE;
 	throw std::runtime_error("createIlluminationPass");
 }
 
@@ -1364,6 +1389,15 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 			return device.createDescriptorSetLayout(ci);
 		}
 	}
+	if (m_illum_technique == IllumTechnique::RayTracing) {
+		VkDescriptorSetLayoutBinding bindings[] {
+			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+			{1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// output
+		};
+		ci.bindingCount = array_size(bindings);
+		ci.pBindings = bindings;
+		return device.createDescriptorSetLayout(ci);
+	}
 	throw std::runtime_error("createIlluminationSetLayout");
 }
 
@@ -1371,102 +1405,140 @@ Pipeline Renderer::createIlluminationPipeline(void)
 {
 	Pipeline res;
 
-	VkGraphicsPipelineCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, m_illum_technique_props.fragShaderPath);
-	res.pushShaderModule(frag);
-	struct FragSpec {
-		int32_t sample_count;
-		float sample_factor;
-	} frag_spec_data{static_cast<int32_t>(m_sample_count), 1.0f / static_cast<float>(m_sample_count)};
-	VkSpecializationMapEntry frag_spec_entries[] {
-		{0, offsetof(FragSpec, sample_count), sizeof(FragSpec::sample_count)},
-		{1, offsetof(FragSpec, sample_factor), sizeof(FragSpec::sample_factor)}
-	};
-	VkSpecializationInfo frag_spec;
-	frag_spec.mapEntryCount = array_size(frag_spec_entries);
-	frag_spec.pMapEntries = frag_spec_entries;
-	frag_spec.dataSize = sizeof(FragSpec);
-	frag_spec.pData = &frag_spec_data;
-	VkPipelineShaderStageCreateInfo stages[] {
-		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
-		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
-			VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
-	};
-	ci.stageCount = array_size(stages);
-	ci.pStages = stages;
-
-	VkPipelineVertexInputStateCreateInfo vertex_input{};
-	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	VkVertexInputBindingDescription vertex_input_bindings[] {
-		{0, sizeof(Vertex::p2), VK_VERTEX_INPUT_RATE_VERTEX}
-	};
-	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
-	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
-	VkVertexInputAttributeDescription vertex_input_attributes[] {
-		{0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::p2, p)}
-	};
-	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
-	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
-	ci.pVertexInputState = &vertex_input;
-
-	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
-	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	ci.pInputAssemblyState = &input_assembly;
-
-	ci.pViewportState = &m_pipeline_viewport_state.ci;
-
-	VkPipelineRasterizationStateCreateInfo rasterization{};
-	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterization.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
-	rasterization.lineWidth = 1.0f;
-	ci.pRasterizationState = &rasterization;
-
-	VkPipelineMultisampleStateCreateInfo multisample{};
-	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	ci.pMultisampleState = &multisample;
-
-	VkPipelineColorBlendStateCreateInfo color_blend{};
-	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	VkPipelineColorBlendAttachmentState color_blend_attachment{};
-	color_blend_attachment.blendEnable = VK_FALSE;
-	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	VkPipelineColorBlendAttachmentState color_blend_attachments[m_illum_technique_props.fragShaderColorAttachmentCount];
-	for (uint32_t i = 0; i < m_illum_technique_props.fragShaderColorAttachmentCount; i++)
-		color_blend_attachments[i] = color_blend_attachment;
-	color_blend.attachmentCount = m_illum_technique_props.fragShaderColorAttachmentCount;
-	color_blend.pAttachments = color_blend_attachments;
-	ci.pColorBlendState = &color_blend;
-
-	VkPipelineDynamicStateCreateInfo dynamic{};
-	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	VkDynamicState dynamic_states[] {
-		VK_DYNAMIC_STATE_VIEWPORT,
-		VK_DYNAMIC_STATE_SCISSOR
-	};
-	dynamic.dynamicStateCount = array_size(dynamic_states);
-	dynamic.pDynamicStates = dynamic_states;
-	ci.pDynamicState = &dynamic;
-
-	{
-		VkPipelineLayoutCreateInfo ci{};
-		ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		VkDescriptorSetLayout set_layouts[] {
-			m_illumination_set_layout
+	if (m_illum_technique == IllumTechnique::Potato || m_illum_technique == IllumTechnique::Ssgi) {
+		VkGraphicsPipelineCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, m_illum_technique_props.fragShaderPath);
+		res.pushShaderModule(frag);
+		struct FragSpec {
+			int32_t sample_count;
+			float sample_factor;
+		} frag_spec_data{static_cast<int32_t>(m_sample_count), 1.0f / static_cast<float>(m_sample_count)};
+		VkSpecializationMapEntry frag_spec_entries[] {
+			{0, offsetof(FragSpec, sample_count), sizeof(FragSpec::sample_count)},
+			{1, offsetof(FragSpec, sample_factor), sizeof(FragSpec::sample_factor)}
 		};
-		ci.setLayoutCount = array_size(set_layouts);
-		ci.pSetLayouts = set_layouts;
-		res.pipelineLayout = device.createPipelineLayout(ci);
-	}
-	ci.layout = res.pipelineLayout;
-	ci.renderPass = m_illumination_pass;
+		VkSpecializationInfo frag_spec;
+		frag_spec.mapEntryCount = array_size(frag_spec_entries);
+		frag_spec.pMapEntries = frag_spec_entries;
+		frag_spec.dataSize = sizeof(FragSpec);
+		frag_spec.pData = &frag_spec_data;
+		VkPipelineShaderStageCreateInfo stages[] {
+			initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, m_fwd_p2_module),
+			VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+				VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
+		};
+		ci.stageCount = array_size(stages);
+		ci.pStages = stages;
 
-	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
-	return res;
+		VkPipelineVertexInputStateCreateInfo vertex_input{};
+		vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		VkVertexInputBindingDescription vertex_input_bindings[] {
+			{0, sizeof(Vertex::p2), VK_VERTEX_INPUT_RATE_VERTEX}
+		};
+		vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+		vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+		VkVertexInputAttributeDescription vertex_input_attributes[] {
+			{0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::p2, p)}
+		};
+		vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+		vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+		ci.pVertexInputState = &vertex_input;
+
+		VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+		input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		ci.pInputAssemblyState = &input_assembly;
+
+		ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+		VkPipelineRasterizationStateCreateInfo rasterization{};
+		rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
+		rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterization.lineWidth = 1.0f;
+		ci.pRasterizationState = &rasterization;
+
+		VkPipelineMultisampleStateCreateInfo multisample{};
+		multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		ci.pMultisampleState = &multisample;
+
+		VkPipelineColorBlendStateCreateInfo color_blend{};
+		color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		VkPipelineColorBlendAttachmentState color_blend_attachment{};
+		color_blend_attachment.blendEnable = VK_FALSE;
+		color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		VkPipelineColorBlendAttachmentState color_blend_attachments[m_illum_technique_props.fragShaderColorAttachmentCount];
+		for (uint32_t i = 0; i < m_illum_technique_props.fragShaderColorAttachmentCount; i++)
+			color_blend_attachments[i] = color_blend_attachment;
+		color_blend.attachmentCount = m_illum_technique_props.fragShaderColorAttachmentCount;
+		color_blend.pAttachments = color_blend_attachments;
+		ci.pColorBlendState = &color_blend;
+
+		VkPipelineDynamicStateCreateInfo dynamic{};
+		dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		VkDynamicState dynamic_states[] {
+			VK_DYNAMIC_STATE_VIEWPORT,
+			VK_DYNAMIC_STATE_SCISSOR
+		};
+		dynamic.dynamicStateCount = array_size(dynamic_states);
+		dynamic.pDynamicStates = dynamic_states;
+		ci.pDynamicState = &dynamic;
+
+		{
+			VkPipelineLayoutCreateInfo ci{};
+			ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			VkDescriptorSetLayout set_layouts[] {
+				m_illumination_set_layout
+			};
+			ci.setLayoutCount = array_size(set_layouts);
+			ci.pSetLayouts = set_layouts;
+			res.pipelineLayout = device.createPipelineLayout(ci);
+		}
+		ci.layout = res.pipelineLayout;
+		ci.renderPass = m_illumination_pass;
+
+		res = device.createGraphicsPipeline(m_pipeline_cache, ci);
+		return res;
+	}
+	if (m_illum_technique == IllumTechnique::RayTracing) {
+		VkRayTracingPipelineCreateInfoKHR ci{};
+		ci.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+		auto ray_tracing = loadShaderModule(VK_SHADER_STAGE_RAYGEN_BIT_KHR, "sha/ray_tracing");
+		res.pushShaderModule(ray_tracing);
+		VkPipelineShaderStageCreateInfo stages[] {
+			initPipelineStage(VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing)	// 0
+		};
+		ci.stageCount = array_size(stages);
+		ci.pStages = stages;
+		VkRayTracingShaderGroupCreateInfoKHR groups[] {
+			{
+				.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+				.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+				.generalShader = 0,
+				.closestHitShader = VK_SHADER_UNUSED_KHR,
+				.anyHitShader = VK_SHADER_UNUSED_KHR,
+				.intersectionShader = VK_SHADER_UNUSED_KHR
+			}
+		};
+		ci.groupCount = array_size(groups);
+		ci.pGroups = groups;
+		{
+			VkPipelineLayoutCreateInfo ci{};
+			ci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			VkDescriptorSetLayout set_layouts[] {
+				m_illumination_set_layout
+			};
+			ci.setLayoutCount = array_size(set_layouts);
+			ci.pSetLayouts = set_layouts;
+			res.pipelineLayout = device.createPipelineLayout(ci);
+		}
+		ci.layout = res.pipelineLayout;
+		return res;
+	}
+	throw std::runtime_error("createIlluminationPipeline");
 }
 
 Vk::RenderPass Renderer::createWsiPass(void)
@@ -1663,10 +1735,20 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 			s0_sampler_count +	// s0
 			m_illum_technique_props.descriptorCombinedImageSamplerCount +			// illumination
 			1			// wsi
+		)},
+		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_frame_count * (
+			(m_illum_technique == IllumTechnique::RayTracing ?
+				1 :	// illum
+				0)
 		)}
 	};
-	ci.poolSizeCount = array_size(pool_sizes);
-	ci.pPoolSizes = pool_sizes;
+	VkDescriptorPoolSize pool_sizes_corrected[array_size(pool_sizes)];
+	uint32_t pool_size_count = 0;
+	for (size_t i = 0; i < array_size(pool_sizes); i++)
+		if (pool_sizes[i].descriptorCount > 0)
+			pool_sizes_corrected[pool_size_count++] = pool_sizes[i];
+	ci.poolSizeCount = pool_size_count;
+	ci.pPoolSizes = pool_sizes_corrected;
 	return device.createDescriptorPool(ci);
 }
 
@@ -1776,6 +1858,14 @@ Vk::ShaderModule Renderer::loadShaderModule(VkShaderStageFlagBits stage, const c
 			{VK_SHADER_STAGE_FRAGMENT_BIT, "frag"},
 			{VK_SHADER_STAGE_VERTEX_BIT, "vert"},
 			{VK_SHADER_STAGE_COMPUTE_BIT, "comp"},
+
+			{VK_SHADER_STAGE_RAYGEN_BIT_KHR, "rgen"},
+			{VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "rchit"},
+			{VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "rahit"},
+			{VK_SHADER_STAGE_INTERSECTION_BIT_KHR, "rint"},
+			{VK_SHADER_STAGE_MISS_BIT_KHR, "rmiss"},
+			{VK_SHADER_STAGE_CALLABLE_BIT_KHR, "rcall"},
+
 			{VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, "tese"},
 			{VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, "tesc"},
 			{VK_SHADER_STAGE_GEOMETRY_BIT, "geom"}
@@ -2627,9 +2717,9 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
-	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_64_BIT)),
+	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_opaque_pass(createOpaquePass()),
-	m_illum_technique(IllumTechnique::Ssgi),
+	m_illum_technique(IllumTechnique::RayTracing),
 	m_illum_technique_props(getIllumTechniqueProps()),
 	m_color_resolve_pass(createColorResolvePass()),
 	m_color_resolve_set_layout(createColorResolveSetLayout()),
@@ -2682,7 +2772,8 @@ Renderer::~Renderer(void)
 	device.destroy(m_wsi_pass);
 	m_illumination_pipeline.destroy(device);
 	device.destroy(m_illumination_set_layout);
-	device.destroy(m_illumination_pass);
+	if (m_illum_technique != IllumTechnique::RayTracing)
+		device.destroy(m_illumination_pass);
 	m_depth_acc_pipeline.destroy(device);
 	m_depth_resolve_pipeline.destroy(device);
 	device.destroy(m_depth_resolve_set_layout);
@@ -3455,39 +3546,43 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 
 Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 {
-	VkFramebufferCreateInfo ci{};
-	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Ssgi) {
+		VkFramebufferCreateInfo ci{};
+		ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 
-	if (m_r.m_illum_technique == IllumTechnique::Potato) {
-		ci.renderPass = m_r.m_illumination_pass;
-		VkImageView atts[] {
-			m_output_view
-		};
-		ci.attachmentCount = array_size(atts);
-		ci.pAttachments = atts;
-		ci.width = m_r.m_swapchain_extent.width;
-		ci.height = m_r.m_swapchain_extent.height;
-		ci.layers = 1;
-		return m_r.device.createFramebuffer(ci);
+		if (m_r.m_illum_technique == IllumTechnique::Potato) {
+			ci.renderPass = m_r.m_illumination_pass;
+			VkImageView atts[] {
+				m_output_view
+			};
+			ci.attachmentCount = array_size(atts);
+			ci.pAttachments = atts;
+			ci.width = m_r.m_swapchain_extent.width;
+			ci.height = m_r.m_swapchain_extent.height;
+			ci.layers = 1;
+			return m_r.device.createFramebuffer(ci);
+		}
+		if (m_r.m_illum_technique == IllumTechnique::Ssgi) {
+			ci.renderPass = m_r.m_illumination_pass;
+			VkImageView atts[] {
+				m_illum_ssgi_fbs.m_step_view,
+				m_illum_ssgi_fbs.m_acc_path_pos_view,
+				m_illum_ssgi_fbs.m_direct_light_view,
+				m_illum_ssgi_fbs.m_path_albedo_view,
+				m_illum_ssgi_fbs.m_path_direct_light_view,
+				m_illum_ssgi_fbs.m_path_incidence_view,
+				m_output_view
+			};
+			ci.attachmentCount = array_size(atts);
+			ci.pAttachments = atts;
+			ci.width = m_r.m_swapchain_extent.width;
+			ci.height = m_r.m_swapchain_extent.height;
+			ci.layers = 1;
+			return m_r.device.createFramebuffer(ci);
+		}
 	}
-	if (m_r.m_illum_technique == IllumTechnique::Ssgi) {
-		ci.renderPass = m_r.m_illumination_pass;
-		VkImageView atts[] {
-			m_illum_ssgi_fbs.m_step_view,
-			m_illum_ssgi_fbs.m_acc_path_pos_view,
-			m_illum_ssgi_fbs.m_direct_light_view,
-			m_illum_ssgi_fbs.m_path_albedo_view,
-			m_illum_ssgi_fbs.m_path_direct_light_view,
-			m_illum_ssgi_fbs.m_path_incidence_view,
-			m_output_view
-		};
-		ci.attachmentCount = array_size(atts);
-		ci.pAttachments = atts;
-		ci.width = m_r.m_swapchain_extent.width;
-		ci.height = m_r.m_swapchain_extent.height;
-		ci.layers = 1;
-		return m_r.device.createFramebuffer(ci);
-	}
+	if (m_r.m_illum_technique == IllumTechnique::RayTracing)
+		return VK_NULL_HANDLE;
 	throw std::runtime_error("createIlluminationFb");
 }
 
@@ -3562,7 +3657,8 @@ void Renderer::Frame::destroy(bool with_ext_res)
 		m_r.destroy(m_top_acc_structure);
 	m_r.device.destroy(m_wsi_fb);
 	m_r.allocator.destroy(m_illumination_buffer);
-	m_r.device.destroy(m_illumination_fb);
+	if (m_r.m_illum_technique != IllumTechnique::RayTracing)
+		m_r.device.destroy(m_illumination_fb);
 	m_r.device.destroy(m_opaque_fb);
 
 	if (m_r.m_illum_technique == IllumTechnique::Ssgi)
@@ -3658,15 +3754,148 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			}
 		}
 
-		{
-			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
-				Vk::Access::ColorAttachmentWriteBit | Vk::Access::DepthStencilAttachmentWriteBit, Vk::Access::ShaderReadBit };
-			m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
-				Vk::PipelineStage::FragmentShaderBit, 0,
-				1, &barrier, 0, nullptr, 0, nullptr);
-		}
+		if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Ssgi) {
+			{
+				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+					Vk::Access::ColorAttachmentWriteBit | Vk::Access::DepthStencilAttachmentWriteBit, Vk::Access::ShaderReadBit };
+				m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
+					Vk::PipelineStage::FragmentShaderBit, 0,
+					1, &barrier, 0, nullptr, 0, nullptr);
+			}
+			if (m_r.m_illum_technique == IllumTechnique::Ssgi) {
+				if (m_r.m_sample_count > VK_SAMPLE_COUNT_1_BIT) {
+					{
+						VkRenderPassBeginInfo bi{};
+						bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+						bi.renderPass = m_r.m_color_resolve_pass;
+						bi.framebuffer = m_illum_ssgi_fbs.m_color_resolve_fb;
+						bi.renderArea = VkRect2D{{0, 0}, sex};
+						m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+					}
+					m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline);
+					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline.pipelineLayout,
+						0, 1, &m_illum_ssgi_fbs.m_color_resolve_set, 0, nullptr);
+					m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+					m_cmd.draw(3, 1, 0, 0);
+					m_cmd.endRenderPass();
+				}
 
-		if (m_r.ext_support.ray_tracing) {
+				m_cmd.setExtent(sex_mip);
+				{
+					VkRenderPassBeginInfo bi{};
+					bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+					bi.renderPass = m_r.m_depth_resolve_pass;
+					bi.framebuffer = m_illum_ssgi_fbs.m_depth_resolve_fb;
+					bi.renderArea = VkRect2D{{0, 0}, sex_mip};
+					m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+				}
+				m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline);
+				m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline.pipelineLayout,
+					0, 1, &m_illum_ssgi_fbs.m_depth_resolve_set, 0, nullptr);
+				m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+				m_cmd.draw(3, 1, 0, 0);
+				m_cmd.endRenderPass();
+
+				m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline);
+				m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+				for (uint32_t i = 0; i < m_illum_ssgi_fbs.m_depth_acc_fbs.size(); i++) {
+					{
+						VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
+						m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+							1, &barrier, 0, nullptr, 0, nullptr);
+					}
+
+					auto &cur_ex = m_r.m_swapchain_extent_mips[i + 1];
+					m_cmd.setExtent(cur_ex);
+					{
+						VkRenderPassBeginInfo bi{};
+						bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+						bi.renderPass = m_r.m_depth_resolve_pass;
+						bi.framebuffer = m_illum_ssgi_fbs.m_depth_acc_fbs[i];
+						bi.renderArea = VkRect2D{{0, 0}, cur_ex};
+						m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+					}
+					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline.pipelineLayout,
+						0, 1, &m_illum_ssgi_fbs.m_depth_acc_sets[i], 0, nullptr);
+					m_cmd.draw(3, 1, 0, 0);
+					m_cmd.endRenderPass();
+				}
+
+				{
+					VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
+					m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+						1, &barrier, 0, nullptr, 0, nullptr);
+				}
+				m_cmd.setExtent(m_r.m_swapchain_extent);
+			}
+
+			{
+				VkRenderPassBeginInfo bi{};
+				bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				bi.renderPass = m_r.m_illumination_pass;
+				bi.framebuffer = m_illumination_fb;
+				bi.renderArea = VkRect2D{{0, 0}, sex};
+				m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+			}
+			m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline);
+			{
+				auto view_norm = camera.view;
+				for (size_t i = 0; i < 3; i++)
+					view_norm[3][i] = 0.0f;
+
+				Illumination illum;
+				illum.cam_proj = camera.proj;
+				illum.view = camera.view;
+				illum.view_normal = camera.view;
+				for (size_t i = 0; i < 3; i++)
+					illum.view_normal[3][i] = 0.0f;
+				illum.view_inv = glm::inverse(camera.view);
+				illum.view_normal_inv = illum.view_inv;
+				for (size_t i = 0; i < 3; i++)
+					illum.view_normal_inv[3][i] = 0.0f;
+				illum.last_view = camera.last_view;
+				illum.last_view_inv = glm::inverse(camera.last_view);
+				illum.view_cur_to_last = illum.last_view * illum.view_inv;
+				illum.view_last_to_cur = illum.view * illum.last_view_inv;
+				illum.view_last_to_cur_normal = illum.view_last_to_cur;
+				for (size_t i = 0; i < 3; i++)
+					illum.view_last_to_cur_normal[3][i] = 0.0f;
+				for (size_t i = 0; i < 256; i++) {
+					reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
+					reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
+				}
+				illum.sun = view_norm * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
+				illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
+				illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);
+				illum.size_inv = glm::vec2(1.0f) / illum.size;
+				illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
+				illum.ratio = camera.ratio;
+				illum.cam_near = camera.near;
+				illum.cam_far = camera.far;
+				illum.cam_a = camera.far / (camera.far - camera.near);
+				illum.cam_b = -(camera.far * camera.near) / (camera.far - camera.near);
+
+
+				*reinterpret_cast<Illumination*>(reinterpret_cast<uint8_t*>(m_dyn_buffer_staging_ptr) + m_dyn_buffer_size) = illum;
+				{
+					VkBufferCopy region {m_dyn_buffer_size, 0, sizeof(Illumination)};
+					m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_illumination_buffer, 1, &region);
+				}
+				m_dyn_buffer_size += sizeof(Illumination);
+			}
+			m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline.pipelineLayout,
+				0, 1, &m_illumination_set, 0, nullptr);
+			m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+			m_cmd.draw(3, 1, 0, 0);
+			m_cmd.endRenderPass();
+
+			{
+				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
+				m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+					1, &barrier, 0, nullptr, 0, nullptr);
+			}
+		}
+		if (m_r.m_illum_technique == IllumTechnique::RayTracing)  {
 			uint32_t instance_count = 0;
 			map.query<RT_instance>([&](Brush &b){
 				instance_count += b.size();
@@ -3767,139 +3996,6 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 
 			m_r.allocator.destroy(instance);
 			m_r.allocator.destroy(scratch);
-		}
-
-		if (m_r.m_illum_technique == IllumTechnique::Ssgi) {
-			if (m_r.m_sample_count > VK_SAMPLE_COUNT_1_BIT) {
-				{
-					VkRenderPassBeginInfo bi{};
-					bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-					bi.renderPass = m_r.m_color_resolve_pass;
-					bi.framebuffer = m_illum_ssgi_fbs.m_color_resolve_fb;
-					bi.renderArea = VkRect2D{{0, 0}, sex};
-					m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
-				}
-				m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline);
-				m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline.pipelineLayout,
-					0, 1, &m_illum_ssgi_fbs.m_color_resolve_set, 0, nullptr);
-				m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-				m_cmd.draw(3, 1, 0, 0);
-				m_cmd.endRenderPass();
-			}
-
-			m_cmd.setExtent(sex_mip);
-			{
-				VkRenderPassBeginInfo bi{};
-				bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-				bi.renderPass = m_r.m_depth_resolve_pass;
-				bi.framebuffer = m_illum_ssgi_fbs.m_depth_resolve_fb;
-				bi.renderArea = VkRect2D{{0, 0}, sex_mip};
-				m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
-			}
-			m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline);
-			m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline.pipelineLayout,
-				0, 1, &m_illum_ssgi_fbs.m_depth_resolve_set, 0, nullptr);
-			m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-			m_cmd.draw(3, 1, 0, 0);
-			m_cmd.endRenderPass();
-
-			m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline);
-			m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-			for (uint32_t i = 0; i < m_illum_ssgi_fbs.m_depth_acc_fbs.size(); i++) {
-				{
-					VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
-					m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
-						1, &barrier, 0, nullptr, 0, nullptr);
-				}
-
-				auto &cur_ex = m_r.m_swapchain_extent_mips[i + 1];
-				m_cmd.setExtent(cur_ex);
-				{
-					VkRenderPassBeginInfo bi{};
-					bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-					bi.renderPass = m_r.m_depth_resolve_pass;
-					bi.framebuffer = m_illum_ssgi_fbs.m_depth_acc_fbs[i];
-					bi.renderArea = VkRect2D{{0, 0}, cur_ex};
-					m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
-				}
-				m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline.pipelineLayout,
-					0, 1, &m_illum_ssgi_fbs.m_depth_acc_sets[i], 0, nullptr);
-				m_cmd.draw(3, 1, 0, 0);
-				m_cmd.endRenderPass();
-			}
-
-			{
-				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
-				m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
-					1, &barrier, 0, nullptr, 0, nullptr);
-			}
-			m_cmd.setExtent(m_r.m_swapchain_extent);
-		}
-
-		{
-			VkRenderPassBeginInfo bi{};
-			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			bi.renderPass = m_r.m_illumination_pass;
-			bi.framebuffer = m_illumination_fb;
-			bi.renderArea = VkRect2D{{0, 0}, sex};
-			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
-		}
-		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline);
-		{
-			auto view_norm = camera.view;
-			for (size_t i = 0; i < 3; i++)
-				view_norm[3][i] = 0.0f;
-
-			Illumination illum;
-			illum.cam_proj = camera.proj;
-			illum.view = camera.view;
-			illum.view_normal = camera.view;
-			for (size_t i = 0; i < 3; i++)
-				illum.view_normal[3][i] = 0.0f;
-			illum.view_inv = glm::inverse(camera.view);
-			illum.view_normal_inv = illum.view_inv;
-			for (size_t i = 0; i < 3; i++)
-				illum.view_normal_inv[3][i] = 0.0f;
-			illum.last_view = camera.last_view;
-			illum.last_view_inv = glm::inverse(camera.last_view);
-			illum.view_cur_to_last = illum.last_view * illum.view_inv;
-			illum.view_last_to_cur = illum.view * illum.last_view_inv;
-			illum.view_last_to_cur_normal = illum.view_last_to_cur;
-			for (size_t i = 0; i < 3; i++)
-				illum.view_last_to_cur_normal[3][i] = 0.0f;
-			for (size_t i = 0; i < 256; i++) {
-				reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
-				reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
-			}
-			illum.sun = view_norm * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
-			illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
-			illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);
-			illum.size_inv = glm::vec2(1.0f) / illum.size;
-			illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
-			illum.ratio = camera.ratio;
-			illum.cam_near = camera.near;
-			illum.cam_far = camera.far;
-			illum.cam_a = camera.far / (camera.far - camera.near);
-			illum.cam_b = -(camera.far * camera.near) / (camera.far - camera.near);
-
-
-			*reinterpret_cast<Illumination*>(reinterpret_cast<uint8_t*>(m_dyn_buffer_staging_ptr) + m_dyn_buffer_size) = illum;
-			{
-				VkBufferCopy region {m_dyn_buffer_size, 0, sizeof(Illumination)};
-				m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_illumination_buffer, 1, &region);
-			}
-			m_dyn_buffer_size += sizeof(Illumination);
-		}
-		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline.pipelineLayout,
-			0, 1, &m_illumination_set, 0, nullptr);
-		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-		m_cmd.draw(3, 1, 0, 0);
-		m_cmd.endRenderPass();
-
-		{
-			VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
-			m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
-				1, &barrier, 0, nullptr, 0, nullptr);
 		}
 
 		{
