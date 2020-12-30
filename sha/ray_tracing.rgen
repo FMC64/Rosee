@@ -30,5 +30,5 @@ layout(set = 0, binding = 1, rgba16) uniform image2D out_output;
 
 void main(void)
 {
-	imageStore(out_output, ivec2(gl_LaunchIDEXT.xy), vec4(vec3(0.5), 1.0));
+	imageStore(out_output, ivec2(gl_LaunchIDEXT.xy), vec4(fract(vec3(0.5) + vec3(gl_LaunchIDEXT) / vec3(gl_LaunchSizeEXT)), 1.0));
 }

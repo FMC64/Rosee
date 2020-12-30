@@ -747,7 +747,7 @@ Vk::BufferAllocation Renderer::createScreenVertexBuffer(void)
 		void *data;
 		auto s = allocator.createBuffer(bci, aci, &data);
 		std::memcpy(data, vertices, sizeof(vertices));
-		allocator.invalidateAllocation(s, 0, sizeof(vertices));
+		allocator.flushAllocation(s, 0, sizeof(vertices));
 
 		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		VkBufferCopy region;
@@ -1571,7 +1571,8 @@ Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTraci
 
 	if (m_illum_technique != IllumTechnique::RayTracing)
 		return res;
-	using Handle = uint8_t[ext.ray_tracing_props.shaderGroupHandleSize];
+	size_t groupSize = ext.ray_tracing_props.shaderGroupHandleSize;
+	using Handle = uint8_t[groupSize];
 	Handle handles[IllumTechnique::Data::RayTracing::groupCount];
 	Vk::ext.vkGetRayTracingShaderGroupHandlesKHR(device, m_illumination_pipeline, 0, IllumTechnique::Data::RayTracing::groupCount,
 		sizeof(handles), handles);	// runtime sizeof ?!!
@@ -1591,7 +1592,10 @@ Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTraci
 	};
 	res.m_sbt_raygen_buffer = allocator.createBuffer(raygen_bci, aci);
 	loadBuffer(res.m_sbt_raygen_buffer, sizeof(rgen), rgen);
-	res.m_sbt_raygen_addr = device.getBufferDeviceAddressKHR(res.m_sbt_raygen_buffer);
+	res.m_sbt_raygen_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_raygen_buffer), groupSize, sizeof(rgen)};
+	res.m_sbt_miss_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
+	res.m_sbt_hit_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
+	res.m_sbt_callable_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
 
 	return res;
 }
@@ -1824,6 +1828,13 @@ Vk::DescriptorPool Renderer::createDescriptorPoolMip(void)
 
 vector<Renderer::Frame> Renderer::createFrames(void)
 {
+	uint32_t gcmds_per_frame = 3;
+	uint32_t ccmds_per_frame = 2;
+	VkCommandBuffer gcmds[m_frame_count * gcmds_per_frame];
+	VkCommandBuffer ccmds[m_frame_count * ccmds_per_frame];
+	device.allocateCommandBuffers(m_gcommand_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * gcmds_per_frame, gcmds);
+	device.allocateCommandBuffers(m_ccommand_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * ccmds_per_frame, ccmds);
+
 	uint32_t sets_per_frame = const_sets_per_frame +
 		(m_illum_technique == IllumTechnique::Ssgi ?
 		1 +	// depth_resolve
@@ -1831,8 +1842,6 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 				1	// color_resolved
 				: 0)
 		: 0);
-	VkCommandBuffer cmds[m_frame_count * sets_per_frame];
-	device.allocateCommandBuffers(m_command_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * sets_per_frame, cmds);
 	VkDescriptorSet sets[m_frame_count * sets_per_frame];
 	VkDescriptorSetLayout set_layouts[m_frame_count * sets_per_frame];
 	for (uint32_t i = 0; i < m_frame_count; i++) {
@@ -1889,7 +1898,8 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	vector<Renderer::Frame> res;
 	res.reserve(m_frame_count);
 	for (uint32_t i = 0; i < m_frame_count; i++)
-		res.emplace(*this, i, cmds[i * 2], cmds[i * 2 + 1],
+		res.emplace(*this, i, gcmds[i * gcmds_per_frame], gcmds[i * gcmds_per_frame + 1], gcmds[i * gcmds_per_frame + 2],
+			ccmds[i * ccmds_per_frame], ccmds[i * ccmds_per_frame + 1],
 			sets[i * sets_per_frame], sets[i * sets_per_frame + 1],
 			m_illum_technique == IllumTechnique::Ssgi && m_sample_count > VK_SAMPLE_COUNT_1_BIT ? sets[i * sets_per_frame + 5] : VK_NULL_HANDLE,
 			m_illum_technique == IllumTechnique::Ssgi ? sets[i * sets_per_frame + 4] : VK_NULL_HANDLE,
@@ -2346,7 +2356,7 @@ void Renderer::loadBuffer(VkBuffer buffer, size_t size, const void *data)
 	void *mdata;
 	auto s = allocator.createBuffer(bci, aci, &mdata);
 	std::memcpy(mdata, data, size);
-	allocator.invalidateAllocation(s, 0, size);
+	allocator.flushAllocation(s, 0, size);
 
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VkBufferCopy region;
@@ -2378,7 +2388,7 @@ void Renderer::loadBufferCompute(VkBuffer buffer, size_t size, const void *data)
 	void *mdata;
 	auto s = allocator.createBuffer(bci, aci, &mdata);
 	std::memcpy(mdata, data, size);
-	allocator.invalidateAllocation(s, 0, size);
+	allocator.flushAllocation(s, 0, size);
 
 	m_ctransfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VkBufferCopy region;
@@ -2473,7 +2483,7 @@ Model Renderer::loadModel(const char *path)
 		void *data;
 		auto s = allocator.createBuffer(bci, aci, &data);
 		std::memcpy(data, vertices.data(), buf_size);
-		allocator.invalidateAllocation(s, 0, buf_size);
+		allocator.flushAllocation(s, 0, buf_size);
 
 		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		VkBufferCopy region;
@@ -2532,7 +2542,7 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 		auto s = allocator.createBuffer(bci, aci, &bdata);
 		std::memcpy(bdata, data, buf_size);
 		stbi_image_free(data);
-		allocator.invalidateAllocation(s, 0, buf_size);
+		allocator.flushAllocation(s, 0, buf_size);
 
 		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 		{
@@ -2755,8 +2765,10 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_swapchain(createSwapchain()),
 	m_swapchain_images(device.getSwapchainImages(m_swapchain)),
 	m_swapchain_image_views(createSwapchainImageViews()),
-	m_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+	m_gcommand_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
+	m_ccommand_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		m_queue_family_compute)),
 	m_transfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		m_queue_family_graphics)),
 	m_ctransfer_command_pool(device.createCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -2854,7 +2866,8 @@ Renderer::~Renderer(void)
 
 	device.destroy(m_ctransfer_command_pool);
 	device.destroy(m_transfer_command_pool);
-	device.destroy(m_command_pool);
+	device.destroy(m_ccommand_pool);
+	device.destroy(m_gcommand_pool);
 	for (auto &v : m_swapchain_image_views)
 		device.destroy(v);
 	device.destroy(m_swapchain);
@@ -3256,7 +3269,8 @@ void Renderer::recreateSwapchain(void)
 
 	for (size_t i = 0; i < frame_count; i++) {
 		auto &f = reinterpret_cast<Frame*>(frames)[i];
-		m_frames.emplace(*this, i, f.m_transfer_cmd, f.m_cmd,
+		m_frames.emplace(*this, i, f.m_cmd_gtransfer, f.m_cmd_grender_pass, f.m_cmd_gwsi,
+			f.m_cmd_ctransfer, f.m_cmd_ctrace_rays,
 			f.m_descriptor_set_0, f.m_descriptor_set_dynamic,
 			f.m_illum_ssgi_fbs.m_color_resolve_set, f.m_illum_ssgi_fbs.m_depth_resolve_set,
 			f.m_illumination_set, f.m_wsi_set,
@@ -3600,6 +3614,30 @@ void Renderer::IllumTechnique::Data::RayTracing::Shared::destroy(Renderer &r)
 	r.allocator.destroy(m_sbt_raygen_buffer);
 }
 
+Renderer::IllumTechnique::Data::RayTracing::Fbs Renderer::Frame::createIllumRtFbs(void)
+{
+	IllumTechnique::Data::RayTracing::Fbs res;
+
+	if (m_r.m_illum_technique != IllumTechnique::RayTracing)
+		return res;
+	res.m_top_acc_structure = VK_NULL_HANDLE;
+	return res;
+}
+
+void Renderer::IllumTechnique::Data::RayTracing::Fbs::destroy(Renderer &r)
+{
+	if (m_top_acc_structure != VK_NULL_HANDLE)
+		destroy_acc(r);
+}
+
+void Renderer::IllumTechnique::Data::RayTracing::Fbs::destroy_acc(Renderer &r)
+{
+	r.destroy(m_top_acc_structure);
+	r.allocator.destroy(m_scratch_buffer);
+	r.allocator.destroy(m_instance_buffer);
+	r.allocator.destroy(m_instance_buffer_staging);
+}
+
 Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 {
 	VkFramebufferCreateInfo ci{};
@@ -3689,7 +3727,8 @@ Vk::Framebuffer Renderer::Frame::createWsiFb(void)
 	return m_r.device.createFramebuffer(ci);
 }
 
-Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
+Renderer::Frame::Frame(Renderer &r, size_t i, Vk::CommandBuffer cmdGtransfer, Vk::CommandBuffer cmdGrenderPass, Vk::CommandBuffer cmdGwsi,
+	Vk::CommandBuffer cmdCtransfer, Vk::CommandBuffer cmdCtraceRays,
 	VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
 	VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
 	VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
@@ -3697,11 +3736,16 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	Vk::BufferAllocation dynBuffer) :
 	m_r(r),
 	m_i(i),
-	m_transfer_cmd(transferCmd),
-	m_cmd(cmd),
+	m_cmd_gtransfer(cmdGtransfer),
+	m_cmd_grender_pass(cmdGrenderPass),
+	m_cmd_gwsi(cmdGwsi),
+	m_cmd_ctransfer(cmdCtransfer),
+	m_cmd_ctrace_rays(cmdCtraceRays),
 	m_frame_done(r.device.createFence(0)),
 	m_render_done(r.device.createSemaphore()),
 	m_image_ready(r.device.createSemaphore()),
+	m_render_pass_done(r.device.createSemaphore()),
+	m_trace_rays_done(r.device.createSemaphore()),
 	m_descriptor_set_0(descriptorSet0),
 	m_descriptor_set_dynamic(descriptorSetDynamic),
 	m_dyn_buffer_staging(createDynBufferStaging()),
@@ -3715,6 +3759,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal)),
 	m_illum_ssgi_fbs(createIllumSsgiFbs(descriptorSetColorResolve, descriptorSetDepthResolve, pDescriptorSetsMip)),
+	m_illum_rt(createIllumRtFbs()),
 	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		(m_r.m_illum_technique == IllumTechnique::RayTracing ? Vk::ImageUsage::StorageBit : Vk::ImageUsage::ColorAttachmentBit) |
 		Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_output)),
@@ -3725,19 +3770,18 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 	m_wsi_fb(createWsiFb()),
 	m_wsi_set(descriptorSetWsi)
 {
-	m_top_acc_structure = VK_NULL_HANDLE;
 }
 
 void Renderer::Frame::destroy(bool with_ext_res)
 {
-	if (m_top_acc_structure != VK_NULL_HANDLE)
-		m_r.destroy(m_top_acc_structure);
 	m_r.device.destroy(m_wsi_fb);
 	m_r.allocator.destroy(m_illumination_buffer);
 	if (m_r.m_illum_technique != IllumTechnique::RayTracing)
 		m_r.device.destroy(m_illumination_fb);
 	m_r.device.destroy(m_opaque_fb);
 
+	if (m_r.m_illum_technique == IllumTechnique::RayTracing)
+		m_illum_rt.destroy(m_r);
 	if (m_r.m_illum_technique == IllumTechnique::Ssgi)
 		m_illum_ssgi_fbs.destroy(m_r);
 	m_r.device.destroy(m_output_view);
@@ -3756,9 +3800,11 @@ void Renderer::Frame::destroy(bool with_ext_res)
 		m_r.allocator.destroy(m_dyn_buffer);
 	m_r.allocator.destroy(m_dyn_buffer_staging);
 
-	m_r.device.destroy(m_frame_done);
-	m_r.device.destroy(m_render_done);
+	m_r.device.destroy(m_trace_rays_done);
+	m_r.device.destroy(m_render_pass_done);
 	m_r.device.destroy(m_image_ready);
+	m_r.device.destroy(m_render_done);
+	m_r.device.destroy(m_frame_done);
 }
 
 void Renderer::Frame::reset(void)
@@ -3778,7 +3824,12 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 	vkAssert(Vk::ext.vkAcquireNextImageKHR(m_r.device, m_r.m_swapchain, ~0ULL, m_image_ready, VK_NULL_HANDLE, &swapchain_index));
 
 	m_dyn_buffer_size = 0;
-	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	m_cmd_gtransfer.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	{
+		VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::HostWriteBit, Vk::Access::TransferReadBit };
+		m_cmd_gtransfer.pipelineBarrier(Vk::PipelineStage::HostBit, Vk::PipelineStage::TransferBit, 0,
+			1, &barrier, 0, nullptr, 0, nullptr);
+	}
 
 	VkClearColorValue cv_grey;
 	cv_grey.float32[0] = 0.5f;
@@ -3799,9 +3850,9 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 	cv_r0g0zm1.float32[3] = -1.0f;*/
 
 	{
-		m_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-		m_cmd.setExtent(m_r.m_swapchain_extent);
-		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_descriptor_set,
+		m_cmd_grender_pass.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		m_cmd_grender_pass.setExtent(m_r.m_swapchain_extent);
+		m_cmd_grender_pass.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_descriptor_set,
 			0, 1, &m_descriptor_set_0, 0, nullptr);
 		{
 			VkRenderPassBeginInfo bi{};
@@ -3818,24 +3869,48 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			};
 			bi.clearValueCount = array_size(cvs);
 			bi.pClearValues = cvs;
-			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+			m_cmd_grender_pass.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 		}
 		render_subset(map, OpaqueRender::id);
-		m_cmd.endRenderPass();
-		{
-			m_r.allocator.flushAllocation(m_dyn_buffer_staging, 0, m_dyn_buffer_size);
-			{
-				VkBufferCopy region {0, 0, m_dyn_buffer_size};
-				if (region.size > 0)
-					m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_dyn_buffer, 1, &region);
-			}
+		m_cmd_grender_pass.endRenderPass();
+
+		Illumination illum;
+		illum.cam_proj = camera.proj;
+		illum.view = camera.view;
+		illum.view_normal = camera.view;
+		for (size_t i = 0; i < 3; i++)
+			illum.view_normal[3][i] = 0.0f;
+		illum.view_inv = glm::inverse(camera.view);
+		illum.view_normal_inv = illum.view_inv;
+		for (size_t i = 0; i < 3; i++)
+			illum.view_normal_inv[3][i] = 0.0f;
+		illum.last_view = camera.last_view;
+		illum.last_view_inv = glm::inverse(camera.last_view);
+		illum.view_cur_to_last = illum.last_view * illum.view_inv;
+		illum.view_last_to_cur = illum.view * illum.last_view_inv;
+		illum.view_last_to_cur_normal = illum.view_last_to_cur;
+		for (size_t i = 0; i < 3; i++)
+			illum.view_last_to_cur_normal[3][i] = 0.0f;
+		for (size_t i = 0; i < 256; i++) {
+			reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
+			reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
 		}
+		illum.sun = illum.view_normal * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
+		illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
+		illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);
+		illum.size_inv = glm::vec2(1.0f) / illum.size;
+		illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
+		illum.ratio = camera.ratio;
+		illum.cam_near = camera.near;
+		illum.cam_far = camera.far;
+		illum.cam_a = camera.far / (camera.far - camera.near);
+		illum.cam_b = -(camera.far * camera.near) / (camera.far - camera.near);
 
 		if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Ssgi) {
 			{
 				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
 					Vk::Access::ColorAttachmentWriteBit | Vk::Access::DepthStencilAttachmentWriteBit, Vk::Access::ShaderReadBit };
-				m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
+				m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit | Vk::PipelineStage::LateFragmentTestsBit,
 					Vk::PipelineStage::FragmentShaderBit, 0,
 					1, &barrier, 0, nullptr, 0, nullptr);
 			}
@@ -3847,63 +3922,63 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 						bi.renderPass = m_r.m_color_resolve_pass;
 						bi.framebuffer = m_illum_ssgi_fbs.m_color_resolve_fb;
 						bi.renderArea = VkRect2D{{0, 0}, sex};
-						m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+						m_cmd_grender_pass.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 					}
-					m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline);
-					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline.pipelineLayout,
+					m_cmd_grender_pass.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline);
+					m_cmd_grender_pass.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_color_resolve_pipeline.pipelineLayout,
 						0, 1, &m_illum_ssgi_fbs.m_color_resolve_set, 0, nullptr);
-					m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-					m_cmd.draw(3, 1, 0, 0);
-					m_cmd.endRenderPass();
+					m_cmd_grender_pass.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+					m_cmd_grender_pass.draw(3, 1, 0, 0);
+					m_cmd_grender_pass.endRenderPass();
 				}
 
-				m_cmd.setExtent(sex_mip);
+				m_cmd_grender_pass.setExtent(sex_mip);
 				{
 					VkRenderPassBeginInfo bi{};
 					bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 					bi.renderPass = m_r.m_depth_resolve_pass;
 					bi.framebuffer = m_illum_ssgi_fbs.m_depth_resolve_fb;
 					bi.renderArea = VkRect2D{{0, 0}, sex_mip};
-					m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+					m_cmd_grender_pass.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 				}
-				m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline);
-				m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline.pipelineLayout,
+				m_cmd_grender_pass.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline);
+				m_cmd_grender_pass.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_resolve_pipeline.pipelineLayout,
 					0, 1, &m_illum_ssgi_fbs.m_depth_resolve_set, 0, nullptr);
-				m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-				m_cmd.draw(3, 1, 0, 0);
-				m_cmd.endRenderPass();
+				m_cmd_grender_pass.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+				m_cmd_grender_pass.draw(3, 1, 0, 0);
+				m_cmd_grender_pass.endRenderPass();
 
-				m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline);
-				m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+				m_cmd_grender_pass.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline);
+				m_cmd_grender_pass.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
 				for (uint32_t i = 0; i < m_illum_ssgi_fbs.m_depth_acc_fbs.size(); i++) {
 					{
 						VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
-						m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+						m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
 							1, &barrier, 0, nullptr, 0, nullptr);
 					}
 
 					auto &cur_ex = m_r.m_swapchain_extent_mips[i + 1];
-					m_cmd.setExtent(cur_ex);
+					m_cmd_grender_pass.setExtent(cur_ex);
 					{
 						VkRenderPassBeginInfo bi{};
 						bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 						bi.renderPass = m_r.m_depth_resolve_pass;
 						bi.framebuffer = m_illum_ssgi_fbs.m_depth_acc_fbs[i];
 						bi.renderArea = VkRect2D{{0, 0}, cur_ex};
-						m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+						m_cmd_grender_pass.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 					}
-					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline.pipelineLayout,
+					m_cmd_grender_pass.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_depth_acc_pipeline.pipelineLayout,
 						0, 1, &m_illum_ssgi_fbs.m_depth_acc_sets[i], 0, nullptr);
-					m_cmd.draw(3, 1, 0, 0);
-					m_cmd.endRenderPass();
+					m_cmd_grender_pass.draw(3, 1, 0, 0);
+					m_cmd_grender_pass.endRenderPass();
 				}
 
 				{
 					VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
-					m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+					m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
 						1, &barrier, 0, nullptr, 0, nullptr);
 				}
-				m_cmd.setExtent(m_r.m_swapchain_extent);
+				m_cmd_grender_pass.setExtent(m_r.m_swapchain_extent);
 			}
 
 			{
@@ -3912,72 +3987,37 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				bi.renderPass = m_r.m_illumination_pass;
 				bi.framebuffer = m_illumination_fb;
 				bi.renderArea = VkRect2D{{0, 0}, sex};
-				m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+				m_cmd_grender_pass.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 			}
-			m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline);
+			m_cmd_grender_pass.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline);
 			{
-				auto view_norm = camera.view;
-				for (size_t i = 0; i < 3; i++)
-					view_norm[3][i] = 0.0f;
-
-				Illumination illum;
-				illum.cam_proj = camera.proj;
-				illum.view = camera.view;
-				illum.view_normal = camera.view;
-				for (size_t i = 0; i < 3; i++)
-					illum.view_normal[3][i] = 0.0f;
-				illum.view_inv = glm::inverse(camera.view);
-				illum.view_normal_inv = illum.view_inv;
-				for (size_t i = 0; i < 3; i++)
-					illum.view_normal_inv[3][i] = 0.0f;
-				illum.last_view = camera.last_view;
-				illum.last_view_inv = glm::inverse(camera.last_view);
-				illum.view_cur_to_last = illum.last_view * illum.view_inv;
-				illum.view_last_to_cur = illum.view * illum.last_view_inv;
-				illum.view_last_to_cur_normal = illum.view_last_to_cur;
-				for (size_t i = 0; i < 3; i++)
-					illum.view_last_to_cur_normal[3][i] = 0.0f;
-				for (size_t i = 0; i < 256; i++) {
-					reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
-					reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
-				}
-				illum.sun = view_norm * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
-				illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
-				illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);
-				illum.size_inv = glm::vec2(1.0f) / illum.size;
-				illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
-				illum.ratio = camera.ratio;
-				illum.cam_near = camera.near;
-				illum.cam_far = camera.far;
-				illum.cam_a = camera.far / (camera.far - camera.near);
-				illum.cam_b = -(camera.far * camera.near) / (camera.far - camera.near);
-
-
 				*reinterpret_cast<Illumination*>(reinterpret_cast<uint8_t*>(m_dyn_buffer_staging_ptr) + m_dyn_buffer_size) = illum;
 				{
 					VkBufferCopy region {m_dyn_buffer_size, 0, sizeof(Illumination)};
-					m_transfer_cmd.copyBuffer(m_dyn_buffer_staging, m_illumination_buffer, 1, &region);
+					m_cmd_gtransfer.copyBuffer(m_dyn_buffer_staging, m_illumination_buffer, 1, &region);
 				}
 				m_dyn_buffer_size += sizeof(Illumination);
 			}
-			m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline.pipelineLayout,
+			m_cmd_grender_pass.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_illumination_pipeline.pipelineLayout,
 				0, 1, &m_illumination_set, 0, nullptr);
-			m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-			m_cmd.draw(3, 1, 0, 0);
-			m_cmd.endRenderPass();
+			m_cmd_grender_pass.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+			m_cmd_grender_pass.draw(3, 1, 0, 0);
+			m_cmd_grender_pass.endRenderPass();
 
 			{
 				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ColorAttachmentWriteBit, Vk::Access::ShaderReadBit };
-				m_cmd.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
+				m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::ColorAttachmentOutputBit, Vk::PipelineStage::FragmentShaderBit, 0,
 					1, &barrier, 0, nullptr, 0, nullptr);
 			}
 		}
-		if (m_r.m_illum_technique == IllumTechnique::RayTracing)  {
+		m_cmd_gwsi.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		if (m_r.m_illum_technique == IllumTechnique::RayTracing) {
 			uint32_t instance_count = 0;
 			map.query<RT_instance>([&](Brush &b){
 				instance_count += b.size();
 			});
-			std::vector<VkAccelerationStructureInstanceKHR> instances(instance_count);
+			size_t instance_size = static_cast<size_t>(instance_count) * sizeof(VkAccelerationStructureInstanceKHR);
+			vector<VkAccelerationStructureInstanceKHR> instances(instance_count);
 			uint32_t instance_offset = 0;
 			map.query<RT_instance>([&](Brush &b){
 				auto t = b.get<Transform>();
@@ -4017,102 +4057,235 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			size.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 			Vk::ext.vkGetAccelerationStructureBuildSizesKHR(m_r.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &bi, &instance_count, &size);
 
-			VmaAllocationCreateInfo aci{
-				.usage = VMA_MEMORY_USAGE_GPU_ONLY
-			};
+			if (m_illum_rt.m_top_acc_structure == VK_NULL_HANDLE || m_illum_rt.instance_count != instance_count) {
+				if (m_illum_rt.m_top_acc_structure != VK_NULL_HANDLE)
+					m_illum_rt.destroy_acc(m_r);
 
-			VkBufferCreateInfo acc_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-				.size = size.accelerationStructureSize,
-				.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
-			};
-			auto acc = m_r.allocator.createBuffer(acc_bci, aci);
+				m_illum_rt.instance_count = instance_count;
 
-			VkBufferCreateInfo scratch_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-				.size = size.buildScratchSize,
-				.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
-			};
-			auto scratch = m_r.allocator.createBuffer(scratch_bci, aci);
-			VkBufferCreateInfo instance_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-				.size = instance_count * sizeof(VkAccelerationStructureInstanceKHR),
-				.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-			};
-			auto instance = m_r.allocator.createBuffer(instance_bci, aci);
-			m_r.loadBuffer(instance, instance_count * sizeof(VkAccelerationStructureInstanceKHR), instances.data());
+				{	// staging
+					VkBufferCreateInfo bci{};
+					bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+					bci.size = instance_size;
+					bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+					VmaAllocationCreateInfo aci{};
+					aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+					aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+					m_illum_rt.m_instance_buffer_staging = m_r.allocator.createBuffer(bci, aci, &m_illum_rt.m_instance_buffer_staging_ptr);
+				}
 
-			i.data.deviceAddress = m_r.device.getBufferDeviceAddressKHR(instance);
-			bi.scratchData.deviceAddress = m_r.device.getBufferDeviceAddressKHR(scratch);
+				VmaAllocationCreateInfo aci{
+					.usage = VMA_MEMORY_USAGE_GPU_ONLY
+				};
 
-			VkAccelerationStructureCreateInfoKHR ci{};
-			ci.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-			ci.buffer = acc;
-			ci.size = size.accelerationStructureSize;
-			ci.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-			if (m_top_acc_structure != VK_NULL_HANDLE)
-				m_r.destroy(m_top_acc_structure);
-			m_top_acc_structure = m_r.device.createAccelerationStructure(ci);
-			m_top_acc_structure.buffer = acc;
-			m_top_acc_structure.reference = m_r.device.getAccelerationStructureDeviceAddressKHR(m_top_acc_structure);
+				VkBufferCreateInfo acc_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+					.size = size.accelerationStructureSize,
+					.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+				};
+				m_illum_rt.m_top_acc_structure.buffer = m_r.allocator.createBuffer(acc_bci, aci);
 
-			bi.dstAccelerationStructure = m_top_acc_structure;
+				VkBufferCreateInfo scratch_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+					.size = size.buildScratchSize,
+					.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+				};
+				m_illum_rt.m_scratch_buffer = m_r.allocator.createBuffer(scratch_bci, aci);
+				m_illum_rt.m_scratch_addr = m_r.device.getBufferDeviceAddressKHR(m_illum_rt.m_scratch_buffer);
+				VkBufferCreateInfo instance_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+					.size = instance_size,
+					.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+				};
+				m_illum_rt.m_instance_buffer = m_r.allocator.createBuffer(instance_bci, aci);
+				m_illum_rt.m_instance_addr = m_r.device.getBufferDeviceAddressKHR(m_illum_rt.m_instance_buffer);
 
-			m_r.m_ctransfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+				VkAccelerationStructureCreateInfoKHR ci{};
+				ci.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+				ci.buffer = m_illum_rt.m_top_acc_structure.buffer;
+				ci.size = size.accelerationStructureSize;
+				ci.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+				m_illum_rt.m_top_acc_structure = m_r.device.createAccelerationStructure(ci);
+				m_illum_rt.m_top_acc_structure.reference = m_r.device.getAccelerationStructureDeviceAddressKHR(m_illum_rt.m_top_acc_structure);
+			}
+
+			std::memcpy(m_illum_rt.m_instance_buffer_staging_ptr, instances.data(), instance_size);
+			m_r.allocator.flushAllocation(m_illum_rt.m_instance_buffer_staging, 0, instance_size);
+
+			VkBufferCopy region;
+			region.srcOffset = 0;
+			region.dstOffset = 0;
+			region.size = instance_size;
+			m_cmd_ctransfer.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+			{
+				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::HostWriteBit, Vk::Access::TransferReadBit };
+				m_cmd_ctransfer.pipelineBarrier(Vk::PipelineStage::HostBit, Vk::PipelineStage::TransferBit, 0,
+					1, &barrier, 0, nullptr, 0, nullptr);
+			}
+			m_cmd_ctransfer.copyBuffer(m_illum_rt.m_instance_buffer_staging, m_illum_rt.m_instance_buffer, 1, &region);
+			{
+				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::AccelerationStructureReadBitKhr };
+				m_cmd_ctransfer.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::AccelerationStructureBuildBitKhr, 0,
+					1, &barrier, 0, nullptr, 0, nullptr);
+			}
+			i.data.deviceAddress = m_illum_rt.m_instance_addr;
+			bi.scratchData.deviceAddress = m_illum_rt.m_scratch_addr;
+			bi.dstAccelerationStructure = m_illum_rt.m_top_acc_structure;
+
 			VkAccelerationStructureBuildRangeInfoKHR bri{};
 			bri.primitiveCount = instance_count;
 			bri.primitiveOffset = 0;
 			VkAccelerationStructureBuildRangeInfoKHR *ppbri[] {
 				&bri
 			};
-			m_r.m_ctransfer_cmd.buildAccelerationStructuresKHR(1, &bi, ppbri);
-			m_r.m_ctransfer_cmd.end();
-			VkSubmitInfo submit{};
-			submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			submit.commandBufferCount = 1;
-			submit.pCommandBuffers = m_r.m_ctransfer_cmd.ptr();
-			m_r.m_cqueue.submit(1, &submit, VK_NULL_HANDLE);
-			m_r.m_cqueue.waitIdle();
+			m_cmd_ctransfer.buildAccelerationStructuresKHR(1, &bi, ppbri);
+			{
+				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::AccelerationStructureWriteBitKhr, Vk::Access::ShaderReadBit };
+				m_cmd_ctransfer.pipelineBarrier(Vk::PipelineStage::AccelerationStructureBuildBitKhr, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+					1, &barrier, 0, nullptr, 0, nullptr);
+			}
+			m_cmd_ctransfer.end();
 
-			m_r.allocator.destroy(instance);
-			m_r.allocator.destroy(scratch);
+			m_cmd_ctrace_rays.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+			{
+				VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
+					Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_graphics, m_r.m_queue_family_compute, m_output,
+					{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
+				m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+					0, nullptr, 0, nullptr, 1, &ibarrier);
+				m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+					0, nullptr, 0, nullptr, 1, &ibarrier);
+			}
+			m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_r.m_illumination_pipeline);
+			m_cmd_ctrace_rays.bindDescriptorSets(VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_r.m_illumination_pipeline.pipelineLayout,
+				0, 1, &m_illumination_set, 0, nullptr);
+			m_cmd_ctrace_rays.traceRaysKHR(&m_r.m_illum_ray_tracing.m_sbt_raygen_region,
+				&m_r.m_illum_ray_tracing.m_sbt_miss_region,
+				&m_r.m_illum_ray_tracing.m_sbt_hit_region,
+				&m_r.m_illum_ray_tracing.m_sbt_callable_region,
+				m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1);
+			{
+				VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit,
+					Vk::ImageLayout::General, Vk::ImageLayout::ShaderReadOnlyOptimal, m_r.m_queue_family_compute, m_r.m_queue_family_graphics, m_output,
+					{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
+				m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+					0, nullptr, 0, nullptr, 1, &ibarrier);
+				m_cmd_gwsi.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+					0, nullptr, 0, nullptr, 1, &ibarrier);
+			}
+			m_cmd_ctrace_rays.end();
 		}
 
+		m_cmd_grender_pass.end();
+
+		m_cmd_gwsi.setExtent(m_r.m_swapchain_extent);
 		{
 			VkRenderPassBeginInfo bi{};
 			bi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			bi.renderPass = m_r.m_wsi_pass;
 			bi.framebuffer = m_r.m_frames[swapchain_index].m_wsi_fb;
 			bi.renderArea = VkRect2D{{0, 0}, sex};
-			m_cmd.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
+			m_cmd_gwsi.beginRenderPass(bi, VK_SUBPASS_CONTENTS_INLINE);
 		}
-		m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_wsi_pipeline);
-		m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_wsi_pipeline.pipelineLayout,
+		m_cmd_gwsi.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_wsi_pipeline);
+		m_cmd_gwsi.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_wsi_pipeline.pipelineLayout,
 			0, 1, &m_wsi_set, 0, nullptr);
-		m_cmd.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
-		m_cmd.draw(3, 1, 0, 0);
-		m_cmd.endRenderPass();
+		m_cmd_gwsi.bindVertexBuffer(0, m_r.m_screen_vertex_buffer, 0);
+		m_cmd_gwsi.draw(3, 1, 0, 0);
+		m_cmd_gwsi.endRenderPass();
 
-		m_cmd.end();
+		m_cmd_gwsi.end();
 	}
 
 	{
+		m_r.allocator.flushAllocation(m_dyn_buffer_staging, 0, m_dyn_buffer_size);
+		{
+			VkBufferCopy region {0, 0, m_dyn_buffer_size};
+			if (region.size > 0)
+				m_cmd_gtransfer.copyBuffer(m_dyn_buffer_staging, m_dyn_buffer, 1, &region);
+		}
+	}
+	{
 		VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::MemoryReadBit };
-		m_transfer_cmd.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::AllGraphicsBit, 0,
+		m_cmd_gtransfer.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::AllGraphicsBit, 0,
 			1, &barrier, 0, nullptr, 0, nullptr);
 	}
-	m_transfer_cmd.end();
+	m_cmd_gtransfer.end();
 
-	VkCommandBuffer cmds[] {
-		m_transfer_cmd,
-		m_cmd
-	};
-	VkPipelineStageFlags wait_stage = Vk::PipelineStage::ColorAttachmentOutputBit;
-	VkSubmitInfo si[] {
-		{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
-			1, m_image_ready.ptr(),
-			&wait_stage,
-			array_size(cmds), cmds,
-			1, m_render_done.ptr()}
-	};
-	m_r.m_gqueue.submit(array_size(si), si, m_frame_done);
+	if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Ssgi) {
+		VkCommandBuffer gcmds0[] {
+			m_cmd_gtransfer,
+			m_cmd_grender_pass
+		};
+		VkCommandBuffer gcmds1[] {
+			m_cmd_gwsi
+		};
+		VkPipelineStageFlags wait_stage = Vk::PipelineStage::ColorAttachmentOutputBit;
+		VkSubmitInfo si[] {
+			{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
+				0, nullptr, nullptr,
+				array_size(gcmds0), gcmds0,
+				0, nullptr},
+			{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
+				1, m_image_ready.ptr(), &wait_stage,
+				array_size(gcmds1), gcmds1,
+				1, m_render_done.ptr()},
+		};
+		m_r.m_gqueue.submit(array_size(si), si, m_frame_done);
+	}
+	if (m_r.m_illum_technique == IllumTechnique::RayTracing) {
+		VkCommandBuffer ccmds0[] {
+			m_cmd_ctransfer
+		};
+		VkPipelineStageFlags cwait_stage = Vk::PipelineStage::RayTracingShaderBitKhr;
+		VkSubmitInfo csi0[] {
+			{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
+				0, nullptr, nullptr,
+				array_size(ccmds0), ccmds0,
+				0, nullptr}
+		};
+		m_r.m_cqueue.submit(array_size(csi0), csi0, VK_NULL_HANDLE);
+
+		VkCommandBuffer gcmds0[] {
+			m_cmd_gtransfer,
+			m_cmd_grender_pass
+		};
+
+		VkSubmitInfo gsi0[] {
+			{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
+				0, nullptr, nullptr,
+				array_size(gcmds0), gcmds0,
+				1, m_render_pass_done.ptr()}
+		};
+		m_r.m_gqueue.submit(array_size(gsi0), gsi0, VK_NULL_HANDLE);
+
+		VkCommandBuffer ccmds1[] {
+			m_cmd_ctrace_rays
+		};
+		VkSubmitInfo csi1[] {
+			{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
+				1, m_render_pass_done.ptr(), &cwait_stage,
+				array_size(ccmds1), ccmds1,
+				1, m_trace_rays_done.ptr()},
+		};
+		m_r.m_cqueue.submit(array_size(csi1), csi1, VK_NULL_HANDLE);
+
+		VkCommandBuffer gcmds1[] {
+			m_cmd_gwsi
+		};
+		VkSemaphore gwait_sems[] {
+			m_image_ready,
+			m_trace_rays_done
+		};
+		VkPipelineStageFlags gwait_stages[] {
+			Vk::PipelineStage::ColorAttachmentOutputBit,
+			Vk::PipelineStage::ColorAttachmentOutputBit
+		};
+		VkSubmitInfo gsi1[] {
+			{VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr,
+				2, gwait_sems, gwait_stages,
+				array_size(gcmds1), gcmds1,
+				1, m_render_done.ptr()},
+		};
+		m_r.m_gqueue.submit(array_size(gsi1), gsi1, m_frame_done);
+	}
 
 	VkPresentInfoKHR pi{};
 	pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -4150,26 +4323,26 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 			if (n != cur) {
 				if (streak > 0) {
 					if (cur.model->indexType == VK_INDEX_TYPE_NONE_KHR)
-						m_cmd.draw(cur.model->primitiveCount, streak, 0, 0);
+						m_cmd_grender_pass.draw(cur.model->primitiveCount, streak, 0, 0);
 					else
-						m_cmd.drawIndexed(cur.model->primitiveCount, streak, 0, 0, 0);
+						m_cmd_grender_pass.drawIndexed(cur.model->primitiveCount, streak, 0, 0, 0);
 					streak = 0;
 				}
 
 				if (n.pipeline != cur.pipeline)
-					m_cmd.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *n.pipeline);
+					m_cmd_grender_pass.bindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, *n.pipeline);
 				if (n.material != cur.material) {
 					if (n.pipeline->pushConstantRange > 0)
-						m_cmd.pushConstants(m_r.m_pipeline_layout_descriptor_set, Vk::ShaderStage::FragmentBit, 0, n.pipeline->pushConstantRange, n.material);
+						m_cmd_grender_pass.pushConstants(m_r.m_pipeline_layout_descriptor_set, Vk::ShaderStage::FragmentBit, 0, n.pipeline->pushConstantRange, n.material);
 				}
 				if (n.model != cur.model) {
-					m_cmd.bindVertexBuffer(0, n.model->vertexBuffer, 0);
+					m_cmd_grender_pass.bindVertexBuffer(0, n.model->vertexBuffer, 0);
 					if (n.model->indexType != VK_INDEX_TYPE_NONE_KHR)
-						m_cmd.bindIndexBuffer(n.model->indexBuffer, 0, n.model->indexType);
+						m_cmd_grender_pass.bindIndexBuffer(n.model->indexBuffer, 0, n.model->indexType);
 				}
 				{
 					uint32_t dyn_off[] {static_cast<uint32_t>(m_dyn_buffer_size)};
-					m_cmd.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_descriptor_set,
+					m_cmd_grender_pass.bindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, m_r.m_pipeline_layout_descriptor_set,
 						1, 1, &m_descriptor_set_dynamic, array_size(dyn_off), dyn_off);
 				}
 				cur = n;
@@ -4189,9 +4362,9 @@ void Renderer::Frame::render_subset(Map &map, cmp_id render_id)
 
 	if (streak > 0) {
 		if (cur.model->indexType == VK_INDEX_TYPE_NONE_KHR)
-			m_cmd.draw(cur.model->primitiveCount, streak, 0, 0);
+			m_cmd_grender_pass.draw(cur.model->primitiveCount, streak, 0, 0);
 		else
-			m_cmd.drawIndexed(cur.model->primitiveCount, streak, 0, 0, 0);
+			m_cmd_grender_pass.drawIndexed(cur.model->primitiveCount, streak, 0, 0, 0);
 	}
 }
 

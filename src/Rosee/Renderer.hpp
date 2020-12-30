@@ -170,7 +170,8 @@ public:
 private:
 	vector<Vk::ImageView> createSwapchainImageViews(void);
 
-	Vk::CommandPool m_command_pool;
+	Vk::CommandPool m_gcommand_pool;
+	Vk::CommandPool m_ccommand_pool;
 	Vk::CommandPool m_transfer_command_pool;
 	Vk::CommandBuffer m_transfer_cmd;
 	Vk::CommandPool m_ctransfer_command_pool;
@@ -260,9 +261,27 @@ private:
 
 				struct Shared {
 					Vk::BufferAllocation m_sbt_raygen_buffer;
-					VkDeviceAddress m_sbt_raygen_addr;
+					VkStridedDeviceAddressRegionKHR m_sbt_raygen_region;
+					VkStridedDeviceAddressRegionKHR m_sbt_miss_region;
+					VkStridedDeviceAddressRegionKHR m_sbt_hit_region;
+					VkStridedDeviceAddressRegionKHR m_sbt_callable_region;
 
 					void destroy(Renderer &r);
+				};
+
+				struct Fbs {
+					uint32_t instance_count;
+					void *m_instance_buffer_staging_ptr;
+					Vk::BufferAllocation m_instance_buffer_staging;
+					Vk::BufferAllocation m_instance_buffer;
+					VkDeviceAddress m_instance_addr;
+					Vk::BufferAllocation m_scratch_buffer;
+					VkDeviceAddress m_scratch_addr;
+
+					AccelerationStructure m_top_acc_structure;
+
+					void destroy(Renderer &r);
+					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers
 				};
 			};
 		};
@@ -331,11 +350,16 @@ private:
 	{
 		Renderer &m_r;
 		size_t m_i;
-		Vk::CommandBuffer m_transfer_cmd;
-		Vk::CommandBuffer m_cmd;
+		Vk::CommandBuffer m_cmd_gtransfer;
+		Vk::CommandBuffer m_cmd_grender_pass;
+		Vk::CommandBuffer m_cmd_gwsi;
+		Vk::CommandBuffer m_cmd_ctransfer;
+		Vk::CommandBuffer m_cmd_ctrace_rays;
 		Vk::Fence m_frame_done;
 		Vk::Semaphore m_render_done;
 		Vk::Semaphore m_image_ready;
+		Vk::Semaphore m_render_pass_done;
+		Vk::Semaphore m_trace_rays_done;
 		bool m_ever_submitted = false;
 
 		VkDescriptorSet m_descriptor_set_0;
@@ -367,6 +391,8 @@ private:
 		IllumTechnique::Data::Ssgi::Fbs m_illum_ssgi_fbs;
 		IllumTechnique::Data::Ssgi::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
 			const VkDescriptorSet *pDescriptorSetsMip);
+		IllumTechnique::Data::RayTracing::Fbs m_illum_rt;
+		IllumTechnique::Data::RayTracing::Fbs createIllumRtFbs(void);
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
@@ -406,10 +432,9 @@ private:
 			float cam_b;
 		};
 
-		AccelerationStructure m_top_acc_structure;
-
 	public:
-		Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCommandBuffer cmd,
+		Frame(Renderer &r, size_t i, Vk::CommandBuffer cmdGtransfer, Vk::CommandBuffer cmdGrenderPass, Vk::CommandBuffer cmdGwsi,
+			Vk::CommandBuffer cmdCtransfer, Vk::CommandBuffer cmdCtraceRays,
 			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
 			VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
 			VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,

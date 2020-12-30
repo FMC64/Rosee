@@ -272,6 +272,16 @@ public:
 	{
 		ext.vkCmdBuildAccelerationStructuresKHR(*this, infoCount, pInfos, ppBuildRangeInfos);
 	}
+
+	void traceRaysKHR(const VkStridedDeviceAddressRegionKHR *pRaygenShaderBindingTable,
+		const VkStridedDeviceAddressRegionKHR *pMissShaderBindingTable,
+		const VkStridedDeviceAddressRegionKHR *pHitShaderBindingTable,
+		const VkStridedDeviceAddressRegionKHR *pCallableShaderBindingTable,
+		uint32_t width, uint32_t height, uint32_t depth)
+	{
+		ext.vkCmdTraceRaysKHR(*this, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable,
+			width, height, depth);
+	}
 };
 
 class Queue : public Handle<VkQueue>
@@ -589,6 +599,8 @@ static inline constexpr auto DepthStencilAttachmentReadBit = VK_ACCESS_DEPTH_STE
 static inline constexpr auto DepthStencilAttachmentWriteBit = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 static inline constexpr auto TransferReadBit = VK_ACCESS_TRANSFER_READ_BIT;
 static inline constexpr auto TransferWriteBit = VK_ACCESS_TRANSFER_WRITE_BIT;
+static inline constexpr auto AccelerationStructureReadBitKhr = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+static inline constexpr auto AccelerationStructureWriteBitKhr = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
 static inline constexpr auto HostReadBit = VK_ACCESS_HOST_READ_BIT;
 static inline constexpr auto HostWriteBit = VK_ACCESS_HOST_WRITE_BIT;
 static inline constexpr auto MemoryReadBit = VK_ACCESS_MEMORY_READ_BIT;
@@ -611,6 +623,8 @@ static inline constexpr auto LateFragmentTestsBit = VK_PIPELINE_STAGE_LATE_FRAGM
 static inline constexpr auto ColorAttachmentOutputBit = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 static inline constexpr auto ComputeShaderBit = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 static inline constexpr auto TransferBit = VK_PIPELINE_STAGE_TRANSFER_BIT;
+static inline constexpr auto AccelerationStructureBuildBitKhr = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+static inline constexpr auto RayTracingShaderBitKhr = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
 static inline constexpr auto BottomOfPipeBit = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 static inline constexpr auto HostBit = VK_PIPELINE_STAGE_HOST_BIT;
 static inline constexpr auto AllGraphicsBit = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
