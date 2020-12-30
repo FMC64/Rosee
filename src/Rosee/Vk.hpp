@@ -53,6 +53,9 @@ struct Ext {
 	EXT(vkGetRayTracingCaptureReplayShaderGroupHandlesKHR);
 	EXT(vkGetRayTracingShaderGroupHandlesKHR);
 	EXT(vkGetRayTracingShaderGroupStackSizeKHR);
+
+	// VK_VERSION_1_1
+	EXT(vkGetPhysicalDeviceProperties2);
 #undef EXT
 };
 extern Ext ext;

@@ -99,11 +99,12 @@ class Renderer
 	uint32_t m_queue_family_compute = ~0U;
 	VkPhysicalDevice m_physical_device;
 
-	struct ExtSupport {
+	struct Ext {
 		bool ray_tracing;
+		VkPhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props;
 	};
 public:
-	ExtSupport ext_support;
+	Ext ext;
 	Vk::Device device;
 
 private:
@@ -255,6 +256,14 @@ private:
 
 			struct RayTracing {
 				static inline constexpr uint32_t storageImageCount = 1;
+				static inline constexpr uint32_t groupCount = 1;
+
+				struct Shared {
+					Vk::BufferAllocation m_sbt_raygen_buffer;
+					VkDeviceAddress m_sbt_raygen_addr;
+
+					void destroy(Renderer &r);
+				};
 			};
 		};
 
@@ -297,6 +306,8 @@ private:
 	Vk::DescriptorSetLayout createIlluminationSetLayout(void);
 	Pipeline m_illumination_pipeline;
 	Pipeline createIlluminationPipeline(void);
+	IllumTechnique::Data::RayTracing::Shared m_illum_ray_tracing;
+	IllumTechnique::Data::RayTracing::Shared createIllumRayTracing(void);
 	Vk::RenderPass m_wsi_pass;
 	Vk::RenderPass createWsiPass(void);
 	Vk::DescriptorSetLayout m_wsi_set_layout;

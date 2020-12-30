@@ -114,6 +114,11 @@ Vk::Instance Renderer::createInstance(void)
 	EXT(vkGetPhysicalDeviceSurfaceFormatsKHR);
 	EXT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 	EXT(vkDestroySurfaceKHR);
+
+	if (m_instance_version >= VK_API_VERSION_1_1) {
+		// VK_VERSION_1_1
+		EXT(vkGetPhysicalDeviceProperties2);
+	}
 #undef EXT
 	return res;
 }
@@ -194,7 +199,7 @@ Vk::Device Renderer::createDevice(void)
 	uint32_t physical_devices_gqueue_families[physical_device_count];
 	uint32_t physical_devices_cqueue_families[physical_device_count];
 	vkAssert(vkEnumeratePhysicalDevices(m_instance, &physical_device_count, physical_devices));
-	ExtSupport ext_supports[physical_device_count];
+	Ext ext_supports[physical_device_count];
 
 	for (uint32_t i = 0; i < physical_device_count; i++) {
 		vkGetPhysicalDeviceProperties(physical_devices[i], &physical_devices_properties[i]);
@@ -245,7 +250,7 @@ Vk::Device Renderer::createDevice(void)
 		VkExtensionProperties exts[ext_count];
 		vkEnumerateDeviceExtensionProperties(dev, nullptr, &ext_count, exts);
 		bool req_ext_supported = true;
-		ext_supports[i] = ExtSupport{};
+		ext_supports[i] = Ext{};
 		for (size_t j = 0; j < array_size(required_exts); j++) {
 			bool found = false;
 			for (size_t k = 0; k < ext_count; k++)
@@ -261,6 +266,8 @@ Vk::Device Renderer::createDevice(void)
 		if (!req_ext_supported)
 			continue;
 		ext_supports[i].ray_tracing = true;
+		if (m_instance_version < VK_API_VERSION_1_1)
+			ext_supports[i].ray_tracing = false;
 		for (size_t j = 0; j < array_size(ray_tracing_exts); j++) {
 			bool found = false;
 			for (size_t k = 0; k < ext_count; k++) {
@@ -273,6 +280,20 @@ Vk::Device Renderer::createDevice(void)
 				ext_supports[i].ray_tracing = false;
 				break;
 			}
+		}
+
+		if (m_instance_version >= VK_API_VERSION_1_1) {
+			VkPhysicalDeviceProperties2 props{};
+			props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+			auto pNext = &props.pNext;
+			if (ext_supports[i].ray_tracing) {
+				ext_supports[i].ray_tracing_props = VkPhysicalDeviceRayTracingPipelinePropertiesKHR{
+					.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
+				};
+				*pNext = &ext_supports[i].ray_tracing_props;
+				pNext = &ext_supports[i].ray_tracing_props.pNext;
+			}
+			Vk::ext.vkGetPhysicalDeviceProperties2(dev, &props);
 		}
 
 		uint32_t queue_family_count;
@@ -330,6 +351,7 @@ Vk::Device Renderer::createDevice(void)
 	m_limits = m_properties.limits;
 	m_features = physical_devices_features[chosen];
 	m_physical_device = physical_devices[chosen];
+	ext = ext_supports[chosen];
 
 	{
 		uint32_t present_mode_count;
@@ -376,7 +398,7 @@ Vk::Device Renderer::createDevice(void)
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acc_features{};
 	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR buffer_device_address_features{};
 	auto pnext = &ci.pNext;
-	if (ext_support.ray_tracing) {
+	if (ext.ray_tracing) {
 		rt_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
 		rt_features.rayTracingPipeline = VK_TRUE;
 		*pnext = &rt_features;
@@ -417,12 +439,11 @@ Vk::Device Renderer::createDevice(void)
 	ci.pQueueCreateInfos = qcis;
 	ci.pEnabledFeatures = &required_features;
 
-	ext_support = ext_supports[chosen];
 	const char* extensions[array_size(required_exts) + array_size(ray_tracing_exts)];
 	uint32_t extension_count = 0;
 	for (size_t i = 0; i < array_size(required_exts); i++)
 		extensions[extension_count++] = required_exts[i];
-	if (ext_support.ray_tracing)
+	if (ext.ray_tracing)
 		for (size_t i = 0; i < array_size(ray_tracing_exts); i++)
 			extensions[extension_count++] = ray_tracing_exts[i];
 
@@ -442,7 +463,7 @@ Vk::Device Renderer::createDevice(void)
 	EXT(vkQueuePresentKHR);
 	EXT(vkAcquireNextImageKHR);
 
-	if (ext_support.ray_tracing) {
+	if (ext.ray_tracing) {
 		// VK_KHR_acceleration_structure
 		EXT(vkBuildAccelerationStructuresKHR);
 		EXT(vkCmdBuildAccelerationStructuresIndirectKHR);
@@ -532,7 +553,7 @@ VkSampleCountFlagBits Renderer::fitSampleCount(VkSampleCountFlagBits sampleCount
 Vk::Allocator Renderer::createAllocator(void)
 {
 	VmaAllocatorCreateInfo ci{};
-	if (ext_support.ray_tracing)
+	if (ext.ray_tracing)
 		ci.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	ci.vulkanApiVersion = VK_API_VERSION_1_0;
 	ci.physicalDevice = m_physical_device;
@@ -1513,7 +1534,7 @@ Pipeline Renderer::createIlluminationPipeline(void)
 		};
 		ci.stageCount = array_size(stages);
 		ci.pStages = stages;
-		VkRayTracingShaderGroupCreateInfoKHR groups[] {
+		VkRayTracingShaderGroupCreateInfoKHR groups[IllumTechnique::Data::RayTracing::groupCount] {
 			{
 				.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
 				.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
@@ -1536,9 +1557,43 @@ Pipeline Renderer::createIlluminationPipeline(void)
 			res.pipelineLayout = device.createPipelineLayout(ci);
 		}
 		ci.layout = res.pipelineLayout;
+		VkPipeline pip;
+		vkAssert(Vk::ext.vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, m_pipeline_cache, 1, &ci, nullptr, &pip));
+		res = pip;
 		return res;
 	}
 	throw std::runtime_error("createIlluminationPipeline");
+}
+
+Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTracing(void)
+{
+	IllumTechnique::Data::RayTracing::Shared res;
+
+	if (m_illum_technique != IllumTechnique::RayTracing)
+		return res;
+	using Handle = uint8_t[ext.ray_tracing_props.shaderGroupHandleSize];
+	Handle handles[IllumTechnique::Data::RayTracing::groupCount];
+	Vk::ext.vkGetRayTracingShaderGroupHandlesKHR(device, m_illumination_pipeline, 0, IllumTechnique::Data::RayTracing::groupCount,
+		sizeof(handles), handles);	// runtime sizeof ?!!
+
+	Handle rgen[1];
+#define CPY(l, r) std::memcpy(&l, &r, sizeof(l))
+	CPY(rgen[0], handles[0]);
+#undef CPY
+
+	VmaAllocationCreateInfo aci{
+		.usage = VMA_MEMORY_USAGE_GPU_ONLY
+	};
+
+	VkBufferCreateInfo raygen_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(rgen),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	res.m_sbt_raygen_buffer = allocator.createBuffer(raygen_bci, aci);
+	loadBuffer(res.m_sbt_raygen_buffer, sizeof(rgen), rgen);
+	res.m_sbt_raygen_addr = device.getBufferDeviceAddressKHR(res.m_sbt_raygen_buffer);
+
+	return res;
 }
 
 Vk::RenderPass Renderer::createWsiPass(void)
@@ -2731,6 +2786,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_illumination_pass(createIlluminationPass()),
 	m_illumination_set_layout(createIlluminationSetLayout()),
 	m_illumination_pipeline(createIlluminationPipeline()),
+	m_illum_ray_tracing(createIllumRayTracing()),
 	m_wsi_pass(createWsiPass()),
 	m_wsi_set_layout(createWsiSetLayout()),
 	m_wsi_pipeline(createWsiPipeline()),
@@ -2770,6 +2826,8 @@ Renderer::~Renderer(void)
 	m_wsi_pipeline.destroy(device);
 	device.destroy(m_wsi_set_layout);
 	device.destroy(m_wsi_pass);
+	if (m_illum_technique == IllumTechnique::RayTracing)
+		m_illum_ray_tracing.destroy(*this);
 	m_illumination_pipeline.destroy(device);
 	device.destroy(m_illumination_set_layout);
 	if (m_illum_technique != IllumTechnique::RayTracing)
@@ -3535,6 +3593,11 @@ void Renderer::IllumTechnique::Data::Ssgi::Fbs::destroy(Renderer &r)
 		r.device.destroy(m_albedo_resolved_view);
 		r.allocator.destroy(m_albedo_resolved);
 	}
+}
+
+void Renderer::IllumTechnique::Data::RayTracing::Shared::destroy(Renderer &r)
+{
+	r.allocator.destroy(m_sbt_raygen_buffer);
 }
 
 Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)

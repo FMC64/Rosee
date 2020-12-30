@@ -145,7 +145,7 @@ public:
 		r.loadBuffer(res.vertexBuffer, buf_size, vertices);
 		r.loadBuffer(res.indexBuffer, ind_size, indices);
 
-		if (r.ext_support.ray_tracing) {
+		if (r.ext.ray_tracing) {
 			size_t a_ind_stride = (chunk_size_gen - 1) * 6;
 			size_t a_ind_count = (chunk_size_gen - 1) * a_ind_stride;
 			uint16_t a_indices[a_ind_count];
@@ -209,7 +209,7 @@ class Game
 	{
 		int64_t scav = static_cast<int64_t>(1) << scale;
 		AccelerationStructure *acc = nullptr;
-		if (m_r.ext_support.ray_tracing)
+		if (m_r.ext.ray_tracing)
 			acc = acc_pool.allocate();
 		*model = m_w.createChunk(m_r, cpos, scale, acc);
 		auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender, RT_instance>(1);
@@ -221,7 +221,7 @@ class Game
 		r.pipeline = pipeline;
 		r.material = material;
 		r.model = model;
-		if (m_r.ext_support.ray_tracing) {
+		if (m_r.ext.ray_tracing) {
 			auto &rt = b.get<RT_instance>()[n];
 			rt.instanceCustomIndex = 0;
 			rt.mask = 1;
