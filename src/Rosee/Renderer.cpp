@@ -1738,7 +1738,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		)},
 		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_frame_count * (
 			(m_illum_technique == IllumTechnique::RayTracing ?
-				1 :	// illum
+				IllumTechnique::Data::RayTracing::storageImageCount :	// illum
 				0)
 		)}
 	};
@@ -2816,7 +2816,10 @@ void Renderer::bindFrameDescriptors(void)
 		1;	// wsi: output
 	uint32_t img_writes_per_frame =
 		const_img_writes_per_frame +
-		m_illum_technique_props.descriptorCombinedImageSamplerCount;	// illum
+		m_illum_technique_props.descriptorCombinedImageSamplerCount +
+		(m_illum_technique == IllumTechnique::RayTracing ?
+			IllumTechnique::Data::RayTracing::storageImageCount :
+			0);	// illum
 	uint32_t img_writes_offset = 0;
 	static constexpr uint32_t buf_writes_per_frame =
 		1;	// illum: buffer
@@ -2835,6 +2838,7 @@ void Renderer::bindFrameDescriptors(void)
 
 		struct WriteImgDesc {
 			VkDescriptorSet descriptorSet;
+			VkDescriptorType descriptorType;
 			uint32_t binding;
 			VkSampler sampler;
 			VkImageView imageView;
@@ -2842,9 +2846,11 @@ void Renderer::bindFrameDescriptors(void)
 		} write_img_descs[img_writes_per_frame];
 		size_t write_img_descs_offset = 0;
 
+		static constexpr auto cis = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
 		{
 			WriteImgDesc descs[const_img_writes_per_frame] {
-				{cur_frame.m_wsi_set, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+				{cur_frame.m_wsi_set, cis, 0, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 			};
 			for (size_t i = 0; i < array_size(descs); i++)
 				write_img_descs[write_img_descs_offset++] = descs[i];
@@ -2852,9 +2858,9 @@ void Renderer::bindFrameDescriptors(void)
 
 		if (m_illum_technique == IllumTechnique::Potato) {
 			WriteImgDesc descs[IllumTechnique::Data::Potato::descriptorCombinedImageSamplerCount] {
-				{cur_frame.m_illumination_set, 1, m_sampler_fb_lin, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-				{cur_frame.m_illumination_set, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-				{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+				{cur_frame.m_illumination_set, cis, 1, m_sampler_fb_lin, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{cur_frame.m_illumination_set, cis, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+				{cur_frame.m_illumination_set, cis, 3, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 			};
 			for (size_t i = 0; i < array_size(descs); i++)
 				write_img_descs[write_img_descs_offset++] = descs[i];
@@ -2862,49 +2868,56 @@ void Renderer::bindFrameDescriptors(void)
 		if (m_illum_technique == IllumTechnique::Ssgi) {
 			if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
 				WriteImgDesc descs[IllumTechnique::Data::Ssgi::descriptorCombinedImageSamplerCount] {
-					{cur_frame.m_illum_ssgi_fbs.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 1, m_sampler_fb_mip, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 3, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 4, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 6, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 7, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 8, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 9, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 12, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 13, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{cur_frame.m_illum_ssgi_fbs.m_depth_resolve_set, cis, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 1, m_sampler_fb_mip, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 4, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 5, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 6, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 7, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 8, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 9, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 10, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 13, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
 			} else {
 				WriteImgDesc descs[IllumTechnique::Data::Ssgi::msDescriptorCombinedImageSamplerCount] {
-					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, 1, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, 2, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illum_ssgi_fbs.m_depth_resolve_set, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 1, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 2, m_sampler_fb_mip, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 5, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, 6, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 7, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 8, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 9, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 10, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 12, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 13, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 14, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 15, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, 16, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, cis, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, cis, 1, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, cis, 2, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illum_ssgi_fbs.m_depth_resolve_set, cis, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 1, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb_mip, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 5, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 6, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 7, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 8, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_albedo_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 9, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_normal_resolved_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 10, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_step_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 11, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_acc_path_pos_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 12, m_sampler_fb_lin, cur_frame.m_illum_ssgi_fbs.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 13, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 14, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 15, m_sampler_fb, cur_frame.m_illum_ssgi_fbs.m_path_incidence_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
 			}
+		}
+		if (m_illum_technique == IllumTechnique::RayTracing) {
+			WriteImgDesc descs[IllumTechnique::Data::RayTracing::storageImageCount] {
+				{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, m_sampler_fb, cur_frame.m_output_view, Vk::ImageLayout::General}
+			};
+			for (size_t i = 0; i < array_size(descs); i++)
+				write_img_descs[write_img_descs_offset++] = descs[i];
 		}
 
 		for (uint32_t j = 0; j < img_writes_per_frame; j++) {
@@ -2919,7 +2932,7 @@ void Renderer::bindFrameDescriptors(void)
 			w.dstBinding = write_img_descs[j].binding;
 			w.dstArrayElement = 0;
 			w.descriptorCount = 1;
-			w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			w.descriptorType = write_img_descs[j].descriptorType;
 			w.pImageInfo = &ii;
 			writes[i * writes_per_frame + img_writes_offset + j] = w;
 		}
@@ -2952,7 +2965,7 @@ void Renderer::bindFrameDescriptors(void)
 		if (m_illum_technique == IllumTechnique::Ssgi) {
 			WriteImgDesc write_img_mip_descs[img_mip_writes_per_frame];
 			for (uint32_t j = 0; j < img_mip_writes_per_frame; j++)
-				write_img_mip_descs[j] = WriteImgDesc{cur_frame.m_illum_ssgi_fbs.m_depth_acc_sets[j], 0, m_sampler_fb,
+				write_img_mip_descs[j] = WriteImgDesc{cur_frame.m_illum_ssgi_fbs.m_depth_acc_sets[j], cis, 0, m_sampler_fb,
 					j == 0 ? cur_frame.m_illum_ssgi_fbs.m_depth_first_mip_view : cur_frame.m_illum_ssgi_fbs.m_depth_acc_views[j - 1], Vk::ImageLayout::ShaderReadOnlyOptimal};
 			for (uint32_t j = 0; j < img_mip_writes_per_frame; j++) {
 				auto &ii = image_infos[i * (img_writes_per_frame + img_mip_writes_per_frame) + img_writes_per_frame + j];
@@ -3640,7 +3653,8 @@ Renderer::Frame::Frame(Renderer &r, size_t i, VkCommandBuffer transferCmd, VkCom
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal)),
 	m_illum_ssgi_fbs(createIllumSsgiFbs(descriptorSetColorResolve, descriptorSetDepthResolve, pDescriptorSetsMip)),
 	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
-		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_output)),
+		(m_r.m_illum_technique == IllumTechnique::RayTracing ? Vk::ImageUsage::StorageBit : Vk::ImageUsage::ColorAttachmentBit) |
+		Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_output)),
 	m_opaque_fb(createOpaqueFb()),
 	m_illumination_fb(createIlluminationFb()),
 	m_illumination_set(descriptorSetIllum),

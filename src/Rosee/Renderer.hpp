@@ -252,6 +252,10 @@ private:
 					void destroy(Renderer &r);
 				};
 			};
+
+			struct RayTracing {
+				static inline constexpr uint32_t storageImageCount = 1;
+			};
 		};
 
 		using Type = uint32_t;
