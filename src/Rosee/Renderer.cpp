@@ -2415,7 +2415,7 @@ void Renderer::loadBufferCompute(VkBuffer buffer, size_t size, const void *data)
 }
 
 
-Model Renderer::loadModel(const char *path)
+Model Renderer::loadModel(const char *path, AccelerationStructure *acc)
 {
 	std::ifstream file(path);
 	if (!file.good())
@@ -2508,6 +2508,8 @@ Model Renderer::loadModel(const char *path)
 
 		allocator.destroy(s);
 	}
+	if (acc)
+		*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), vertices.data(), VK_INDEX_TYPE_NONE_KHR, 0, nullptr);
 	return res;
 }
 
@@ -2635,7 +2637,7 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 }
 
 AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
-	uint32_t indexCount, const uint16_t *pIndices)
+	VkIndexType indexType, uint32_t indexCount, const uint16_t *pIndices)
 {
 	VkAccelerationStructureBuildGeometryInfoKHR bi{};
 	bi.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -2652,13 +2654,13 @@ AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t verte
 	t.vertexData.hostAddress = nullptr;
 	t.vertexStride = vertexStride;
 	t.maxVertex = vertexCount;
-	t.indexType = VK_INDEX_TYPE_UINT16;
+	t.indexType = indexType;
 	t.indexData.hostAddress = nullptr;
 	t.transformData.hostAddress = nullptr;
 	bi.pGeometries = &geometry;
 	bi.scratchData.hostAddress = nullptr;
 
-	uint32_t prim_count = indexCount / 3;
+	uint32_t prim_count = (indexType == VK_INDEX_TYPE_NONE_KHR ? vertexCount :  indexCount) / 3;
 	VkAccelerationStructureBuildSizesInfoKHR size{};
 	size.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 	Vk::ext.vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &bi, &prim_count, &size);
@@ -2683,16 +2685,19 @@ AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t verte
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
 	};
 	auto vertex = allocator.createBuffer(vertex_bci, aci);
-	VkBufferCreateInfo index_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = vertexCount * vertexStride,
-		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-	};
-	auto index = allocator.createBuffer(index_bci, aci);
 	loadBuffer(vertex, vertexCount * vertexStride, pVertices);
-	loadBuffer(index, indexCount * sizeof(uint16_t), pIndices);
+	Vk::BufferAllocation index;
+	if (indexType != VK_INDEX_TYPE_NONE_KHR) {
+		VkBufferCreateInfo index_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.size = vertexCount * vertexStride,
+			.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+		};
+		index = allocator.createBuffer(index_bci, aci);
+		loadBuffer(index, indexCount * (indexType == VK_INDEX_TYPE_UINT16 ? sizeof(uint16_t) : (indexType == VK_INDEX_TYPE_UINT32 ? sizeof(uint32_t) : 0)), pIndices);
+		t.indexData.deviceAddress = device.getBufferDeviceAddressKHR(index);
+	}
 
 	t.vertexData.deviceAddress = device.getBufferDeviceAddressKHR(vertex);
-	t.indexData.deviceAddress = device.getBufferDeviceAddressKHR(index);
 	bi.scratchData.deviceAddress = device.getBufferDeviceAddressKHR(scratch);
 
 	VkAccelerationStructureCreateInfoKHR ci{};
@@ -2724,7 +2729,8 @@ AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t verte
 	m_cqueue.submit(1, &submit, VK_NULL_HANDLE);
 	m_cqueue.waitIdle();
 
-	allocator.destroy(index);
+	if (indexType != VK_INDEX_TYPE_NONE_KHR)
+		allocator.destroy(index);
 	allocator.destroy(vertex);
 	allocator.destroy(scratch);
 	return res;

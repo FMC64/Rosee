@@ -159,7 +159,7 @@ public:
 					a_indices[a_ind_stride * i + j * 6 + 5] = (i + 1) * chunk_size_gen + j + 1;
 				}
 			}
-			*acc = r.createBottomAccelerationStructure(vert_count, sizeof(Vertex::pn), vertices, a_ind_count, a_indices);
+			*acc = r.createBottomAccelerationStructure(vert_count, sizeof(Vertex::pn), vertices, VK_INDEX_TYPE_UINT16, a_ind_count, a_indices);
 		}
 		return res;
 	}
@@ -333,13 +333,21 @@ public:
 		}
 
 		{
-			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender>(1);
+			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
 			r.material = material_albedo;
 			r.model = model_pool.allocate();
-			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj");
+			AccelerationStructure *acc = m_r.ext.ray_tracing ? acc_pool.allocate() : nullptr;
+			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj", acc);
+			if (m_r.ext.ray_tracing) {
+				auto &rt = b.get<RT_instance>()[n];
+				rt.instanceCustomIndex = 0;
+				rt.mask = 1;
+				rt.instanceShaderBindingTableRecordOffset = 0;
+				rt.accelerationStructureReference = acc->reference;
+			}
 		}
 		gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool, acc_pool);
 

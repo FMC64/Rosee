@@ -480,11 +480,11 @@ public:
 	Vk::BufferAllocation createIndexBuffer(size_t size);
 	void loadBuffer(VkBuffer buffer, size_t size, const void *data);
 	void loadBufferCompute(VkBuffer buffer, size_t size, const void *data);
-	Model loadModel(const char *path);
+	Model loadModel(const char *path, AccelerationStructure *acc);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
 
 	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
-		uint32_t indexCount, const uint16_t *pIndices);
+		VkIndexType indexType, uint32_t indexCount, const uint16_t *pIndices);
 	void destroy(AccelerationStructure &accelerationStructure);
 
 	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);
