@@ -259,6 +259,10 @@ private:
 				static inline constexpr uint32_t storageImageCount = 1;
 				static inline constexpr uint32_t groupCount = 1;
 
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6;
+				static inline constexpr uint32_t barrsPerFrame = 1;
+				static inline constexpr uint32_t addBarrsPerFrame = 1;
+
 				struct Shared {
 					Vk::BufferAllocation m_sbt_raygen_buffer;
 					VkStridedDeviceAddressRegionKHR m_sbt_raygen_region;
@@ -279,6 +283,9 @@ private:
 					VkDeviceAddress m_scratch_addr;
 
 					AccelerationStructure m_top_acc_structure;
+
+					void *m_illumination_staging_ptr;
+					Vk::BufferAllocation m_illumination_staging;
 
 					void destroy(Renderer &r);
 					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers
