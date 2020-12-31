@@ -257,7 +257,7 @@ private:
 
 			struct RayTracing {
 				static inline constexpr uint32_t storageImageCount = 1;
-				static inline constexpr uint32_t groupCount = 1;
+				static inline constexpr uint32_t groupCount = 3;
 
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6;
 				static inline constexpr uint32_t barrsPerFrame = 1;
@@ -265,6 +265,8 @@ private:
 
 				struct Shared {
 					Vk::BufferAllocation m_sbt_raygen_buffer;
+					Vk::BufferAllocation m_sbt_miss_buffer;
+					Vk::BufferAllocation m_sbt_hit_buffer;
 					VkStridedDeviceAddressRegionKHR m_sbt_raygen_region;
 					VkStridedDeviceAddressRegionKHR m_sbt_miss_region;
 					VkStridedDeviceAddressRegionKHR m_sbt_hit_region;

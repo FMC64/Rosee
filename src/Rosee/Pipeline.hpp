@@ -2,13 +2,13 @@
 
 #include "Vk.hpp"
 #include "Cmp.hpp"
+#include "vector"
 
 namespace Rosee {
 
 struct Pipeline : public Vk::Handle<VkPipeline>
 {
-	uint32_t shaderModuleCount = 0;
-	VkShaderModule shaderModules[8];
+	vector<VkShaderModule> shaderModules;
 	VkPipelineLayout pipelineLayout;
 	uint32_t pushConstantRange;
 	uint32_t dynamicCount = 0;

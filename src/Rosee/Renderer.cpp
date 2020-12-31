@@ -1413,13 +1413,14 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	if (m_illum_technique == IllumTechnique::RayTracing) {
 		VkDescriptorSetLayoutBinding bindings[] {
 			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
-			{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// depth
-			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
-			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
-			{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_depth
-			{5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
-			{6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
-			{7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// output
+			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
+			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
+			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
+			{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
+			{5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_cdepth
+			{6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
+			{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
+			{8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// output
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -1535,8 +1536,14 @@ Pipeline Renderer::createIlluminationPipeline(void)
 		ci.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
 		auto ray_tracing = loadShaderModule(VK_SHADER_STAGE_RAYGEN_BIT_KHR, "sha/ray_tracing");
 		res.pushShaderModule(ray_tracing);
+		auto sky = loadShaderModule(VK_SHADER_STAGE_MISS_BIT_KHR, "sha/sky");
+		res.pushShaderModule(sky);
+		auto opaque = loadShaderModule(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "sha/opaque");
+		res.pushShaderModule(opaque);
 		VkPipelineShaderStageCreateInfo stages[] {
-			initPipelineStage(VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing)	// 0
+			initPipelineStage(VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing),	// 0
+			initPipelineStage(VK_SHADER_STAGE_MISS_BIT_KHR, sky),	// 1
+			initPipelineStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque)	// 2
 		};
 		ci.stageCount = array_size(stages);
 		ci.pStages = stages;
@@ -1546,6 +1553,22 @@ Pipeline Renderer::createIlluminationPipeline(void)
 				.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
 				.generalShader = 0,
 				.closestHitShader = VK_SHADER_UNUSED_KHR,
+				.anyHitShader = VK_SHADER_UNUSED_KHR,
+				.intersectionShader = VK_SHADER_UNUSED_KHR
+			},
+			{
+				.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+				.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+				.generalShader = 1,
+				.closestHitShader = VK_SHADER_UNUSED_KHR,
+				.anyHitShader = VK_SHADER_UNUSED_KHR,
+				.intersectionShader = VK_SHADER_UNUSED_KHR
+			},
+						{
+				.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+				.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+				.generalShader = VK_SHADER_UNUSED_KHR,
+				.closestHitShader = 2,
 				.anyHitShader = VK_SHADER_UNUSED_KHR,
 				.intersectionShader = VK_SHADER_UNUSED_KHR
 			}
@@ -1584,8 +1607,12 @@ Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTraci
 		sizeof(handles), handles);	// runtime sizeof ?!!
 
 	Handle rgen[1];
+	Handle rmiss[1];
+	Handle rhit[1];
 #define CPY(l, r) std::memcpy(&l, &r, sizeof(l))
 	CPY(rgen[0], handles[0]);
+	CPY(rmiss[0], handles[1]);
+	CPY(rhit[0], handles[2]);
 #undef CPY
 
 	VmaAllocationCreateInfo aci{
@@ -1598,9 +1625,24 @@ Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTraci
 	};
 	res.m_sbt_raygen_buffer = allocator.createBuffer(raygen_bci, aci);
 	loadBuffer(res.m_sbt_raygen_buffer, sizeof(rgen), rgen);
+
+	VkBufferCreateInfo miss_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(rmiss),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	res.m_sbt_miss_buffer = allocator.createBuffer(miss_bci, aci);
+	loadBuffer(res.m_sbt_miss_buffer, sizeof(rmiss), rmiss);
+
+	VkBufferCreateInfo hit_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(rhit),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	res.m_sbt_hit_buffer = allocator.createBuffer(hit_bci, aci);
+	loadBuffer(res.m_sbt_hit_buffer, sizeof(rhit), rhit);
+
 	res.m_sbt_raygen_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_raygen_buffer), groupSize, sizeof(rgen)};
-	res.m_sbt_miss_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
-	res.m_sbt_hit_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
+	res.m_sbt_miss_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_miss_buffer), groupSize, sizeof(rmiss)};
+	res.m_sbt_hit_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_hit_buffer), groupSize, sizeof(rhit)};
 	res.m_sbt_callable_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
 
 	return res;
@@ -1805,6 +1847,11 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 			(m_illum_technique == IllumTechnique::RayTracing ?
 				IllumTechnique::Data::RayTracing::storageImageCount :	// illum
 				0)
+		)},
+		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, m_frame_count * (
+			(m_illum_technique == IllumTechnique::RayTracing ?
+				1 :	// illum
+				0)
 		)}
 	};
 	VkDescriptorPoolSize pool_sizes_corrected[array_size(pool_sizes)];
@@ -1919,7 +1966,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 Vk::ShaderModule Renderer::loadShaderModule(VkShaderStageFlagBits stage, const char *path) const
 {
 	size_t path_len = std::strlen(path);
-	char path_ex[path_len + 1 + 4 + 1 + 3 + 1];
+	char path_ex[path_len + 1 + 5 + 1 + 3 + 1];
 	std::memcpy(path_ex, path, path_len);
 	size_t i = path_len;
 	path_ex[i++] = '.';
@@ -1947,8 +1994,9 @@ Vk::ShaderModule Renderer::loadShaderModule(VkShaderStageFlagBits stage, const c
 				break;
 			}
 	}
-	std::memcpy(&path_ex[i], ext, 4);
-	i += 4;
+	size_t ext_len = strlen(ext);
+	std::memcpy(&path_ex[i], ext, ext_len);
+	i += ext_len;
 	path_ex[i++] = '.';
 	std::memcpy(&path_ex[i], "spv", 3);
 	i += 3;
@@ -1991,7 +2039,7 @@ VkPipelineShaderStageCreateInfo Renderer::initPipelineStage(VkShaderStageFlagBit
 
 void Pipeline::pushShaderModule(VkShaderModule shaderModule)
 {
-	shaderModules[shaderModuleCount++] = shaderModule;
+	shaderModules.emplace(shaderModule);
 }
 
 void Pipeline::pushDynamic(cmp_id cmp)
@@ -2004,7 +2052,7 @@ void Pipeline::destroy(Vk::Device device)
 	device.destroy(*this);
 	if (pipelineLayout != VK_NULL_HANDLE)
 		device.destroy(pipelineLayout);
-	for (uint32_t i = 0; i < shaderModuleCount; i++)
+	for (uint32_t i = 0; i < shaderModules.size(); i++)
 		device.destroy(shaderModules[i]);
 }
 
@@ -2998,19 +3046,19 @@ void Renderer::bindFrameDescriptors(void)
 		if (m_illum_technique == IllumTechnique::RayTracing) {
 			{
 				WriteImgDesc descs[IllumTechnique::Data::RayTracing::storageImageCount] {
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 7, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 8, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
 			}
 			{
 				WriteImgDesc descs[IllumTechnique::Data::RayTracing::descriptorCombinedImageSamplerCount] {
-					{cur_frame.m_illumination_set, cis, 1, m_sampler_fb_mip, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 4, m_sampler_fb_lin, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 5, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 6, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb_mip, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 5, m_sampler_fb_lin, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 6, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 7, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3659,6 +3707,8 @@ void Renderer::IllumTechnique::Data::Ssgi::Fbs::destroy(Renderer &r)
 void Renderer::IllumTechnique::Data::RayTracing::Shared::destroy(Renderer &r)
 {
 	r.allocator.destroy(m_sbt_raygen_buffer);
+	r.allocator.destroy(m_sbt_miss_buffer);
+	r.allocator.destroy(m_sbt_hit_buffer);
 }
 
 Renderer::IllumTechnique::Data::RayTracing::Fbs Renderer::Frame::createIllumRtFbs(void)
@@ -4162,6 +4212,21 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				ci.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
 				m_illum_rt.m_top_acc_structure = m_r.device.createAccelerationStructure(ci);
 				m_illum_rt.m_top_acc_structure.reference = m_r.device.getAccelerationStructureDeviceAddressKHR(m_illum_rt.m_top_acc_structure);
+
+				{
+					VkWriteDescriptorSet write{};
+					write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+					write.dstSet = m_illumination_set;
+					write.dstBinding = 1;
+					write.descriptorCount = 1;
+					write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+					VkWriteDescriptorSetAccelerationStructureKHR write_acc{};
+					write_acc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+					write_acc.accelerationStructureCount = 1;
+					write_acc.pAccelerationStructures = m_illum_rt.m_top_acc_structure.ptr();
+					write.pNext = &write_acc;
+					vkUpdateDescriptorSets(m_r.device, 1, &write, 0, nullptr);
+				}
 			}
 
 			std::memcpy(m_illum_rt.m_instance_buffer_staging_ptr, instances.data(), instance_size);
