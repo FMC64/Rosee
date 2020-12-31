@@ -278,12 +278,14 @@ public:
 		//*model_world = world.createChunk(m_r, ivec2(0));
 
 		auto pipeline_opaque_uvgen = pipeline_pool.allocate();
+		std::memset(pipeline_opaque_uvgen, 0, sizeof(Pipeline));
 		*pipeline_opaque_uvgen = m_r.createPipeline3D_pn("sha/opaque_uvgen", sizeof(int32_t));
 		pipeline_opaque_uvgen->pushDynamic<MVP>();
 		pipeline_opaque_uvgen->pushDynamic<MV_normal>();
 		pipeline_opaque_uvgen->pushDynamic<MW_local>();
 
 		auto pipeline_opaque = pipeline_pool.allocate();
+		std::memset(pipeline_opaque, 0, sizeof(Pipeline));
 		*pipeline_opaque = m_r.createPipeline3D_pnu("sha/opaque", sizeof(int32_t));
 		pipeline_opaque->pushDynamic<MVP>();
 		pipeline_opaque->pushDynamic<MV_normal>();

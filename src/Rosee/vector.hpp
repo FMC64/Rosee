@@ -52,6 +52,8 @@ public:
 		m_allocated(other.m_allocated),
 		m_buf(other.m_buf)
 	{
+		other.m_size = 0;
+		other.m_allocated = 0;
 		other.m_buf = nullptr;
 	}
 	vector& operator=(vector &&other)
@@ -61,6 +63,8 @@ public:
 		m_allocated = other.m_allocated;
 		m_buf = other.m_buf;
 
+		other.m_size = 0;
+		other.m_allocated = 0;
 		other.m_buf = nullptr;
 		return *this;
 	}

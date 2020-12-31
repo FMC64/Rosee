@@ -80,6 +80,11 @@ vec3 env_sample_novoid(vec3 dir)
 	return normalize(hor * (1.0 - up_ratio) + vec3(1.0) * up);
 }
 
+vec3 env_sample(vec3 dir)
+{
+	return env_sample_novoid(dir) * ((dir.y + 1.0) * 0.5);
+}
+
 void main(void)
 {
 	ivec2 pos = ivec2(gl_LaunchIDEXT.xy);
@@ -91,9 +96,19 @@ void main(void)
 		0,	// sbtRecordStride
 		0,	// missIndex
 		(il.view_inv * vec4(view, 1.0)).xyz,	// origin
-		0.1,	// Tmin
+		0.001,	// Tmin
 		(il.view_normal_inv * vec4(il.sun, 1.0)).xyz,	// direction
 		il.cam_near,	// Tmax
 		0);	// payload
-	imageStore(out_output, pos, vec4(vec3(rsp.hit ? 0.0 : 1.0), 1.0));
+	vec3 view_norm = normalize(view);
+
+	vec3 alb = texelFetch(albedo, pos, 0).xyz;
+	vec3 norm = texelFetch(normal, pos, 0).xyz;
+	float align = dot(norm, il.sun) * (rsp.hit ? 0.0 : 1.0);
+	vec3 direct_light = alb * max(0.0, align) * 2.5;
+	direct_light += alb * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz);
+
+	if (texelFetch(cdepth, pos, 0).x == 0.0)
+		direct_light = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+	imageStore(out_output, pos, vec4(direct_light, 1.0));
 }
