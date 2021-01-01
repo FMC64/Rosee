@@ -209,13 +209,6 @@ private:
 	Vk::PipelineLayout m_pipeline_layout_descriptor_set;
 	Vk::PipelineLayout createPipelineLayoutDescriptorSet(void);
 	Vk::ShaderModule m_fwd_p2_module;
-	Vk::BufferAllocation m_screen_vertex_buffer;
-	Vk::BufferAllocation createScreenVertexBuffer(void);
-
-	VkSampleCountFlagBits m_sample_count;
-
-	Vk::RenderPass m_opaque_pass;
-	Vk::RenderPass createOpaquePass(void);
 
 public:
 	struct IllumTechnique {
@@ -346,10 +339,19 @@ public:
 	};
 
 	IllumTechnique::Type m_illum_technique;
+
 private:
 	const IllumTechnique::Props &m_illum_technique_props;
 	const IllumTechnique::Props& getIllumTechniqueProps(void);
 	IllumTechnique::Type fitIllumTechnique(IllumTechnique::Type illumTechnique);
+
+	Vk::BufferAllocation m_screen_vertex_buffer;
+	Vk::BufferAllocation createScreenVertexBuffer(void);
+
+	VkSampleCountFlagBits m_sample_count;
+
+	Vk::RenderPass m_opaque_pass;
+	Vk::RenderPass createOpaquePass(void);
 
 	Vk::RenderPass m_color_resolve_pass;
 	Vk::RenderPass createColorResolvePass(void);

@@ -2863,12 +2863,12 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_pipeline_layout_descriptor_set(createPipelineLayoutDescriptorSet()),
 
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
+	m_illum_technique(fitIllumTechnique(IllumTechnique::RayTracing)),
+	m_illum_technique_props(getIllumTechniqueProps()),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
 	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_opaque_pass(createOpaquePass()),
-	m_illum_technique(fitIllumTechnique(IllumTechnique::RayTracing)),
-	m_illum_technique_props(getIllumTechniqueProps()),
 	m_color_resolve_pass(createColorResolvePass()),
 	m_color_resolve_set_layout(createColorResolveSetLayout()),
 	m_color_resolve_pipeline(createColorResolvePipeline()),
@@ -2899,6 +2899,36 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
 
+	if (m_illum_technique == IllumTechnique::RayTracing) {
+		VkDescriptorBufferInfo bis[m_frame_count * modelPoolSize];
+		uint32_t write_count = m_frame_count * 3;
+		VkWriteDescriptorSet writes[m_frame_count * 3];
+		for (size_t i = 0; i < m_frame_count; i++) {
+			size_t off = i * modelPoolSize;
+			VkBuffer buf = m_screen_vertex_buffer;
+			for (size_t j = 0; j < modelPoolSize; j++) {
+				bis[off + j].buffer = buf;
+				bis[off + j].offset = 0;
+				bis[off + j].range = VK_WHOLE_SIZE;
+			}
+			{
+				VkWriteDescriptorSet w{};
+				w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				w.dstSet = m_frames[i].m_illum_rt.m_res_set;
+				w.dstBinding = 2;
+				w.dstArrayElement = 0;
+				w.descriptorCount = modelPoolSize;
+				w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+				w.pBufferInfo = &bis[off];
+				writes[i * 3] = w;
+				w.dstBinding = 3;
+				writes[i * 3 + 1] = w;
+				w.dstBinding = 4;
+				writes[i * 3 + 2] = w;
+			}
+		}
+		vkUpdateDescriptorSets(device, write_count, writes, 0, nullptr);
+	}
 	bindFrameDescriptors();
 }
 
@@ -3379,37 +3409,6 @@ void Renderer::bindFrameDescriptors(void)
 	submit.pCommandBuffers = m_transfer_cmd.ptr();
 	m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
 	m_gqueue.waitIdle();
-
-	if (m_illum_technique == IllumTechnique::RayTracing) {
-		VkDescriptorBufferInfo bis[m_frame_count * modelPoolSize];
-		uint32_t write_count = m_frame_count * 3;
-		VkWriteDescriptorSet writes[m_frame_count * 3];
-		for (size_t i = 0; i < m_frame_count; i++) {
-			size_t off = i * modelPoolSize;
-			VkBuffer buf = m_frames[i].m_illum_rt.m_custom_instance_buffer;
-			for (size_t j = 0; j < modelPoolSize; j++) {
-				bis[off + j].buffer = buf;
-				bis[off + j].offset = 0;
-				bis[off + j].range = VK_WHOLE_SIZE;
-			}
-			{
-				VkWriteDescriptorSet w{};
-				w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				w.dstSet = m_frames[i].m_illum_rt.m_res_set;
-				w.dstBinding = 2;
-				w.dstArrayElement = 0;
-				w.descriptorCount = modelPoolSize;
-				w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-				w.pBufferInfo = &bis[off];
-				writes[i * 3] = w;
-				w.dstBinding = 3;
-				writes[i * 3 + 1] = w;
-				w.dstBinding = 4;
-				writes[i * 3 + 2] = w;
-			}
-		}
-		vkUpdateDescriptorSets(device, write_count, writes, 0, nullptr);
-	}
 }
 
 void Renderer::recreateSwapchain(void)
