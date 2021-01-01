@@ -3828,6 +3828,20 @@ VkDescriptorSetLayout Renderer::IllumTechnique::Data::RayTracing::Shared::create
 
 Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Renderer &r)
 {
+	struct Spec {
+		uint32_t model_pool_size;
+		uint32_t samplers_pool_size;
+	} spec_data{static_cast<uint32_t>(modelPoolSize), static_cast<uint32_t>(s0_sampler_count)};
+	VkSpecializationMapEntry frag_spec_entries[] {
+		{0, offsetof(Spec, model_pool_size), sizeof(Spec::model_pool_size)},
+		{1, offsetof(Spec, samplers_pool_size), sizeof(Spec::samplers_pool_size)}
+	};
+	VkSpecializationInfo spec;
+	spec.mapEntryCount = array_size(frag_spec_entries);
+	spec.pMapEntries = frag_spec_entries;
+	spec.dataSize = sizeof(Spec);
+	spec.pData = &spec_data;
+
 	Pipeline res;
 	VkRayTracingPipelineCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
@@ -3840,10 +3854,14 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	auto opaque_uvgen = r.loadShaderModule(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "sha/opaque_uvgen");
 	res.pushShaderModule(opaque_uvgen);
 	VkPipelineShaderStageCreateInfo stages[] {
-		initPipelineStage(VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing),	// 0
-		initPipelineStage(VK_SHADER_STAGE_MISS_BIT_KHR, sky),	// 1
-		initPipelineStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque),	// 2
-		initPipelineStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque_uvgen)	// 3
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing, "main", &spec},	// 0
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_MISS_BIT_KHR, sky, "main", &spec},	// 1
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque, "main", &spec},	// 2
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque_uvgen, "main", &spec}	// 3
 	};
 	ci.stageCount = array_size(stages);
 	ci.pStages = stages;

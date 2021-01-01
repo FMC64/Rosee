@@ -92,7 +92,7 @@ void main(void)
 	ivec2 pos = ivec2(fpos);
 	vec3 view = rt_pos_view(fpos);
 	vec3 view_norm = normalize(view);
-	traceRayEXT(acc,
+	/*traceRayEXT(acc,
 		gl_RayFlagsOpaqueEXT,	// rayFlags
 		0xFF,	// cullMask
 		0,	// sbtRecordOffset
@@ -112,5 +112,22 @@ void main(void)
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0)
 		direct_light = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-	imageStore(out_output, pos, vec4(direct_light * (rp.hit ? rp.albedo : vec3(1.0)), 1.0));
+	imageStore(out_output, pos, vec4(direct_light, 1.0));*/
+
+	traceRayEXT(acc,
+		gl_RayFlagsOpaqueEXT,	// rayFlags
+		0xFF,	// cullMask
+		0,	// sbtRecordOffset
+		0,	// sbtRecordStride
+		0,	// missIndex
+		vec3(0.0),	// origin
+		0.001,	// Tmin
+		view_norm,	// direction
+		il.cam_near * 2.0,	// Tmax
+		0);	// payload
+
+	if (rp.hit)
+		imageStore(out_output, pos, vec4(rp.normal, 1.0));
+	else
+		imageStore(out_output, pos, vec4(vec3(0.0), 1.0));
 }
