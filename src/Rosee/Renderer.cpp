@@ -2695,6 +2695,7 @@ AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t verte
 	VkAccelerationStructureGeometryKHR geometry{};
 	geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+	geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 	auto &t = geometry.geometry.triangles;
 	t = VkAccelerationStructureGeometryTrianglesDataKHR{};
 	t.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
@@ -3053,12 +3054,12 @@ void Renderer::bindFrameDescriptors(void)
 			}
 			{
 				WriteImgDesc descs[IllumTechnique::Data::RayTracing::descriptorCombinedImageSamplerCount] {
-					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb_mip, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 5, m_sampler_fb_lin, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 6, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 7, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{next_frame.m_illumination_set, cis, 7, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -4134,13 +4135,13 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					auto &ins = instances[instance_offset + i];
 					auto &ct = t[i];
 					auto &crt_i = rt_i[i];
+					auto trans = camera.view * ct;
 					for (size_t j = 0; j < 3; j++)
-						for (size_t k = 0; k < 3; k++)
-							ins.transform.matrix[j][k] = ct[j][k];
+						for (size_t k = 0; k < 4; k++)
+							ins.transform.matrix[j][k] = trans[k][j];
 					ins.instanceCustomIndex = crt_i.instanceCustomIndex;
 					ins.mask = crt_i.mask;
 					ins.instanceShaderBindingTableRecordOffset = crt_i.instanceShaderBindingTableRecordOffset;
-					ins.flags = 0;
 					ins.accelerationStructureReference = crt_i.accelerationStructureReference;
 				}
 				instance_offset += b.size();

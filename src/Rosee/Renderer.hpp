@@ -33,9 +33,9 @@ public:
 using AccelerationStructurePool = Pool<AccelerationStructure>;
 
 struct Camera {
-	glm::mat4 last_view;
-	glm::mat4 view;
-	glm::mat4 proj;
+	glm::dmat4 last_view;
+	glm::dmat4 view;
+	glm::dmat4 proj;
 	float near;
 	float far;
 	glm::vec2 ratio;

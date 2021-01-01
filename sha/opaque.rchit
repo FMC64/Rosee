@@ -2,11 +2,14 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_ray_tracing : enable
 
-#include "ray_tracing_in.glsl"
+#include "ray_tracing.glsl"
+
+layout(location = 0) rayPayloadInEXT RayPayload rp;
 
 void main(void)
 {
-	rsp.hit = true;
-	rsp.albedo = vec3(0.5);
-	rsp.normal = vec3(0.0, 1.0, 0.0);
+	rp.hit = true;
+	rp.pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+	rp.albedo = vec3(0.5);
+	rp.normal = vec3(0.0, 1.0, 0.0);
 }

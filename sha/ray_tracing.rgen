@@ -39,6 +39,8 @@ layout(set = 0, binding = 8, rgba16) uniform image2D out_output;
 
 #include "ray_tracing.glsl"
 
+layout(location = 0) rayPayloadEXT RayPayload rp;
+
 float rt_depth_to_z(float d)
 {
 	return il.cam_b / (d -  il.cam_a);
@@ -87,24 +89,25 @@ vec3 env_sample(vec3 dir)
 
 void main(void)
 {
-	ivec2 pos = ivec2(gl_LaunchIDEXT.xy);
-	vec3 view = rt_pos_view(pos);
+	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
+	ivec2 pos = ivec2(fpos);
+	vec3 view = rt_pos_view(fpos);
+	vec3 view_norm = normalize(view);
 	traceRayEXT(acc,
 		gl_RayFlagsOpaqueEXT,	// rayFlags
 		0xFF,	// cullMask
 		0,	// sbtRecordOffset
 		0,	// sbtRecordStride
 		0,	// missIndex
-		(il.view_inv * vec4(view, 1.0)).xyz,	// origin
-		0.001,	// Tmin
-		(il.view_normal_inv * vec4(il.sun, 1.0)).xyz,	// direction
-		il.cam_near,	// Tmax
+		view,	// origin
+		0.001 + rt_depth_to_z(texelFetch(cdepth, pos, 0).x) / il.cam_near,	// Tmin
+		il.sun,	// direction
+		il.cam_near * 2.0,	// Tmax
 		0);	// payload
-	vec3 view_norm = normalize(view);
 
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 	vec3 norm = texelFetch(normal, pos, 0).xyz;
-	float align = dot(norm, il.sun) * (rsp.hit ? 0.0 : 1.0);
+	float align = dot(norm, il.sun) * (rp.hit ? 0.0 : 1.0);
 	vec3 direct_light = alb * max(0.0, align) * 2.5;
 	direct_light += alb * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz);
 
