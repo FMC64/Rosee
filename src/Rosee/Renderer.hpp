@@ -28,6 +28,10 @@ public:
 
 	Vk::BufferAllocation buffer;
 	VkDeviceAddress reference;
+
+	// to store acceleration-specific indices, must be filled by user and indexType set to let destroy() take care of that
+	VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
+	Vk::BufferAllocation indexBuffer;
 };
 
 using AccelerationStructurePool = Pool<AccelerationStructure>;
@@ -105,6 +109,9 @@ class Renderer
 	};
 public:
 	Ext ext;
+	VkSharingMode m_gc_sharing_mode;
+	uint32_t m_gc_unique_count;
+	uint32_t m_gc_uniques[2];
 	Vk::Device device;
 
 private:
@@ -486,8 +493,8 @@ public:
 	Model loadModel(const char *path, AccelerationStructure *acc);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
 
-	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
-		VkIndexType indexType, uint32_t indexCount, const uint16_t *pIndices);
+	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
+		VkIndexType indexType, uint32_t indexCount, VkBuffer indices);
 	void destroy(AccelerationStructure &accelerationStructure);
 
 	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);

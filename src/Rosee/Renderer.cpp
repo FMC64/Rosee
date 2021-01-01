@@ -439,6 +439,16 @@ Vk::Device Renderer::createDevice(void)
 	gqci.pQueuePriorities = prio;
 	cqci.pQueuePriorities = prio;
 
+	m_gc_uniques[0] = m_queue_family_graphics;
+	m_gc_uniques[1] = m_queue_family_compute;
+	if (m_gc_uniques[0] == m_gc_uniques[1]) {
+		m_gc_sharing_mode = VK_SHARING_MODE_EXCLUSIVE;
+		m_gc_unique_count = 1;
+	} else {
+		m_gc_sharing_mode = VK_SHARING_MODE_CONCURRENT;
+		m_gc_unique_count = 2;
+	}
+
 	VkDeviceQueueCreateInfo qcis[2];
 	uint32_t qci_count = 0;
 	qcis[qci_count++] = gqci;
@@ -2398,7 +2408,14 @@ Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 	VkBufferCreateInfo bci{};
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bci.size = size;
-	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+		(ext.ray_tracing ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0);
+	if (ext.ray_tracing) {
+		bci.sharingMode = m_gc_sharing_mode;
+		bci.queueFamilyIndexCount = m_gc_unique_count;
+		bci.pQueueFamilyIndices = m_gc_uniques;
+	}
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	return allocator.createBuffer(bci, aci);
@@ -2409,7 +2426,14 @@ Vk::BufferAllocation Renderer::createIndexBuffer(size_t size)
 	VkBufferCreateInfo bci{};
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bci.size = size;
-	bci.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bci.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+		(ext.ray_tracing ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0);
+	if (ext.ray_tracing) {
+		bci.sharingMode = m_gc_sharing_mode;
+		bci.queueFamilyIndexCount = m_gc_unique_count;
+		bci.pQueueFamilyIndices = m_gc_uniques;
+	}
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	return allocator.createBuffer(bci, aci);
@@ -2571,10 +2595,11 @@ Model Renderer::loadModel(const char *path, AccelerationStructure *acc)
 		m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
 		m_gqueue.waitIdle();
 
+		if (acc)
+			*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr);
+
 		allocator.destroy(s);
 	}
-	if (acc)
-		*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), vertices.data(), VK_INDEX_TYPE_NONE_KHR, 0, nullptr);
 	return res;
 }
 
@@ -2701,8 +2726,8 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 	return res;
 }
 
-AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, const void *pVertices,
-	VkIndexType indexType, uint32_t indexCount, const uint16_t *pIndices)
+AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
+	VkIndexType indexType, uint32_t indexCount, VkBuffer indices)
 {
 	VkAccelerationStructureBuildGeometryInfoKHR bi{};
 	bi.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -2746,24 +2771,24 @@ AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t verte
 		.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
 	};
 	auto scratch = allocator.createBuffer(scratch_bci, aci);
-	VkBufferCreateInfo vertex_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	/*VkBufferCreateInfo vertex_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 		.size = vertexCount * vertexStride,
 		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
 	};
-	auto vertex = allocator.createBuffer(vertex_bci, aci);
-	loadBuffer(vertex, vertexCount * vertexStride, pVertices);
-	Vk::BufferAllocation index;
+	auto vertex = allocator.createBuffer(vertex_bci, aci);*/
+	//loadBuffer(vertex, vertexCount * vertexStride, pVertices);
+	//Vk::BufferAllocation index;
 	if (indexType != VK_INDEX_TYPE_NONE_KHR) {
-		VkBufferCreateInfo index_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		/*VkBufferCreateInfo index_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 			.size = vertexCount * vertexStride,
 			.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
 		};
-		index = allocator.createBuffer(index_bci, aci);
-		loadBuffer(index, indexCount * (indexType == VK_INDEX_TYPE_UINT16 ? sizeof(uint16_t) : (indexType == VK_INDEX_TYPE_UINT32 ? sizeof(uint32_t) : 0)), pIndices);
-		t.indexData.deviceAddress = device.getBufferDeviceAddressKHR(index);
+		index = allocator.createBuffer(index_bci, aci);*/
+		//loadBuffer(index, indexCount * (indexType == VK_INDEX_TYPE_UINT16 ? sizeof(uint16_t) : (indexType == VK_INDEX_TYPE_UINT32 ? sizeof(uint32_t) : 0)), pIndices);
+		t.indexData.deviceAddress = device.getBufferDeviceAddressKHR(indices);
 	}
 
-	t.vertexData.deviceAddress = device.getBufferDeviceAddressKHR(vertex);
+	t.vertexData.deviceAddress = device.getBufferDeviceAddressKHR(vertices);
 	bi.scratchData.deviceAddress = device.getBufferDeviceAddressKHR(scratch);
 
 	VkAccelerationStructureCreateInfoKHR ci{};
@@ -2795,9 +2820,9 @@ AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t verte
 	m_cqueue.submit(1, &submit, VK_NULL_HANDLE);
 	m_cqueue.waitIdle();
 
-	if (indexType != VK_INDEX_TYPE_NONE_KHR)
-		allocator.destroy(index);
-	allocator.destroy(vertex);
+	//if (indexType != VK_INDEX_TYPE_NONE_KHR)
+	//	allocator.destroy(index);
+	//allocator.destroy(vertex);
 	allocator.destroy(scratch);
 	return res;
 }
@@ -2806,6 +2831,8 @@ void Renderer::destroy(AccelerationStructure &accelerationStructure)
 {
 	device.destroy(accelerationStructure);
 	allocator.destroy(accelerationStructure.buffer);
+	if (accelerationStructure.indexType != VK_INDEX_TYPE_NONE_KHR)
+		allocator.destroy(accelerationStructure.indexBuffer);
 }
 
 void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos)

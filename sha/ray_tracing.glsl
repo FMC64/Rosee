@@ -47,6 +47,6 @@ layout(scalar, set = 1, binding = 4) readonly buffer Models_pn_i16_i {
 	uint16_t indices[];
 } models_pn_i16_i[];
 
-layout(scalar, set = 1, binding = 8) readonly buffer Materials_albedo {
+layout(scalar, set = 1, binding = 5) readonly buffer Materials_albedo {
 	Material_albedo materials[];
 } materials_albedo[];

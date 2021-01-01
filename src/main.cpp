@@ -160,7 +160,12 @@ public:
 				}
 			}
 
-			*acc = r.createBottomAccelerationStructure(vert_count, sizeof(Vertex::pn), vertices, VK_INDEX_TYPE_UINT16, a_ind_count, a_indices);
+			auto indexBuffer = r.createIndexBuffer(sizeof(a_indices));
+			r.loadBuffer(indexBuffer, sizeof(a_indices), a_indices);
+
+			*acc = r.createBottomAccelerationStructure(vert_count, sizeof(Vertex::pn), res.vertexBuffer, VK_INDEX_TYPE_UINT16, a_ind_count, indexBuffer);
+			acc->indexType = VK_INDEX_TYPE_UINT16;
+			acc->indexBuffer = indexBuffer;
 		}
 		return res;
 	}
