@@ -223,6 +223,9 @@ Vk::Device Renderer::createDevice(void)
 					VK_KHR_MAINTENANCE3_EXTENSION_NAME,
 				VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 				VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+
+		// for model adressing without padding
+		VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME
 	};
 
 	uint32_t chosen = ~0U;
@@ -397,6 +400,7 @@ Vk::Device Renderer::createDevice(void)
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt_features{};
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acc_features{};
 	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR buffer_device_address_features{};
+	VkPhysicalDeviceScalarBlockLayoutFeaturesEXT scalar_block_layout_features{};
 	auto pnext = &ci.pNext;
 	if (ext.ray_tracing) {
 		rt_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
@@ -413,6 +417,11 @@ Vk::Device Renderer::createDevice(void)
 		buffer_device_address_features.bufferDeviceAddress = VK_TRUE;
 		*pnext = &buffer_device_address_features;
 		pnext = const_cast<const void**>(&buffer_device_address_features.pNext);
+
+		scalar_block_layout_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT;
+		scalar_block_layout_features.scalarBlockLayout = VK_TRUE;
+		*pnext = &scalar_block_layout_features;
+		pnext = const_cast<const void**>(&scalar_block_layout_features.pNext);
 	}
 
 	VkDeviceQueueCreateInfo gqci{};
@@ -868,6 +877,14 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 		return props[m_illum_technique];
 	else
 		return props_ms[m_illum_technique];
+}
+
+Renderer::IllumTechnique::Type Renderer::fitIllumTechnique(IllumTechnique::Type illumTechnique)
+{
+	if (illumTechnique == IllumTechnique::RayTracing && !ext.ray_tracing)
+		return IllumTechnique::Ssgi;
+	else
+		return illumTechnique;
 }
 
 Vk::RenderPass Renderer::createColorResolvePass(void)
@@ -2847,7 +2864,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_opaque_pass(createOpaquePass()),
-	m_illum_technique(IllumTechnique::RayTracing),
+	m_illum_technique(fitIllumTechnique(IllumTechnique::RayTracing)),
 	m_illum_technique_props(getIllumTechniqueProps()),
 	m_color_resolve_pass(createColorResolvePass()),
 	m_color_resolve_set_layout(createColorResolveSetLayout()),

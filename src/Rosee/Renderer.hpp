@@ -312,6 +312,7 @@ private:
 	IllumTechnique::Type m_illum_technique;
 	const IllumTechnique::Props &m_illum_technique_props;
 	const IllumTechnique::Props& getIllumTechniqueProps(void);
+	IllumTechnique::Type fitIllumTechnique(IllumTechnique::Type illumTechnique);
 
 	Vk::RenderPass m_color_resolve_pass;
 	Vk::RenderPass createColorResolvePass(void);
