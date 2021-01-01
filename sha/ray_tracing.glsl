@@ -43,7 +43,7 @@ layout(scalar, set = 1, binding = 2) readonly buffer Models_pnu {
 } models_pnu[model_pool_size];
 
 layout(scalar, set = 1, binding = 3) readonly buffer Models_pn_i16_v {
-	Vertex_pnu vertices[];
+	Vertex_pn vertices[];
 } models_pn_i16_v[model_pool_size];
 
 layout(scalar, set = 1, binding = 4) readonly buffer Models_pn_i16_i {
@@ -66,4 +66,17 @@ Vertex_pnu vertex_read_pnu(uint model, uint primitive, vec2 bary)
 		v0.p * b0 + v1.p * b1 + v2.p * b2,
 		v0.n * b0 + v1.n * b1 + v2.n * b2,
 		v0.u * b0 + v1.u * b1 + v2.u * b2);
+}
+
+Vertex_pn vertex_read_pn_i16(uint model, uint primitive, vec2 bary)
+{
+	Vertex_pn v0 = models_pn_i16_v[model].vertices[uint(models_pn_i16_i[model].indices[primitive * 3])];
+	Vertex_pn v1 = models_pn_i16_v[model].vertices[uint(models_pn_i16_i[model].indices[primitive * 3 + 1])];
+	Vertex_pn v2 = models_pn_i16_v[model].vertices[uint(models_pn_i16_i[model].indices[primitive * 3 + 2])];
+	float b0 = 1.0 - bary.x - bary.y;
+	float b1 = bary.x;
+	float b2 = bary.y;
+	return Vertex_pn(
+		v0.p * b0 + v1.p * b1 + v2.p * b2,
+		v0.n * b0 + v1.n * b1 + v2.n * b2);
 }

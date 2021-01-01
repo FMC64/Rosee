@@ -15,6 +15,6 @@ void main(void)
 	Instance ins = instances.instances[gl_InstanceCustomIndexEXT];
 	Vertex_pnu v = vertex_read_pnu(ins.model, gl_PrimitiveID, baryCoord);
 	Material_albedo m = materials_albedo.materials[ins.material];
-	rp.albedo = texture(samplers[m.albedo], v.u).xyz;
-	rp.normal = v.n;
+	rp.albedo = texture(samplers[m.albedo], vec2(v.u.x, -v.u.y)).xyz;
+	rp.normal = normalize(v.n);
 }

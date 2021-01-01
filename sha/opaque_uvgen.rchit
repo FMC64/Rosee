@@ -5,10 +5,16 @@
 
 layout(location = 0) rayPayloadInEXT RayPayload rp;
 
+hitAttributeEXT vec2 baryCoord;
+
 void main(void)
 {
 	rp.hit = true;
 	rp.pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-	rp.albedo = vec3(0.5, 0.0, 0.0);
-	rp.normal = vec3(0.0, 1.0, 0.0);
+
+	Instance ins = instances.instances[gl_InstanceCustomIndexEXT];
+	Vertex_pn v = vertex_read_pn_i16(ins.model, gl_PrimitiveID, baryCoord);
+	Material_albedo m = materials_albedo.materials[ins.material];
+	rp.albedo = vec3(0.5);
+	rp.normal = normalize(v.n);
 }
