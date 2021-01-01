@@ -71,6 +71,15 @@ struct pnu
 
 }
 
+struct Material_albedo {
+	uint32_t albedo;
+};
+
+struct CustomInstance {
+	uint32_t model;
+	uint32_t material;
+};
+
 class Renderer
 {
 	uint32_t m_frame_count;
@@ -208,6 +217,7 @@ private:
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);
 
+public:
 	struct IllumTechnique {
 		struct Data {
 			struct Potato {
@@ -267,11 +277,14 @@ private:
 
 			struct RayTracing {
 				static inline constexpr uint32_t storageImageCount = 1;
-				static inline constexpr uint32_t groupCount = 3;
+				static inline constexpr uint32_t groupCount = 4;
 
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6;
 				static inline constexpr uint32_t barrsPerFrame = 1;
 				static inline constexpr uint32_t addBarrsPerFrame = 1;
+				static inline constexpr uint32_t  bufWritesPerFrame = 2;
+
+				static inline constexpr uint32_t customInstancePoolSize = 16000000;
 
 				struct Shared {
 					VkDescriptorSetLayout m_res_set_layout;
@@ -306,6 +319,10 @@ private:
 					Vk::BufferAllocation m_illumination_staging;
 
 					VkDescriptorSet m_res_set;
+					Vk::BufferAllocation m_materials_albedo_buffer;
+					Vk::BufferAllocation m_custom_instance_buffer;
+					void *m_custom_instance_buffer_staging_ptr;
+					Vk::BufferAllocation m_custom_instance_buffer_staging;
 
 					void destroy(Renderer &r);
 					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers
@@ -327,7 +344,9 @@ private:
 			uint32_t addBarrsPerFrame;
 		};
 	};
+
 	IllumTechnique::Type m_illum_technique;
+private:
 	const IllumTechnique::Props &m_illum_technique_props;
 	const IllumTechnique::Props& getIllumTechniqueProps(void);
 	IllumTechnique::Type fitIllumTechnique(IllumTechnique::Type illumTechnique);
@@ -510,6 +529,9 @@ public:
 	void destroy(AccelerationStructure &accelerationStructure);
 
 	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);
+	void bindMaterials_albedo(uint32_t materialCount, Material_albedo *pMaterials);
+	void bindModel_pnu(uint32_t binding, VkBuffer vertexBuffer);
+	void bindModel_pn_i16(uint32_t binding, VkBuffer vertexBuffer, VkBuffer indexBuffer);
 
 private:
 	bool m_keys_prev[GLFW_KEY_LAST];

@@ -3,12 +3,11 @@
 namespace Rosee {
 
 template <typename T>
-class Pool
+struct Pool
 {
 	T *data;
 	size_t size = 0;
 
-public:
 	Pool(size_t capacity) :
 		data(reinterpret_cast<T*>(std::malloc(capacity * sizeof(T))))
 	{

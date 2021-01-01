@@ -127,10 +127,12 @@ struct RT_instance : public Cmp::Id_t<RT_instance>
 	static Cmp::init_fun_t init;
 	static Cmp::destr_fun_t destr;
 
-	uint32_t instanceCustomIndex:24;
 	uint32_t mask:8;
 	uint32_t instanceShaderBindingTableRecordOffset:24;
 	uint64_t accelerationStructureReference;
+
+	uint32_t model;
+	uint32_t material;
 };
 
 }

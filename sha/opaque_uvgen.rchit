@@ -9,6 +9,6 @@ void main(void)
 {
 	rp.hit = true;
 	rp.pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-	rp.albedo = vec3(0.0, 0.0, 0.5);
+	rp.albedo = vec3(0.5, 0.0, 0.0);
 	rp.normal = vec3(0.0, 1.0, 0.0);
 }

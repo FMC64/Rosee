@@ -145,7 +145,7 @@ public:
 		r.loadBuffer(res.vertexBuffer, buf_size, vertices);
 		r.loadBuffer(res.indexBuffer, ind_size, indices);
 
-		if (r.ext.ray_tracing) {
+		if (r.m_illum_technique == Renderer::IllumTechnique::RayTracing) {
 			size_t a_ind_stride = (chunk_size_gen - 1) * 6;
 			size_t a_ind_count = (chunk_size_gen - 1) * a_ind_stride;
 			uint16_t a_indices[a_ind_count];
@@ -211,11 +211,11 @@ class Game
 		return res;
 	}
 
-	void gen_chunk(Pipeline *pipeline, Material *material, Model *model, AccelerationStructurePool &acc_pool, const ivec2 &cpos, size_t scale)
+	void gen_chunk(Pipeline *pipeline, Material *material, uint32_t model_index, Model *model, AccelerationStructurePool &acc_pool, const ivec2 &cpos, size_t scale)
 	{
 		int64_t scav = static_cast<int64_t>(1) << scale;
 		AccelerationStructure *acc = nullptr;
-		if (m_r.ext.ray_tracing)
+		if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing)
 			acc = acc_pool.allocate();
 		*model = m_w.createChunk(m_r, cpos, scale, acc);
 		auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender, RT_instance>(1);
@@ -227,12 +227,14 @@ class Game
 		r.pipeline = pipeline;
 		r.material = material;
 		r.model = model;
-		if (m_r.ext.ray_tracing) {
+		if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing) {
 			auto &rt = b.get<RT_instance>()[n];
-			rt.instanceCustomIndex = 0;
 			rt.mask = 1;
-			rt.instanceShaderBindingTableRecordOffset = 0;
+			rt.instanceShaderBindingTableRecordOffset = 1;
 			rt.accelerationStructureReference = acc->reference;
+			rt.model = model_index;
+			m_r.bindModel_pn_i16(model_index, r.model->vertexBuffer, acc->indexBuffer);
+			rt.material = 0;
 		}
 	}
 
@@ -258,7 +260,8 @@ class Game
 					auto cpos_sca = cpos * static_cast<int64_t>(2);
 					if (!(cpos_sca.x >= pos.x && cpos_sca.y >= pos.y && cpos_sca.x < pos_end.x && cpos_sca.y < pos_end.y)) {
 						//chunk_count++;
-						gen_chunk(pipeline, material, model_pool.allocate(), acc_pool, cpos, nscale);
+						uint32_t model_index = model_pool.currentIndex();
+						gen_chunk(pipeline, material, model_index, model_pool.allocate(), acc_pool, cpos, nscale);
 					}
 				}
 
@@ -318,10 +321,18 @@ public:
 			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT
 		});
 
+		Material_albedo mat_alb[] {
+			{0},
+			{1}
+		};
+
 		auto material_grass = material_pool.allocate();
-		*reinterpret_cast<int32_t*>(material_grass) = 0;
+		*reinterpret_cast<int32_t*>(material_grass) = mat_alb[0].albedo;
 		auto material_albedo = material_pool.allocate();
-		*reinterpret_cast<int32_t*>(material_albedo) = 1;
+		*reinterpret_cast<int32_t*>(material_albedo) = mat_alb[1].albedo;
+
+		if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing)
+			m_r.bindMaterials_albedo(array_size(mat_alb), mat_alb);
 
 		{
 			auto img0 = image_pool.allocate();
@@ -346,15 +357,18 @@ public:
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque;
 			r.material = material_albedo;
+			uint32_t model_ndx = model_pool.currentIndex();
 			r.model = model_pool.allocate();
-			AccelerationStructure *acc = m_r.ext.ray_tracing ? acc_pool.allocate() : nullptr;
+			AccelerationStructure *acc = m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing ? acc_pool.allocate() : nullptr;
 			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj", acc);
-			if (m_r.ext.ray_tracing) {
+			if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing) {
 				auto &rt = b.get<RT_instance>()[n];
-				rt.instanceCustomIndex = 0;
 				rt.mask = 1;
 				rt.instanceShaderBindingTableRecordOffset = 0;
 				rt.accelerationStructureReference = acc->reference;
+				rt.model = model_ndx;
+				m_r.bindModel_pnu(model_ndx, r.model->vertexBuffer);
+				rt.material = 1;
 			}
 		}
 		gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool, acc_pool);

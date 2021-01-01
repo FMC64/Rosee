@@ -1563,63 +1563,6 @@ Pipeline Renderer::createIlluminationPipeline(void)
 	throw std::runtime_error("createIlluminationPipeline");
 }
 
-Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTracing(void)
-{
-	IllumTechnique::Data::RayTracing::Shared res;
-
-	if (m_illum_technique != IllumTechnique::RayTracing)
-		return res;
-	res.m_res_set_layout = res.createResSetLayout(*this);
-	res.m_pipeline = res.createPipeline(*this);
-
-	size_t groupSize = ext.ray_tracing_props.shaderGroupHandleSize;
-	using Handle = uint8_t[groupSize];
-	Handle handles[IllumTechnique::Data::RayTracing::groupCount];
-	Vk::ext.vkGetRayTracingShaderGroupHandlesKHR(device, res.m_pipeline, 0, IllumTechnique::Data::RayTracing::groupCount,
-		sizeof(handles), handles);	// runtime sizeof ?!!
-
-	Handle rgen[1];
-	Handle rmiss[1];
-	Handle rhit[1];
-#define CPY(l, r) std::memcpy(&l, &r, sizeof(l))
-	CPY(rgen[0], handles[0]);
-	CPY(rmiss[0], handles[1]);
-	CPY(rhit[0], handles[2]);
-#undef CPY
-
-	VmaAllocationCreateInfo aci{
-		.usage = VMA_MEMORY_USAGE_GPU_ONLY
-	};
-
-	VkBufferCreateInfo raygen_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = sizeof(rgen),
-		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-	};
-	res.m_sbt_raygen_buffer = allocator.createBuffer(raygen_bci, aci);
-	loadBuffer(res.m_sbt_raygen_buffer, sizeof(rgen), rgen);
-
-	VkBufferCreateInfo miss_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = sizeof(rmiss),
-		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-	};
-	res.m_sbt_miss_buffer = allocator.createBuffer(miss_bci, aci);
-	loadBuffer(res.m_sbt_miss_buffer, sizeof(rmiss), rmiss);
-
-	VkBufferCreateInfo hit_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = sizeof(rhit),
-		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-	};
-	res.m_sbt_hit_buffer = allocator.createBuffer(hit_bci, aci);
-	loadBuffer(res.m_sbt_hit_buffer, sizeof(rhit), rhit);
-
-	res.m_sbt_raygen_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_raygen_buffer), groupSize, sizeof(rgen)};
-	res.m_sbt_miss_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_miss_buffer), groupSize, sizeof(rmiss)};
-	res.m_sbt_hit_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_hit_buffer), groupSize, sizeof(rhit)};
-	res.m_sbt_callable_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
-
-	return res;
-}
-
 Vk::RenderPass Renderer::createWsiPass(void)
 {
 	VkRenderPassCreateInfo ci{};
@@ -1833,7 +1776,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 			(m_illum_technique == IllumTechnique::RayTracing ?
 				1 +	// instances
 				modelPoolSize * 3 +	// models
-				materialPoolSize :	// materials
+				1 :	// materials
 				0)
 		)}
 	};
@@ -2370,9 +2313,9 @@ Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bci.size = size;
 	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-		(ext.ray_tracing ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+		(m_illum_technique == IllumTechnique::RayTracing ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0);
-	if (ext.ray_tracing) {
+	if (m_illum_technique == IllumTechnique::RayTracing) {
 		bci.sharingMode = m_gc_sharing_mode;
 		bci.queueFamilyIndexCount = m_gc_unique_count;
 		bci.pQueueFamilyIndices = m_gc_uniques;
@@ -2388,9 +2331,9 @@ Vk::BufferAllocation Renderer::createIndexBuffer(size_t size)
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bci.size = size;
 	bci.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-		(ext.ray_tracing ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+		(m_illum_technique == IllumTechnique::RayTracing ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0);
-	if (ext.ray_tracing) {
+	if (m_illum_technique == IllumTechnique::RayTracing) {
 		bci.sharingMode = m_gc_sharing_mode;
 		bci.queueFamilyIndexCount = m_gc_unique_count;
 		bci.pQueueFamilyIndices = m_gc_uniques;
@@ -2818,6 +2761,73 @@ void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageIn
 	vkUpdateDescriptorSets(device, m_frame_count * writes_per_frame, writes, 0, nullptr);
 }
 
+void Renderer::bindMaterials_albedo(uint32_t materialCount, Material_albedo *pMaterials)
+{
+	for (uint32_t i = 0; i < m_frame_count; i++)
+		loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialCount * sizeof(Material_albedo), pMaterials);
+}
+
+void Renderer::bindModel_pnu(uint32_t binding, VkBuffer vertexBuffer)
+{
+	VkDescriptorBufferInfo bis[m_frame_count];
+	VkWriteDescriptorSet writes[m_frame_count];
+	for (size_t i = 0; i < m_frame_count; i++) {
+		VkWriteDescriptorSet w{};
+		w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		w.dstSet = m_frames[i].m_illum_rt.m_res_set;
+		w.dstBinding = 2;
+		w.dstArrayElement = binding;
+		w.descriptorCount = 1;
+		w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		auto &bi = bis[i];
+		bi.buffer = vertexBuffer;
+		bi.offset = 0;
+		bi.range = VK_WHOLE_SIZE;
+		w.pBufferInfo = &bi;
+		writes[i] = w;
+	}
+	vkUpdateDescriptorSets(device, m_frame_count, writes, 0, nullptr);
+}
+
+void Renderer::bindModel_pn_i16(uint32_t binding, VkBuffer vertexBuffer, VkBuffer indexBuffer)
+{
+	VkDescriptorBufferInfo bis[m_frame_count * 2];
+	VkWriteDescriptorSet writes[m_frame_count * 2];
+	for (size_t i = 0; i < m_frame_count; i++) {
+		{
+			VkWriteDescriptorSet w{};
+			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			w.dstSet = m_frames[i].m_illum_rt.m_res_set;
+			w.dstBinding = 3;
+			w.dstArrayElement = binding;
+			w.descriptorCount = 1;
+			w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			auto &bi = bis[i * 2];
+			bi.buffer = vertexBuffer;
+			bi.offset = 0;
+			bi.range = VK_WHOLE_SIZE;
+			w.pBufferInfo = &bi;
+			writes[i * 2] = w;
+		}
+			{
+			VkWriteDescriptorSet w{};
+			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			w.dstSet = m_frames[i].m_illum_rt.m_res_set;
+			w.dstBinding = 4;
+			w.dstArrayElement = binding;
+			w.descriptorCount = 1;
+			w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			auto &bi = bis[i * 2 + 1];
+			bi.buffer = indexBuffer;
+			bi.offset = 0;
+			bi.range = VK_WHOLE_SIZE;
+			w.pBufferInfo = &bi;
+			writes[i * 2 + 1] = w;
+		}
+	}
+	vkUpdateDescriptorSets(device, m_frame_count * 2, writes, 0, nullptr);
+}
+
 Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_frame_count(frameCount),
 	m_validate(validate),
@@ -2964,8 +2974,12 @@ void Renderer::bindFrameDescriptors(void)
 			IllumTechnique::Data::RayTracing::storageImageCount :
 			0);	// illum
 	uint32_t img_writes_offset = 0;
-	static constexpr uint32_t buf_writes_per_frame =
+	static constexpr uint32_t const_buf_writes_per_frame =
 		1;	// illum: buffer
+	uint32_t buf_writes_per_frame = const_buf_writes_per_frame +
+		(m_illum_technique == IllumTechnique::RayTracing ?
+			IllumTechnique::Data::RayTracing::bufWritesPerFrame :	// instance_buffer, custom_instance_buffer
+			0);
 	uint32_t buf_writes_offset = img_writes_per_frame;
 	uint32_t img_mip_writes_per_frame = m_illum_technique == IllumTechnique::Ssgi ?
 		m_swapchain_mip_levels - 1 : 0;	// depth_acc
@@ -3096,11 +3110,31 @@ void Renderer::bindFrameDescriptors(void)
 
 		struct WriteBufDesc {
 			VkDescriptorSet descriptorSet;
+			VkDescriptorType descriptorType;
 			uint32_t binding;
 			VkBuffer buffer;
-		} write_buf_descs[buf_writes_per_frame] {
-			{cur_frame.m_illumination_set, 0, cur_frame.m_illumination_buffer}
-		};
+		} write_buf_descs[buf_writes_per_frame];
+		size_t write_buf_offset = 0;
+
+		{
+			WriteBufDesc  bufs[const_buf_writes_per_frame] {
+				{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, cur_frame.m_illumination_buffer}
+			};
+
+			for (size_t i = 0; i < array_size(bufs); i++)
+				write_buf_descs[write_buf_offset++] = bufs[i];
+		}
+
+		if (m_illum_technique == IllumTechnique::RayTracing)
+		{
+			WriteBufDesc bufs[IllumTechnique::Data::RayTracing::bufWritesPerFrame] {
+				{cur_frame.m_illum_rt.m_res_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, cur_frame.m_illum_rt.m_custom_instance_buffer},
+				{cur_frame.m_illum_rt.m_res_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, cur_frame.m_illum_rt.m_materials_albedo_buffer}
+			};
+
+			for (size_t i = 0; i < array_size(bufs); i++)
+				write_buf_descs[write_buf_offset++] = bufs[i];
+		}
 
 		for (uint32_t j = 0; j < buf_writes_per_frame; j++) {
 			auto &bi = buffer_infos[i * buf_writes_per_frame + j];
@@ -3114,7 +3148,7 @@ void Renderer::bindFrameDescriptors(void)
 			w.dstBinding = write_buf_descs[j].binding;
 			w.dstArrayElement = 0;
 			w.descriptorCount = 1;
-			w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			w.descriptorType = write_buf_descs[j].descriptorType;
 			w.pBufferInfo = &bi;
 			writes[i * writes_per_frame + buf_writes_offset + j] = w;
 		}
@@ -3717,6 +3751,64 @@ void Renderer::IllumTechnique::Data::Ssgi::Fbs::destroy(Renderer &r)
 	}
 }
 
+Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTracing(void)
+{
+	IllumTechnique::Data::RayTracing::Shared res;
+
+	if (m_illum_technique != IllumTechnique::RayTracing)
+		return res;
+	res.m_res_set_layout = res.createResSetLayout(*this);
+	res.m_pipeline = res.createPipeline(*this);
+
+	size_t groupSize = ext.ray_tracing_props.shaderGroupHandleSize;
+	using Handle = uint8_t[groupSize];
+	Handle handles[IllumTechnique::Data::RayTracing::groupCount];
+	Vk::ext.vkGetRayTracingShaderGroupHandlesKHR(device, res.m_pipeline, 0, IllumTechnique::Data::RayTracing::groupCount,
+		sizeof(handles), handles);	// runtime sizeof ?!!
+
+	Handle rgen[1];
+	Handle rmiss[1];
+	Handle rhit[2];
+#define CPY(l, r) std::memcpy(&l, &r, sizeof(l))
+	CPY(rgen[0], handles[0]);
+	CPY(rmiss[0], handles[1]);
+	CPY(rhit[0], handles[2]);	// opaque
+	CPY(rhit[1], handles[3]);	// opaque_uvgen
+#undef CPY
+
+	VmaAllocationCreateInfo aci{
+		.usage = VMA_MEMORY_USAGE_GPU_ONLY
+	};
+
+	VkBufferCreateInfo raygen_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(rgen),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	res.m_sbt_raygen_buffer = allocator.createBuffer(raygen_bci, aci);
+	loadBuffer(res.m_sbt_raygen_buffer, sizeof(rgen), rgen);
+
+	VkBufferCreateInfo miss_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(rmiss),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	res.m_sbt_miss_buffer = allocator.createBuffer(miss_bci, aci);
+	loadBuffer(res.m_sbt_miss_buffer, sizeof(rmiss), rmiss);
+
+	VkBufferCreateInfo hit_bci{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = sizeof(rhit),
+		.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+	};
+	res.m_sbt_hit_buffer = allocator.createBuffer(hit_bci, aci);
+	loadBuffer(res.m_sbt_hit_buffer, sizeof(rhit), rhit);
+
+	res.m_sbt_raygen_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_raygen_buffer), groupSize, sizeof(rgen)};
+	res.m_sbt_miss_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_miss_buffer), groupSize, sizeof(rmiss)};
+	res.m_sbt_hit_region = VkStridedDeviceAddressRegionKHR{device.getBufferDeviceAddressKHR(res.m_sbt_hit_buffer), groupSize, sizeof(rhit)};
+	res.m_sbt_callable_region = VkStridedDeviceAddressRegionKHR{0, 0, 0};
+
+	return res;
+}
+
 VkDescriptorSetLayout Renderer::IllumTechnique::Data::RayTracing::Shared::createResSetLayout(Renderer &r)
 {
 	VkDescriptorSetLayoutCreateInfo ci{};
@@ -3727,7 +3819,7 @@ VkDescriptorSetLayout Renderer::IllumTechnique::Data::RayTracing::Shared::create
 		{2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, modelPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},	// models_pnu
 		{3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, modelPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},	// models_pn_i16_v
 		{4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, modelPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},	// models_pn_i16_i
-		{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, materialPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr}	// materials_albedo
+		{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr}	// materials_albedo
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -3745,17 +3837,20 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	res.pushShaderModule(sky);
 	auto opaque = r.loadShaderModule(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "sha/opaque");
 	res.pushShaderModule(opaque);
+	auto opaque_uvgen = r.loadShaderModule(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "sha/opaque_uvgen");
+	res.pushShaderModule(opaque_uvgen);
 	VkPipelineShaderStageCreateInfo stages[] {
 		initPipelineStage(VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing),	// 0
 		initPipelineStage(VK_SHADER_STAGE_MISS_BIT_KHR, sky),	// 1
-		initPipelineStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque)	// 2
+		initPipelineStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque),	// 2
+		initPipelineStage(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque_uvgen)	// 3
 	};
 	ci.stageCount = array_size(stages);
 	ci.pStages = stages;
 	VkRayTracingShaderGroupCreateInfoKHR groups[IllumTechnique::Data::RayTracing::groupCount] {
 		{
 			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
-			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,	// ray_tracing
 			.generalShader = 0,
 			.closestHitShader = VK_SHADER_UNUSED_KHR,
 			.anyHitShader = VK_SHADER_UNUSED_KHR,
@@ -3763,7 +3858,7 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		},
 		{
 			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
-			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,	// sky
 			.generalShader = 1,
 			.closestHitShader = VK_SHADER_UNUSED_KHR,
 			.anyHitShader = VK_SHADER_UNUSED_KHR,
@@ -3771,9 +3866,17 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		},
 					{
 			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
-			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,	// opaque
 			.generalShader = VK_SHADER_UNUSED_KHR,
 			.closestHitShader = 2,
+			.anyHitShader = VK_SHADER_UNUSED_KHR,
+			.intersectionShader = VK_SHADER_UNUSED_KHR
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,	// opaque_uvgen
+			.generalShader = VK_SHADER_UNUSED_KHR,
+			.closestHitShader = 3,
 			.anyHitShader = VK_SHADER_UNUSED_KHR,
 			.intersectionShader = VK_SHADER_UNUSED_KHR
 		}
@@ -3826,6 +3929,35 @@ Renderer::IllumTechnique::Data::RayTracing::Fbs Renderer::Frame::createIllumRtFb
 	}
 
 	res.m_res_set = descriptorSetRes;
+
+	{
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = materialPoolSize * sizeof(Material_albedo);
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		m_illum_rt.m_materials_albedo_buffer = m_r.allocator.createBuffer(bci, aci);
+	}
+	{
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = IllumTechnique::Data::RayTracing::customInstancePoolSize;
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		m_illum_rt.m_custom_instance_buffer = m_r.allocator.createBuffer(bci, aci);
+	}
+	{
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = IllumTechnique::Data::RayTracing::customInstancePoolSize;
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+		aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		m_illum_rt.m_custom_instance_buffer_staging = m_r.allocator.createBuffer(bci, aci, &m_illum_rt.m_custom_instance_buffer_staging_ptr);
+	}
 	return res;
 }
 
@@ -3833,6 +3965,9 @@ void Renderer::IllumTechnique::Data::RayTracing::Fbs::destroy(Renderer &r)
 {
 	if (m_top_acc_structure != VK_NULL_HANDLE)
 		destroy_acc(r);
+	r.allocator.destroy(m_custom_instance_buffer_staging);
+	r.allocator.destroy(m_custom_instance_buffer);
+	r.allocator.destroy(m_materials_albedo_buffer);
 	r.allocator.destroy(m_illumination_staging);
 }
 
@@ -4224,7 +4359,9 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				instance_count += b.size();
 			});
 			size_t instance_size = static_cast<size_t>(instance_count) * sizeof(VkAccelerationStructureInstanceKHR);
+			size_t custom_instance_size = static_cast<size_t>(instance_count) * sizeof(CustomInstance);
 			vector<VkAccelerationStructureInstanceKHR> instances(instance_count);
+			vector<CustomInstance> custom_instances(instance_count);
 			uint32_t instance_offset = 0;
 			map.query<RT_instance>([&](Brush &b){
 				auto t = b.get<Transform>();
@@ -4237,10 +4374,12 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					for (size_t j = 0; j < 3; j++)
 						for (size_t k = 0; k < 4; k++)
 							ins.transform.matrix[j][k] = trans[k][j];
-					ins.instanceCustomIndex = crt_i.instanceCustomIndex;
+					ins.instanceCustomIndex = instance_offset + i;
 					ins.mask = crt_i.mask;
 					ins.instanceShaderBindingTableRecordOffset = crt_i.instanceShaderBindingTableRecordOffset;
 					ins.accelerationStructureReference = crt_i.accelerationStructureReference;
+					custom_instances[instance_offset + i].model = crt_i.model;
+					custom_instances[instance_offset + i].material = crt_i.material;
 				}
 				instance_offset += b.size();
 			});
@@ -4330,6 +4469,8 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 
 			std::memcpy(m_illum_rt.m_instance_buffer_staging_ptr, instances.data(), instance_size);
 			m_r.allocator.flushAllocation(m_illum_rt.m_instance_buffer_staging, 0, instance_size);
+			std::memcpy(m_illum_rt.m_custom_instance_buffer_staging_ptr, custom_instances.data(), custom_instance_size);
+			m_r.allocator.flushAllocation(m_illum_rt.m_custom_instance_buffer_staging, 0, custom_instance_size);
 
 			m_cmd_ctransfer.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 			{
@@ -4343,6 +4484,13 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				region.dstOffset = 0;
 				region.size = instance_size;
 				m_cmd_ctransfer.copyBuffer(m_illum_rt.m_instance_buffer_staging, m_illum_rt.m_instance_buffer, 1, &region);
+			}
+			{
+				VkBufferCopy region;
+				region.srcOffset = 0;
+				region.dstOffset = 0;
+				region.size = custom_instance_size;
+				m_cmd_ctransfer.copyBuffer(m_illum_rt.m_custom_instance_buffer_staging, m_illum_rt.m_custom_instance_buffer, 1, &region);
 			}
 			{
 				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::AccelerationStructureReadBitKhr };

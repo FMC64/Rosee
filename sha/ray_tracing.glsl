@@ -49,4 +49,4 @@ layout(scalar, set = 1, binding = 4) readonly buffer Models_pn_i16_i {
 
 layout(scalar, set = 1, binding = 5) readonly buffer Materials_albedo {
 	Material_albedo materials[];
-} materials_albedo[];
+} materials_albedo;

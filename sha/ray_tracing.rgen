@@ -112,5 +112,5 @@ void main(void)
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0)
 		direct_light = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-	imageStore(out_output, pos, vec4(direct_light, 1.0));
+	imageStore(out_output, pos, vec4(direct_light * (rp.hit ? rp.albedo : vec3(1.0)), 1.0));
 }
