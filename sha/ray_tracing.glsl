@@ -29,11 +29,11 @@ struct Material_albedo {
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_shader_16bit_storage : enable
 
-layout(scalar, set = 1, binding = 0) readonly buffer Instances {
+layout(set = 1, binding = 0) uniform sampler2D samplers[];
+
+layout(scalar, set = 1, binding = 1) readonly buffer Instances {
 	Instance instances[];
 } instances;
-
-layout(set = 1, binding = 1) uniform sampler2D samplers[];
 
 layout(scalar, set = 1, binding = 2) readonly buffer Models_pnu {
 	Vertex_pnu vertices[];

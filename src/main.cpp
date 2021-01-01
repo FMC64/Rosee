@@ -273,9 +273,9 @@ public:
 	void run(void)
 	{
 		auto pipeline_pool = PipelinePool(64);
-		auto material_pool = MaterialPool(64);
-		auto model_pool = ModelPool(512);
-		auto acc_pool = AccelerationStructurePool(512);
+		auto material_pool = MaterialPool(Renderer::materialPoolSize);
+		auto model_pool = ModelPool(Renderer::modelPoolSize);
+		auto acc_pool = AccelerationStructurePool(Renderer::modelPoolSize);
 		static constexpr size_t image_count = Renderer::s0_sampler_count;
 		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
 		auto image_view_pool = Pool<Vk::ImageView>(image_count);

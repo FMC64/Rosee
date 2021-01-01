@@ -18,6 +18,11 @@ public:
 		std::free(data);
 	}
 
+	size_t currentIndex(void) const
+	{
+		return size;
+	}
+
 	T* allocate(void)
 	{
 		return &data[size++];

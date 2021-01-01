@@ -186,6 +186,9 @@ private:
 
 public:
 	static inline constexpr uint32_t s0_sampler_count = 2;
+	static inline constexpr uint32_t modelPoolSize = 512;
+	static inline constexpr uint32_t materialPoolSize = 2;
+
 private:
 	static inline constexpr uint32_t const_sets_per_frame = 4;
 	static inline constexpr uint32_t sets_per_frame_mip = 1;
@@ -271,6 +274,12 @@ private:
 				static inline constexpr uint32_t addBarrsPerFrame = 1;
 
 				struct Shared {
+					VkDescriptorSetLayout m_res_set_layout;
+					VkDescriptorSetLayout createResSetLayout(Renderer &r);
+
+					Pipeline m_pipeline;
+					Pipeline createPipeline(Renderer &r);
+
 					Vk::BufferAllocation m_sbt_raygen_buffer;
 					Vk::BufferAllocation m_sbt_miss_buffer;
 					Vk::BufferAllocation m_sbt_hit_buffer;
@@ -295,6 +304,8 @@ private:
 
 					void *m_illumination_staging_ptr;
 					Vk::BufferAllocation m_illumination_staging;
+
+					VkDescriptorSet m_res_set;
 
 					void destroy(Renderer &r);
 					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers
@@ -340,7 +351,7 @@ private:
 	Vk::RenderPass createIlluminationPass(void);
 	Vk::DescriptorSetLayout m_illumination_set_layout;
 	Vk::DescriptorSetLayout createIlluminationSetLayout(void);
-	Pipeline m_illumination_pipeline;
+	Pipeline m_illumination_pipeline;	// VK_NULL_HANDLE on ray tracing
 	Pipeline createIlluminationPipeline(void);
 	IllumTechnique::Data::RayTracing::Shared m_illum_ray_tracing;
 	IllumTechnique::Data::RayTracing::Shared createIllumRayTracing(void);
@@ -409,7 +420,7 @@ private:
 		IllumTechnique::Data::Ssgi::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
 			const VkDescriptorSet *pDescriptorSetsMip);
 		IllumTechnique::Data::RayTracing::Fbs m_illum_rt;
-		IllumTechnique::Data::RayTracing::Fbs createIllumRtFbs(void);
+		IllumTechnique::Data::RayTracing::Fbs createIllumRtFbs(VkDescriptorSet descriptorSetRes);
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
@@ -454,7 +465,8 @@ private:
 			Vk::CommandBuffer cmdCtransfer, Vk::CommandBuffer cmdCtraceRays,
 			VkDescriptorSet descriptorSet0, VkDescriptorSet descriptorSetDynamic,
 			VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
-			VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetWsi,
+			VkDescriptorSet descriptorSetIllum, VkDescriptorSet descriptorSetRayTracingRes,
+			VkDescriptorSet descriptorSetWsi,
 			const VkDescriptorSet *pDescriptorSetsMip,
 			Vk::BufferAllocation dynBuffer);
 
