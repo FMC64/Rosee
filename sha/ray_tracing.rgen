@@ -162,7 +162,7 @@ float sharp_divergence(vec2 pos)
 
 float tmin_calc(float z)
 {
-	return 0.0001 + z / il.cam_near;
+	return 0.00001 + z / il.cam_near;
 }
 
 void main(void)
@@ -253,7 +253,7 @@ void main(void)
 	if (last_step == 0) {
 		out_step = 1;
 		vec3 norm = texelFetch(normal, pos, 0).xyz;
-		float align = dot(norm, il.sun);
+		float align = dot(norm, ray_direction);
 		vec3 direct_light = out_path_albedo * max(0.0, align) * (rp.hit ? 0.0 : 1.0) * 2.5;
 		out_path_direct_light += direct_light;
 
@@ -289,7 +289,7 @@ void main(void)
 		out_path_next_direction = (il.view_last_to_cur_normal * vec4(texelFetch(last_path_next_direction, ilast_view_pos, 0).xyz, 1.0)).xyz;
 
 		if (!rp.hit) {
-			float align = dot((il.view_normal * vec4(texelFetch(last_path_normal, ilast_view_pos, 0).xyz, 1.0)).xyz, il.sun);
+			float align = dot((il.view_last_to_cur_normal * vec4(texelFetch(last_path_normal, ilast_view_pos, 0).xyz, 1.0)).xyz, ray_direction);
 			vec3 direct_light = out_path_albedo * max(0.0, align) * 2.5;
 			out_path_direct_light += direct_light;
 		}
