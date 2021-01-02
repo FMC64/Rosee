@@ -209,6 +209,7 @@ private:
 	Vk::PipelineLayout m_pipeline_layout_descriptor_set;
 	Vk::PipelineLayout createPipelineLayoutDescriptorSet(void);
 	Vk::ShaderModule m_fwd_p2_module;
+	VkSampleCountFlagBits m_sample_count;
 
 public:
 	struct IllumTechnique {
@@ -366,8 +367,6 @@ private:
 
 	Vk::BufferAllocation m_screen_vertex_buffer;
 	Vk::BufferAllocation createScreenVertexBuffer(void);
-
-	VkSampleCountFlagBits m_sample_count;
 
 	Vk::RenderPass m_opaque_pass;
 	Vk::RenderPass createOpaquePass(void);

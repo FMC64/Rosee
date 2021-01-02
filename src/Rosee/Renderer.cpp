@@ -2881,11 +2881,11 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_pipeline_layout_descriptor_set(createPipelineLayoutDescriptorSet()),
 
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
+	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_illum_technique(fitIllumTechnique(IllumTechnique::RayTracing)),
 	m_illum_technique_props(getIllumTechniqueProps()),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
-	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
 	m_opaque_pass(createOpaquePass()),
 	m_color_resolve_pass(createColorResolvePass()),
 	m_color_resolve_set_layout(createColorResolveSetLayout()),
@@ -3495,8 +3495,10 @@ void Renderer::recreateSwapchain(void)
 			f.m_dyn_buffer);
 	}
 	bindFrameDescriptors();
-	for (uint32_t i = 0; i < m_frame_count; i++)
-		loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialPoolSize * sizeof(Material_albedo), m_materials_albedo);
+
+	if (m_illum_technique == IllumTechnique::RayTracing)
+		for (uint32_t i = 0; i < m_frame_count; i++)
+			loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialPoolSize * sizeof(Material_albedo), m_materials_albedo);
 }
 
 size_t Renderer::m_keys_update[Renderer::key_update_count] {
