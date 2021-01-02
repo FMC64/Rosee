@@ -14,6 +14,8 @@ struct Pool
 	}
 	~Pool(void)
 	{
+		for (size_t i = 0; i < size; i++)
+			data[i].~T();
 		std::free(data);
 	}
 
