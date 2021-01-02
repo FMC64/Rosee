@@ -2517,7 +2517,7 @@ Model Renderer::loadModel(const char *path, AccelerationStructure *acc)
 		m_gqueue.waitIdle();
 
 		if (acc)
-			*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr);
+			*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr, 0);
 
 		allocator.destroy(s);
 	}
@@ -2648,7 +2648,7 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 }
 
 AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
-	VkIndexType indexType, uint32_t indexCount, VkBuffer indices)
+	VkIndexType indexType, uint32_t indexCount, VkBuffer indices, VkGeometryFlagsKHR flags)
 {
 	VkAccelerationStructureBuildGeometryInfoKHR bi{};
 	bi.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -2658,7 +2658,7 @@ AccelerationStructure Renderer::createBottomAccelerationStructure(uint32_t verte
 	VkAccelerationStructureGeometryKHR geometry{};
 	geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-	geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	geometry.flags = flags;
 	auto &t = geometry.geometry.triangles;
 	t = VkAccelerationStructureGeometryTrianglesDataKHR{};
 	t.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
@@ -3926,7 +3926,7 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	res.pushShaderModule(ray_tracing);
 	auto sky = r.loadShaderModule(VK_SHADER_STAGE_MISS_BIT_KHR, "sha/sky");
 	res.pushShaderModule(sky);
-	auto opaque = r.loadShaderModule(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "sha/opaque");
+	auto opaque = r.loadShaderModule(VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "sha/opaque");
 	res.pushShaderModule(opaque);
 	auto opaque_uvgen = r.loadShaderModule(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "sha/opaque_uvgen");
 	res.pushShaderModule(opaque_uvgen);
@@ -3936,7 +3936,7 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
 			VK_SHADER_STAGE_MISS_BIT_KHR, sky, "main", &spec},	// 1
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
-			VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque, "main", &spec},	// 2
+			VK_SHADER_STAGE_ANY_HIT_BIT_KHR, opaque, "main", &spec},	// 2
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
 			VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque_uvgen, "main", &spec}	// 3
 	};
@@ -3963,8 +3963,8 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
 			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,	// opaque
 			.generalShader = VK_SHADER_UNUSED_KHR,
-			.closestHitShader = 2,
-			.anyHitShader = VK_SHADER_UNUSED_KHR,
+			.closestHitShader = VK_SHADER_UNUSED_KHR,
+			.anyHitShader = 2,
 			.intersectionShader = VK_SHADER_UNUSED_KHR
 		},
 		{

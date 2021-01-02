@@ -546,7 +546,7 @@ public:
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
 
 	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
-		VkIndexType indexType, uint32_t indexCount, VkBuffer indices);
+		VkIndexType indexType, uint32_t indexCount, VkBuffer indices, VkGeometryFlagsKHR flags);
 	void destroy(AccelerationStructure &accelerationStructure);
 
 	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);

@@ -228,11 +228,12 @@ void main(void)
 			ray_inhibit = true;
 	}
 
+	rp.hit = false;
 	if (ray_inhibit)
 		rp.hit = true;
 	else
 		traceRayEXT(acc,
-			gl_RayFlagsOpaqueEXT | gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+			gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
 			0xFF,	// cullMask
 			0,	// sbtRecordOffset
 			0,	// sbtRecordStride
