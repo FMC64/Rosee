@@ -278,7 +278,7 @@ public:
 
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6 + 7;
 				static inline constexpr uint32_t barrsPerFrame = 3;
-				static inline constexpr uint32_t addBarrsPerFrame = 3;
+				static inline constexpr uint32_t addBarrsPerFrame = 7;
 				static inline constexpr uint32_t bufWritesPerFrame = 2;
 
 				static inline constexpr uint32_t customInstancePoolSize = 16000000;

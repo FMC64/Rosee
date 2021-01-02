@@ -371,7 +371,7 @@ public:
 				rt.material = 1;
 			}
 		}
-		gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool, acc_pool);
+		//gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool, acc_pool);
 
 		auto bef = std::chrono::high_resolution_clock::now();
 		double t = 0.0;

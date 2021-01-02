@@ -3421,7 +3421,11 @@ void Renderer::bindFrameDescriptors(void)
 					ImgDesc imgs[IllumTechnique::Data::RayTracing::addBarrsPerFrame] {
 						{m_frames[i].m_cdepth, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_illum_rt.m_step, Vk::ImageLayout::TransferDstOptimal},
-						{m_frames[i].m_illum_rt.m_acc, Vk::ImageLayout::TransferDstOptimal}
+						{m_frames[i].m_illum_rt.m_acc, Vk::ImageLayout::TransferDstOptimal},
+						{m_frames[i].m_illum_rt.m_path_next_origin, Vk::ImageLayout::Undefined},
+						{m_frames[i].m_illum_rt.m_path_next_direction, Vk::ImageLayout::Undefined},
+						{m_frames[i].m_illum_rt.m_path_albedo, Vk::ImageLayout::Undefined},
+						{m_frames[i].m_illum_rt.m_path_direct_light, Vk::ImageLayout::Undefined}
 					};
 					for (uint32_t i = 0; i < array_size(imgs); i++)
 						images[images_offset++] = imgs[i];

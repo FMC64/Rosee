@@ -20,13 +20,13 @@ layout(set = 0, binding = 12) uniform sampler2D last_path_albedo;
 layout(set = 0, binding = 13) uniform sampler2D last_path_direct_light;
 layout(set = 0, binding = 14) uniform sampler2D last_output;
 
-layout(set = 0, binding = 15, r8i) uniform iimage2D out_step;
-layout(set = 0, binding = 16, r16ui) uniform uimage2D out_acc;
-layout(set = 0, binding = 17, rgba32f) uniform image2D out_path_next_origin;
-layout(set = 0, binding = 18, rgba16f) uniform image2D out_path_next_direction;
-layout(set = 0, binding = 19, rgba16f) uniform image2D out_path_albedo;
-layout(set = 0, binding = 20, rgba16f) uniform image2D out_path_direct_light;
-layout(set = 0, binding = 21, rgba16f) uniform image2D out_output;
+layout(set = 0, binding = 15, r8i) uniform iimage2D s_step;
+layout(set = 0, binding = 16, r16ui) uniform uimage2D s_acc;
+layout(set = 0, binding = 17, rgba32f) uniform image2D s_path_next_origin;
+layout(set = 0, binding = 18, rgba16f) uniform image2D s_path_next_direction;
+layout(set = 0, binding = 19, rgba16f) uniform image2D s_path_albedo;
+layout(set = 0, binding = 20, rgba16f) uniform image2D s_path_direct_light;
+layout(set = 0, binding = 21, rgba16f) uniform image2D s_output;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
@@ -58,6 +58,73 @@ vec3 rt_pos_view(vec2 pos)
 	return vec3(ndc2, z);
 }
 
+vec3 rt_project_point(vec3 point)
+{
+	vec4 ph = il.cam_proj * vec4(point, 1.0);
+	vec3 res = ph.xyz / ph.w;
+	return vec3(rt_ndc_to_ss(res.xy), res.z);
+}
+
+int hash(int x)
+{
+	x += ( x << 10 );
+	x ^= ( x >>  6 );
+	x += ( x <<  3 );
+	x ^= ( x >> 11 );
+	x += ( x << 15 );
+	return x;
+}
+
+vec3 last_pos_view(vec2 pos)
+{
+	float d = textureLod(last_cdepth, pos * il.depth_size, 0).x;
+	float z = rt_depth_to_z(d);
+	vec2 uv = pos / il.size;
+	vec2 ndc2 = (uv - 0.5) * 2.0;
+	ndc2 *= il.cam_ratio;
+	ndc2 *= z;
+	return vec3(ndc2, z);
+}
+
+const float irradiance_albedo_bias = 0.01;
+
+vec3 output_to_irradiance(vec3 outp, vec3 albedo)
+{
+	return outp / (albedo + irradiance_albedo_bias);
+}
+
+vec3 irradiance_to_output(vec3 irradiance, vec3 albedo)
+{
+	return irradiance * (albedo + irradiance_albedo_bias);
+}
+
+vec3 irradiance_correct(vec3 prev_value, vec3 prev_albedo, vec3 cur_albedo)
+{
+	vec3 last_irr = output_to_irradiance(prev_value, prev_albedo);
+	return irradiance_to_output(last_irr, cur_albedo);
+}
+
+vec3 irradiance_correct_adv(vec3 prev_value, vec3 prev_albedo, vec3 cur_value, vec3 cur_albedo, float count)
+{
+	vec3 last_irr = output_to_irradiance(prev_value, prev_albedo);
+	vec3 cur_irr = output_to_irradiance(cur_value, cur_albedo);
+	return irradiance_to_output((last_irr * count + cur_irr) / (count + 1.0), cur_albedo);
+}
+
+vec3 rnd_diffuse_around(vec3 normal, int rand)
+{
+	vec3 nx = vec3(-normal.z, normal.y, normal.x);
+	vec3 ny = vec3(normal.y, -normal.z, normal.x);
+	vec3 nz = normal;
+	vec3 rvec = il.rnd_diffuse[rand];
+	return nx * rvec.x + ny * rvec.y + nz * rvec.z;
+}
+
+vec3 rnd_diffuse_around_rough(vec3 i, vec3 normal, float roughness, int rand)
+{
+	return normalize(mix(rnd_diffuse_around(normal, rand), reflect(i, normal), roughness));
+}
+
 vec3 env_sample_novoid(vec3 dir)
 {
 	const vec3 hor = vec3(80, 120, 180) / 255;
@@ -82,42 +149,112 @@ void main(void)
 	ivec2 pos = ivec2(fpos);
 	vec3 view = rt_pos_view(fpos);
 	vec3 view_norm = normalize(view);
-	traceRayEXT(acc,
-		gl_RayFlagsOpaqueEXT | gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
-		0xFF,	// cullMask
-		0,	// sbtRecordOffset
-		0,	// sbtRecordStride
-		0,	// missIndex
-		view,	// origin
-		0.001 + rt_depth_to_z(texelFetch(cdepth, pos, 0).x) / il.cam_near,	// Tmin
-		il.sun,	// direction
-		il.cam_near * 2.0,	// Tmax
-		0);	// payload
 
+	vec4 last_view = il.view_cur_to_last * vec4(view, 1.0);
+	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
+	ivec2 ilast_view_pos = ivec2(last_view_pos);
+
+	const float repr_dist_tres = 0.5;
+	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
+		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
+		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz) < repr_dist_tres &&
+		texelFetch(cdepth, pos, 0).x < 0.9999999;
+
+	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
-	vec3 norm = texelFetch(normal, pos, 0).xyz;
-	float align = dot(norm, il.sun) * (rp.hit ? 0.0 : 1.0);
-	vec3 direct_light = alb * max(0.0, align) * 2.5;
-	direct_light += alb * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz);
+	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
+	uint last_acc = texelFetch(last_acc, ilast_view_pos, 0).x;
+	vec3 last_alb = textureLod(last_albedo, last_view_pos, 0).xyz;
+	if (!repr_success) {
+		last_step = 0;
+		last_acc = 0;
+	}
 
-	if (texelFetch(cdepth, pos, 0).x == 0.0)
-		direct_light = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-	imageStore(out_output, pos, vec4(direct_light, 1.0));
+	int out_step;
+	uint out_acc = last_acc;
+	vec3 out_path_next_origin;
+	vec3 out_path_next_direction;
+	vec3 out_path_albedo;
+	vec3 out_path_direct_light;
+	vec3 out_output;
 
-	/*traceRayEXT(acc,
-		gl_RayFlagsOpaqueEXT | gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
-		0xFF,	// cullMask
-		0,	// sbtRecordOffset
-		0,	// sbtRecordStride
-		0,	// missIndex
-		vec3(0.0),	// origin
-		0.001,	// Tmin
-		view_norm,	// direction
-		il.cam_near * 2.0,	// Tmax
-		0);	// payload
+	bool ray_inhibit = false;
+	vec3 ray_origin;
+	float ray_Tmin;
+	vec3 ray_direction;
+	if (last_step == 0) {
+		ray_origin = view;
+		ray_Tmin = 0.001 + rt_depth_to_z(texelFetch(cdepth, pos, 0).x) / il.cam_near;
+		ray_direction = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
+		out_path_albedo = alb;
+		out_path_direct_light = vec3(0.0);
+		out_path_next_origin = view;
+		vec3 norm = texelFetch(normal, pos, 0).xyz;
+		out_path_next_direction = rnd_diffuse_around_rough(view_norm, norm, 0.0, rnd);
+		if (dot(norm, ray_direction) <= 0.0)
+			ray_inhibit = true;
+	}
+	if (last_step == 1) {
+		ray_origin = (il.view_last_to_cur * vec4(texelFetch(last_path_next_origin, ilast_view_pos, 0).xyz, 1.0)).xyz;
+		ray_Tmin = 0.1;
+		ray_direction = (il.view_last_to_cur_normal * vec4(texelFetch(last_path_next_direction, ilast_view_pos, 0).xyz, 1.0)).xyz;
 
-	if (rp.hit)
-		imageStore(out_output, pos, vec4(rp.albedo, 1.0));
+		out_output = ray_direction;
+
+		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
+		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
+	}
+	if (last_step == 2) {
+		ray_origin = (il.view_last_to_cur * vec4(texelFetch(last_path_next_origin, ilast_view_pos, 0).xyz, 1.0)).xyz;
+		ray_Tmin = 0.1;
+		ray_direction = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
+		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
+		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
+	}
+
+	if (ray_inhibit)
+		rp.hit = true;
 	else
-		imageStore(out_output, pos, vec4(vec3(0.0), 1.0));*/
+		traceRayEXT(acc,
+			gl_RayFlagsOpaqueEXT | gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+			0xFF,	// cullMask
+			0,	// sbtRecordOffset
+			0,	// sbtRecordStride
+			0,	// missIndex
+			ray_origin,	// origin
+			ray_Tmin,	// Tmin
+			ray_direction,	// direction
+			il.cam_near * 2.0,	// Tmax
+			0);
+
+	if (last_step == 0) {
+		out_step = 1;
+	}
+	if (last_step == 1) {
+		if (rp.hit) {
+			out_step = 2;
+			out_path_next_origin = rp.pos;
+			out_path_next_direction = rnd_diffuse_around_rough(ray_direction, (il.view_normal * vec4(rp.normal, 1.0)).xyz, 0.0, rnd);
+		} else
+			out_step = 0;
+	}
+	if (last_step == 2) {
+		out_step = 1;
+		out_path_next_origin = ray_origin;
+		out_path_next_direction = (il.view_last_to_cur_normal * vec4(texelFetch(last_path_next_direction, ilast_view_pos, 0).xyz, 1.0)).xyz;
+	}
+
+	//out_output = vec3(float(rp.hit));
+	//out_output = texelFetch(normal, pos, 0).xyz;
+	if (texelFetch(cdepth, pos, 0).x == 0.0)
+		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+	//out_output = vec3(float(last_step) / 2.0);
+
+	imageStore(s_step, pos, ivec4(out_step, 0, 0, 0));
+	imageStore(s_acc, pos, uvec4(out_acc, 0, 0, 0));
+	imageStore(s_path_next_origin, pos, vec4(out_path_next_origin, 0.0));
+	imageStore(s_path_next_direction, pos, vec4(out_path_next_direction, 0.0));
+	imageStore(s_path_albedo, pos, vec4(out_path_albedo, 0.0));
+	imageStore(s_path_direct_light, pos, vec4(out_path_direct_light, 0.0));
+	imageStore(s_output, pos, vec4(out_output, 1.0));
 }
