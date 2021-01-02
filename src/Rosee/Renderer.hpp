@@ -220,9 +220,13 @@ public:
 			};
 
 			struct Ssgi {
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 14;
-				static inline constexpr uint32_t msDescriptorCombinedImageSamplerCount = 3 +	// color_resolve
-					17;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 1 +	// depth_resolve
+					6 +
+					7;
+				static inline constexpr uint32_t msDescriptorCombinedImageSamplerCount = 1 +	// depth_resolve
+					3 +	// color_resolve
+					9 +
+					7;
 				static inline constexpr uint32_t barrsPerFrame = 4;
 				static inline constexpr uint32_t msBarrsPerFrame = 4 + 2;
 				static inline constexpr uint32_t addBarrsPerFrame = 7;
@@ -269,13 +273,13 @@ public:
 			};
 
 			struct RayTracing {
-				static inline constexpr uint32_t storageImageCount = 1;
+				static inline constexpr uint32_t storageImageCount = 7;
 				static inline constexpr uint32_t groupCount = 4;
 
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6;
-				static inline constexpr uint32_t barrsPerFrame = 1;
-				static inline constexpr uint32_t addBarrsPerFrame = 1;
-				static inline constexpr uint32_t  bufWritesPerFrame = 2;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6 + 7;
+				static inline constexpr uint32_t barrsPerFrame = 3;
+				static inline constexpr uint32_t addBarrsPerFrame = 3;
+				static inline constexpr uint32_t bufWritesPerFrame = 2;
 
 				static inline constexpr uint32_t customInstancePoolSize = 16000000;
 
@@ -316,6 +320,19 @@ public:
 					Vk::BufferAllocation m_custom_instance_buffer;
 					void *m_custom_instance_buffer_staging_ptr;
 					Vk::BufferAllocation m_custom_instance_buffer_staging;
+
+					Vk::ImageAllocation m_step;
+					Vk::ImageView m_step_view;
+					Vk::ImageAllocation m_acc;
+					Vk::ImageView m_acc_view;
+					Vk::ImageAllocation m_path_next_origin;
+					Vk::ImageView m_path_next_origin_view;
+					Vk::ImageAllocation m_path_next_direction;
+					Vk::ImageView m_path_next_direction_view;
+					Vk::ImageAllocation m_path_albedo;
+					Vk::ImageView m_path_albedo_view;
+					Vk::ImageAllocation m_path_direct_light;
+					Vk::ImageView m_path_direct_light_view;
 
 					void destroy(Renderer &r);
 					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers

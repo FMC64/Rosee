@@ -12,7 +12,21 @@ layout(set = 0, binding = 5) uniform sampler2D last_cdepth;
 layout(set = 0, binding = 6) uniform sampler2D last_albedo;
 layout(set = 0, binding = 7) uniform sampler2D last_normal;
 
-layout(set = 0, binding = 8, rgba16) uniform image2D out_output;
+layout(set = 0, binding = 8) uniform isampler2D last_step;
+layout(set = 0, binding = 9) uniform usampler2D last_acc;
+layout(set = 0, binding = 10) uniform sampler2D last_path_next_origin;
+layout(set = 0, binding = 11) uniform sampler2D last_path_next_direction;
+layout(set = 0, binding = 12) uniform sampler2D last_path_albedo;
+layout(set = 0, binding = 13) uniform sampler2D last_path_direct_light;
+layout(set = 0, binding = 14) uniform sampler2D last_output;
+
+layout(set = 0, binding = 15, r8i) uniform iimage2D out_step;
+layout(set = 0, binding = 16, r16ui) uniform uimage2D out_acc;
+layout(set = 0, binding = 17, rgba32f) uniform image2D out_path_next_origin;
+layout(set = 0, binding = 18, rgba16f) uniform image2D out_path_next_direction;
+layout(set = 0, binding = 19, rgba16f) uniform image2D out_path_albedo;
+layout(set = 0, binding = 20, rgba16f) uniform image2D out_path_direct_light;
+layout(set = 0, binding = 21, rgba16f) uniform image2D out_output;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
@@ -68,7 +82,7 @@ void main(void)
 	ivec2 pos = ivec2(fpos);
 	vec3 view = rt_pos_view(fpos);
 	vec3 view_norm = normalize(view);
-	/*traceRayEXT(acc,
+	traceRayEXT(acc,
 		gl_RayFlagsOpaqueEXT | gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
 		0xFF,	// cullMask
 		0,	// sbtRecordOffset
@@ -88,9 +102,9 @@ void main(void)
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0)
 		direct_light = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-	imageStore(out_output, pos, vec4(direct_light, 1.0));*/
+	imageStore(out_output, pos, vec4(direct_light, 1.0));
 
-	traceRayEXT(acc,
+	/*traceRayEXT(acc,
 		gl_RayFlagsOpaqueEXT | gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
 		0xFF,	// cullMask
 		0,	// sbtRecordOffset
@@ -105,5 +119,5 @@ void main(void)
 	if (rp.hit)
 		imageStore(out_output, pos, vec4(rp.albedo, 1.0));
 	else
-		imageStore(out_output, pos, vec4(vec3(0.0), 1.0));
+		imageStore(out_output, pos, vec4(vec3(0.0), 1.0));*/
 }
