@@ -151,12 +151,12 @@ public:
 			uint16_t a_indices[a_ind_count];
 			for (int64_t i = 0; i < (chunk_size_gen - 1); i++) {
 				for (int64_t j = 0; j < (chunk_size_gen - 1); j++) {
-					a_indices[a_ind_stride * i + j * 6] = i * chunk_size_gen + j;
+					a_indices[a_ind_stride * i + j * 6] = (i + 1) * chunk_size_gen + j;
 					a_indices[a_ind_stride * i + j * 6 + 1] = i * chunk_size_gen + j + 1;
-					a_indices[a_ind_stride * i + j * 6 + 2] = (i + 1) * chunk_size_gen + j;
-					a_indices[a_ind_stride * i + j * 6 + 3] = i * chunk_size_gen + j + 1;
+					a_indices[a_ind_stride * i + j * 6 + 2] = i * chunk_size_gen + j;
+					a_indices[a_ind_stride * i + j * 6 + 3] = (i + 1) * chunk_size_gen + j;
 					a_indices[a_ind_stride * i + j * 6 + 4] = (i + 1) * chunk_size_gen + j + 1;
-					a_indices[a_ind_stride * i + j * 6 + 5] = (i + 1) * chunk_size_gen + j;
+					a_indices[a_ind_stride * i + j * 6 + 5] = i * chunk_size_gen + j + 1;
 				}
 			}
 

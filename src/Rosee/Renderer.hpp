@@ -531,6 +531,11 @@ public:
 	void destroy(AccelerationStructure &accelerationStructure);
 
 	void bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageInfoCount, const VkDescriptorImageInfo *pImageInfos);
+
+private:
+	Material_albedo m_materials_albedo[materialPoolSize];
+
+public:
 	void bindMaterials_albedo(uint32_t materialCount, Material_albedo *pMaterials);
 	void bindModel_pnu(uint32_t binding, VkBuffer vertexBuffer);
 	void bindModel_pn_i16(uint32_t binding, VkBuffer vertexBuffer, VkBuffer indexBuffer);

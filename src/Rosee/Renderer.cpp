@@ -1439,7 +1439,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	}
 	if (m_illum_technique == IllumTechnique::RayTracing) {
 		VkDescriptorSetLayoutBinding bindings[] {
-			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
 			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
 			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
@@ -2763,6 +2763,7 @@ void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageIn
 
 void Renderer::bindMaterials_albedo(uint32_t materialCount, Material_albedo *pMaterials)
 {
+	std::memcpy(m_materials_albedo, pMaterials, materialCount * sizeof(Material_albedo));
 	for (uint32_t i = 0; i < m_frame_count; i++)
 		loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialCount * sizeof(Material_albedo), pMaterials);
 }
@@ -2809,7 +2810,7 @@ void Renderer::bindModel_pn_i16(uint32_t binding, VkBuffer vertexBuffer, VkBuffe
 			w.pBufferInfo = &bi;
 			writes[i * 2] = w;
 		}
-			{
+		{
 			VkWriteDescriptorSet w{};
 			w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			w.dstSet = m_frames[i].m_illum_rt.m_res_set;
@@ -3450,6 +3451,8 @@ void Renderer::recreateSwapchain(void)
 			f.m_dyn_buffer);
 	}
 	bindFrameDescriptors();
+	for (uint32_t i = 0; i < m_frame_count; i++)
+		loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialPoolSize * sizeof(Material_albedo), m_materials_albedo);
 }
 
 size_t Renderer::m_keys_update[Renderer::key_update_count] {
