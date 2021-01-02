@@ -145,6 +145,20 @@ vec3 env_sample(vec3 dir)
 	return env_sample_novoid(dir) * ((dir.y + 1.0) * 0.5);
 }
 
+float sharp_divergence(vec2 pos)
+{
+	vec2 center = floor(pos) + 0.5;
+	float res = length(pos - center);
+	if (res < 0.01)
+		return 0.0;
+	return 1.0;
+}
+
+float tmin_calc(float z)
+{
+	return 0.0001 + z / il.cam_near;
+}
+
 void main(void)
 {
 	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
@@ -187,7 +201,7 @@ void main(void)
 	vec3 ray_direction;
 	if (last_step == 0) {
 		ray_origin = view;
-		ray_Tmin = 0.001 + rt_depth_to_z(texelFetch(cdepth, pos, 0).x) / il.cam_near;
+		ray_Tmin = tmin_calc(texelFetch(cdepth, pos, 0).x);
 		ray_direction = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
 		out_path_albedo = alb;
 		out_path_direct_light = vec3(0.0);
@@ -199,14 +213,14 @@ void main(void)
 	}
 	if (last_step == 1) {
 		ray_origin = (il.view_last_to_cur * vec4(texelFetch(last_path_next_origin, ilast_view_pos, 0).xyz, 1.0)).xyz;
-		ray_Tmin = 0.1;
+		ray_Tmin = tmin_calc(length(ray_origin));
 		ray_direction = (il.view_last_to_cur_normal * vec4(texelFetch(last_path_next_direction, ilast_view_pos, 0).xyz, 1.0)).xyz;
 		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
 		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
 	}
 	if (last_step == 2) {
 		ray_origin = (il.view_last_to_cur * vec4(texelFetch(last_path_next_origin, ilast_view_pos, 0).xyz, 1.0)).xyz;
-		ray_Tmin = 0.1;
+		ray_Tmin = tmin_calc(length(ray_origin));
 		ray_direction = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
 		out_path_albedo = texelFetch(last_path_albedo, ilast_view_pos, 0).xyz;
 		out_path_direct_light = texelFetch(last_path_direct_light, ilast_view_pos, 0).xyz;
@@ -231,6 +245,13 @@ void main(void)
 
 	if (last_step == 0) {
 		out_step = 1;
+		vec3 norm = texelFetch(normal, pos, 0).xyz;
+		float align = dot(norm, il.sun);
+		vec3 direct_light = out_path_albedo * max(0.0, align) * (rp.hit ? 0.0 : 1.0) * 2.5;
+		out_path_direct_light += direct_light;
+
+		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
+		out_output = irradiance_correct(outp, last_alb, alb);
 	}
 	if (last_step == 1) {
 		if (rp.hit) {
@@ -238,20 +259,40 @@ void main(void)
 			out_path_next_origin = rp.pos;
 			out_path_normal = (il.view_normal * vec4(rp.normal, 1.0)).xyz;
 			out_path_next_direction = rnd_diffuse_around_rough(ray_direction, out_path_normal, 0.0, rnd);
-		} else
+
+			out_path_albedo *= rp.albedo;
+
+			vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
+			out_output = irradiance_correct(outp, last_alb, alb);
+		} else {
 			out_step = 0;
+			vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
+
+			out_path_direct_light += out_path_albedo * env_sample_novoid((il.view_normal_inv * vec4(ray_direction, 1.0)).xyz);
+
+			out_output = irradiance_correct_adv(outp, last_alb, out_path_direct_light, alb, out_acc);
+			out_acc++;
+			if (sharp_divergence(last_view_pos) > 0.0)
+				out_acc = 0;
+		}
 	}
 	if (last_step == 2) {
 		out_step = 1;
 		out_path_next_origin = ray_origin;
 		out_path_next_direction = (il.view_last_to_cur_normal * vec4(texelFetch(last_path_next_direction, ilast_view_pos, 0).xyz, 1.0)).xyz;
+
+		if (!rp.hit) {
+			float align = dot((il.view_normal * vec4(texelFetch(last_path_normal, ilast_view_pos, 0).xyz, 1.0)).xyz, il.sun);
+			vec3 direct_light = out_path_albedo * max(0.0, align) * 2.5;
+			out_path_direct_light += direct_light;
+		}
+
+		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
+		out_output = irradiance_correct(outp, last_alb, alb);
 	}
 
-	out_output = vec3(float(rp.hit));
-	//out_output = texelFetch(normal, pos, 0).xyz;
 	if (texelFetch(cdepth, pos, 0).x == 0.0)
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-	//out_output = vec3(float(last_step) / 2.0);
 
 	imageStore(s_step, pos, ivec4(out_step, 0, 0, 0));
 	imageStore(s_acc, pos, uvec4(out_acc, 0, 0, 0));
