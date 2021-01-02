@@ -34,6 +34,20 @@ using svec2 = glm::vec<2, size_t>;
 using ivec2 = glm::vec<2, int64_t>;
 static inline constexpr double pi = 3.141592653589793238462643383279502884;
 
+template <typename Vec3, typename RndGen>
+static inline Vec3 genDiffuseVectorBase(RndGen &&gen, double n)
+{
+	auto a0 = std::acos(std::pow(gen.zrand(), 1.0 / (n + 1.0)));
+	auto a1 = 2.0 * pi * gen.zrand();
+	auto sa0 = std::sin(a0);
+	auto ca0 = std::cos(a0);
+	auto sa1 = std::sin(a1);
+	auto ca1 = std::cos(a1);
+	auto base_diffuse = Vec3(sa0 * ca1, sa0 * sa1, ca0);
+
+	return base_diffuse;
+}
+
 template <typename RndGen, typename Vec3>
 static inline Vec3 genDiffuseVector(RndGen &&gen, const Vec3 &up, double n)
 {
