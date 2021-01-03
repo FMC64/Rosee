@@ -4,29 +4,7 @@
 layout(constant_id = 0) const int sample_count = 1;
 layout(constant_id = 1) const float sample_factor = 1.0;
 
-layout(set = 0, binding = 0) uniform Illum {
-	mat4 cam_proj;
-	mat4 view;
-	mat4 view_normal;
-	mat4 view_inv;
-	mat4 view_normal_inv;
-	mat4 last_view;
-	mat4 last_view_inv;
-	mat4 view_cur_to_last;
-	mat4 view_last_to_cur;
-	mat4 view_last_to_cur_normal;
-	vec3 rnd_sun[256];
-	vec3 rnd_diffuse[256];
-	vec3 sun;
-	vec2 size;
-	vec2 size_inv;
-	vec2 depth_size;
-	vec2 cam_ratio;
-	float cam_near;
-	float cam_far;
-	float cam_a;
-	float cam_b;
-} il;
+#include "illum.glsl"
 
 layout(set = 0, binding = 1) uniform sampler2D depth;
 layout(set = 0, binding = 2) uniform sampler2D albedo;
@@ -51,32 +29,11 @@ layout(location = 4) out vec3 out_path_direct_light;
 layout(location = 5) out vec3 out_path_incidence;
 layout(location = 6) out vec3 out_output;
 
-float rt_depth_to_z(float d)
-{
-	return il.cam_b / (d -  il.cam_a);
-}
-
-float rt_z_to_depth(float z)
-{
-	return il.cam_b / z + il.cam_a;
-}
-
-vec2 rt_ndc_to_ss(vec2 p)
-{
-	vec2 size = textureSize(albedo, 0);
-	return ((p * 0.5) + 0.5) * size;
-}
+#include "rt.glsl"
 
 vec3 rt_pos_view(vec2 pos)
 {
-	vec2 size = vec2(1.0) / textureSize(albedo, 0);
-	float d = texelFetch(depth, ivec2(pos), 0).x;
-	float z = rt_depth_to_z(d);
-	vec2 uv = pos * size;
-	vec2 ndc2 = (uv - 0.5) * 2.0;
-	ndc2 *= il.cam_ratio;
-	ndc2 *= z;
-	return vec3(ndc2, z);
+	return rt_pos_view(pos, texelFetch(depth, ivec2(pos), 0).x);
 }
 
 vec3 rt_current_view()
@@ -84,48 +41,7 @@ vec3 rt_current_view()
 	return rt_pos_view(gl_FragCoord.xy);
 }
 
-vec3 rt_project_point(vec3 point)
-{
-	vec4 ph = il.cam_proj * vec4(point, 1.0);
-	vec3 res = ph.xyz / ph.w;
-	return vec3(rt_ndc_to_ss(res.xy), res.z);
-}
-
-// origin is start of the ray, camera space
-// dir is the direction of the ray, camera space
-void rt_project_ray(vec3 origin, vec3 dir, out vec3 ss_p0, out vec3 ss_p1)
-{
-	if (dir.z == 0.0) {
-		ss_p0 = rt_project_point(origin);
-		ss_p1 = rt_project_point(origin + dir * 16000.0);	// max screen size is 16k because of that 'trick'
-		return;
-	}
-	float len;
-	if (dir.z > 0.0)
-		len = (il.cam_near - origin.z) / dir.z;
-	else
-		len = (il.cam_far - origin.z) / dir.z;
-	vec3 end = origin + dir * len;
-	ss_p0 = rt_project_point(origin);
-	ss_p1 = rt_project_point(end);
-}
-
-const float rt_inf = 1.0 / 0.0;
-
-float rt_inter_rect(vec2 tl, vec2 br, vec2 p, vec2 d)
-{
-	return min(
-		d.x == 0.0 ? rt_inf : (d.x > 0.0 ? (br.x - p.x) / d.x : (tl.x - p.x) / d.x),
-		d.y == 0.0 ? rt_inf : (d.y > 0.0 ? (br.y - p.y) / d.y : (tl.y - p.y) / d.y)
-	);
-}
-bool rt_inter_rect_strong(vec2 tl, vec2 br, vec2 p, vec2 d, float bias, out float res)
-{
-	res = rt_inter_rect(tl, br, p, d);
-
-	vec2 inter = p + (res - bias) * d;
-	return inter.x >= tl.x && inter.y >= tl.y && inter.x <= br.x && inter.y <= br.y;
-}
+#include "ssgi.glsl"
 
 bool rt_traceRay(vec3 origin, vec3 dir, int quality, out vec2 pos)
 {
@@ -177,127 +93,9 @@ bool rt_traceRay(vec3 origin, vec3 dir, int quality, out vec2 pos)
 	return false;
 }
 
-
-int hash(int x)
-{
-	x += ( x << 10 );
-	x ^= ( x >>  6 );
-	x += ( x <<  3 );
-	x ^= ( x >> 11 );
-	x += ( x << 15 );
-	return x;
-}
-
 vec3 last_pos_view(vec2 pos)
 {
-	float d = textureLod(last_depth, pos * il.depth_size, 0).x;
-	float z = rt_depth_to_z(d);
-	vec2 uv = pos / il.size;
-	vec2 ndc2 = (uv - 0.5) * 2.0;
-	ndc2 *= il.cam_ratio;
-	ndc2 *= z;
-	return vec3(ndc2, z);
-}
-
-const float irradiance_albedo_bias = 0.01;
-
-vec3 output_to_irradiance(vec3 outp, vec3 albedo)
-{
-	return outp / (albedo + irradiance_albedo_bias);
-}
-
-vec3 irradiance_to_output(vec3 irradiance, vec3 albedo)
-{
-	return irradiance * (albedo + irradiance_albedo_bias);
-}
-
-vec3 irradiance_correct(vec3 prev_value, vec3 prev_albedo, vec3 cur_albedo)
-{
-	vec3 last_irr = output_to_irradiance(prev_value, prev_albedo);
-	return irradiance_to_output(last_irr, cur_albedo);
-}
-
-vec3 irradiance_correct_adv(vec3 prev_value, vec3 prev_albedo, vec3 cur_value, vec3 cur_albedo, float count)
-{
-	vec3 last_irr = output_to_irradiance(prev_value, prev_albedo);
-	vec3 cur_irr = output_to_irradiance(cur_value, cur_albedo);
-	return irradiance_to_output((last_irr * count + cur_irr) / (count + 1.0), cur_albedo);
-}
-
-vec3 rnd_diffuse_around(vec3 normal, int rand)
-{
-	vec3 nx;
-	vec3 ny;
-	if (abs(normal.x) > abs(normal.y))
-		nx = vec3(normal.z, 0, -normal.x) / sqrt(normal.x * normal.x + normal.z * normal.z);
-	else
-		nx = vec3(0, -normal.z, normal.y) / sqrt(normal.y * normal.y + normal.z * normal.z);
-	ny = cross(normal, nx);
-
-	vec3 nz = normal;
-	vec3 rvec = il.rnd_diffuse[rand];
-	return nx * rvec.x + ny * rvec.y + nz * rvec.z;
-}
-
-vec3 rnd_diffuse_around_rough(vec3 i, vec3 normal, float roughness, int rand)
-{
-	return normalize(mix(rnd_diffuse_around(normal, rand), reflect(i, normal), roughness));
-}
-
-vec3 env_sample_novoid(vec3 dir)
-{
-	const vec3 hor = vec3(80, 120, 180) / 255;
-	const vec3 up = vec3(0, 60, 256) / 255;
-	float up_ratio = dot(dir, vec3(0.0, 1.0, 0.0));
-
-	up_ratio = 1.0 - up_ratio;
-	up_ratio *= up_ratio;
-	up_ratio *= up_ratio;
-	up_ratio = 1.0 - up_ratio;
-	return normalize(hor * (1.0 - up_ratio) + vec3(1.0) * up);
-}
-
-vec3 env_sample(vec3 dir)
-{
-	return env_sample_novoid(dir) * (dir.y > 0.0 ? 1.0 : 0.0);
-}
-
-bool anynan(vec3 vec)
-{
-	bvec3 n = isnan(vec);
-	return n.x || n.y || n.z;
-}
-
-vec3 correct_nan(vec3 vec)
-{
-	if (anynan(vec))
-		return vec3(0.0);
-	else
-		return vec;
-}
-
-float vec_sum(vec2 vec)
-{
-	return vec.x + vec.y;
-}
-
-float vec_sum(vec3 vec)
-{
-	return vec.x + vec.y + vec.z;
-}
-
-int vec_sum(bvec3 vec)
-{
-	return (vec.x ? 1 : 0) + (vec.y ? 1 : 0) + (vec.z ? 1 : 0);
-}
-
-float sharp_divergence(vec2 pos)
-{
-	vec2 center = floor(pos) + 0.5;
-	float res = length(pos - center);
-	if (res < 0.01)
-		return 0.0;
-	return 1.0;
+	return rt_pos_view(pos, textureLod(last_depth, pos * il.depth_size, 0).x);
 }
 
 void main(void)
