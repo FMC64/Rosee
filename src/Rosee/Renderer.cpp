@@ -374,7 +374,6 @@ Vk::Device Renderer::createDevice(void)
 			m_present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
 		else if (has_immediate)
 			m_present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-		m_present_mode = VK_PRESENT_MODE_FIFO_KHR;
 
 		uint32_t surface_format_count;
 		vkAssert(Vk::ext.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[chosen], m_surface, &surface_format_count, nullptr));
