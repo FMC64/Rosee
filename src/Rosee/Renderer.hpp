@@ -274,12 +274,12 @@ public:
 			};
 
 			struct RayTracing {
-				static inline constexpr uint32_t storageImageCount = 8;
+				static inline constexpr uint32_t storageImageCount = 9;
 				static inline constexpr uint32_t groupCount = 4;
 
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6 + 8;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6 + 9;
 				static inline constexpr uint32_t barrsPerFrame = 3;
-				static inline constexpr uint32_t addBarrsPerFrame = 8;
+				static inline constexpr uint32_t addBarrsPerFrame = 9;
 				static inline constexpr uint32_t bufWritesPerFrame = 2;
 
 				static inline constexpr uint32_t customInstancePoolSize = 16000000;
@@ -336,6 +336,8 @@ public:
 					Vk::ImageView m_path_normal_view;
 					Vk::ImageAllocation m_path_direct_light;
 					Vk::ImageView m_path_direct_light_view;
+					Vk::ImageAllocation m_direct_light;
+					Vk::ImageView m_direct_light_view;
 
 					void destroy(Renderer &r);
 					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers

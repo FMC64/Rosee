@@ -1456,15 +1456,17 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 			{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_path_normal
 			{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_path_direct_light
 			{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_output
+			{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_output
 
-			{16, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_step
-			{17, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_acc
-			{18, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_next_origin
-			{19, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_next_direction
-			{20, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_albedo
-			{21, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_normal
-			{22, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_direct_light
-			{23, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
+			{17, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_step
+			{18, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_acc
+			{19, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_next_origin
+			{20, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_next_direction
+			{21, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_albedo
+			{22, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_normal
+			{23, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_path_direct_light
+			{24, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light
+			{25, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -3120,14 +3122,15 @@ void Renderer::bindFrameDescriptors(void)
 		if (m_illum_technique == IllumTechnique::RayTracing) {
 			{
 				WriteImgDesc descs[IllumTechnique::Data::RayTracing::storageImageCount] {
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 16, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_step_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 17, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_acc_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 18, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_next_origin_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 19, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_next_direction_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 20, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_albedo_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 21, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_normal_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 22, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_direct_light_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 23, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 17, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_step_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 18, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_acc_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 19, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_next_origin_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 20, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_next_direction_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 21, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_albedo_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 22, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_normal_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 23, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_path_direct_light_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 24, VK_NULL_HANDLE, cur_frame.m_illum_rt.m_direct_light_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 25, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3148,7 +3151,8 @@ void Renderer::bindFrameDescriptors(void)
 					{next_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_illum_rt.m_path_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 13, m_sampler_fb, cur_frame.m_illum_rt.m_path_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 14, m_sampler_fb, cur_frame.m_illum_rt.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{next_frame.m_illumination_set, cis, 15, m_sampler_fb, cur_frame.m_illum_rt.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3430,7 +3434,8 @@ void Renderer::bindFrameDescriptors(void)
 						{m_frames[i].m_illum_rt.m_path_next_direction, Vk::ImageLayout::Undefined},
 						{m_frames[i].m_illum_rt.m_path_albedo, Vk::ImageLayout::Undefined},
 						{m_frames[i].m_illum_rt.m_path_normal, Vk::ImageLayout::Undefined},
-						{m_frames[i].m_illum_rt.m_path_direct_light, Vk::ImageLayout::Undefined}
+						{m_frames[i].m_illum_rt.m_path_direct_light, Vk::ImageLayout::Undefined},
+						{m_frames[i].m_illum_rt.m_direct_light, Vk::ImageLayout::Undefined}
 					};
 					for (uint32_t i = 0; i < array_size(imgs); i++)
 						images[images_offset++] = imgs[i];
@@ -4069,6 +4074,8 @@ Renderer::IllumTechnique::Data::RayTracing::Fbs Renderer::Frame::createIllumRtFb
 		Vk::ImageUsage::StorageBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &res.m_path_normal);
 	res.m_path_direct_light_view = createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::StorageBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &res.m_path_direct_light);
+	res.m_direct_light_view = createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::StorageBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &res.m_direct_light);
 	return res;
 }
 
@@ -4090,6 +4097,8 @@ void Renderer::IllumTechnique::Data::RayTracing::Fbs::destroy(Renderer &r)
 	r.allocator.destroy(m_path_normal);
 	r.device.destroy(m_path_direct_light_view);
 	r.allocator.destroy(m_path_direct_light);
+	r.device.destroy(m_direct_light_view);
+	r.allocator.destroy(m_direct_light);
 
 	r.allocator.destroy(m_custom_instance_buffer_staging);
 	r.allocator.destroy(m_custom_instance_buffer);
@@ -4661,7 +4670,8 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					m_illum_rt.m_path_next_direction,
 					m_illum_rt.m_path_albedo,
 					m_illum_rt.m_path_normal,
-					m_illum_rt.m_path_direct_light
+					m_illum_rt.m_path_direct_light,
+					m_illum_rt.m_direct_light
 				};
 				VkImageMemoryBarrier ibarrier[array_size(imgs)];
 				for (size_t i = 0; i < array_size(imgs); i++) {
@@ -4706,7 +4716,8 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					m_illum_rt.m_path_next_direction,
 					m_illum_rt.m_path_albedo,
 					m_illum_rt.m_path_normal,
-					m_illum_rt.m_path_direct_light
+					m_illum_rt.m_path_direct_light,
+					m_illum_rt.m_direct_light
 				};
 				VkImageMemoryBarrier ibarrier[array_size(imgs)];
 				for (size_t i = 0; i < array_size(imgs); i++) {

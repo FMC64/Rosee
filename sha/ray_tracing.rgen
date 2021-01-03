@@ -19,16 +19,18 @@ layout(set = 0, binding = 11) uniform sampler2D last_path_next_direction;
 layout(set = 0, binding = 12) uniform sampler2D last_path_albedo;
 layout(set = 0, binding = 13) uniform sampler2D last_path_normal;
 layout(set = 0, binding = 14) uniform sampler2D last_path_direct_light;
-layout(set = 0, binding = 15) uniform sampler2D last_output;
+layout(set = 0, binding = 15) uniform sampler2D last_direct_light;
+layout(set = 0, binding = 16) uniform sampler2D last_output;
 
-layout(set = 0, binding = 16, r8i) uniform iimage2D s_step;
-layout(set = 0, binding = 17, r16ui) uniform uimage2D s_acc;
-layout(set = 0, binding = 18, rgba32f) uniform image2D s_path_next_origin;
-layout(set = 0, binding = 19, rgba16f) uniform image2D s_path_next_direction;
-layout(set = 0, binding = 20, rgba16f) uniform image2D s_path_albedo;
-layout(set = 0, binding = 21, rgba16f) uniform image2D s_path_normal;
-layout(set = 0, binding = 22, rgba16f) uniform image2D s_path_direct_light;
-layout(set = 0, binding = 23, rgba16f) uniform image2D s_output;
+layout(set = 0, binding = 17, r8i) uniform iimage2D s_step;
+layout(set = 0, binding = 18, r16ui) uniform uimage2D s_acc;
+layout(set = 0, binding = 19, rgba32f) uniform image2D s_path_next_origin;
+layout(set = 0, binding = 20, rgba16f) uniform image2D s_path_next_direction;
+layout(set = 0, binding = 21, rgba16f) uniform image2D s_path_albedo;
+layout(set = 0, binding = 22, rgba16f) uniform image2D s_path_normal;
+layout(set = 0, binding = 23, rgba16f) uniform image2D s_path_direct_light;
+layout(set = 0, binding = 24, rgba16f) uniform image2D s_direct_light;
+layout(set = 0, binding = 25, rgba16f) uniform image2D s_output;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
@@ -46,7 +48,7 @@ vec3 last_pos_view(vec2 pos)
 
 float tmin_calc(float z)
 {
-	return 0.00001 + z / il.cam_near;
+	return 0.00001 + min((z * 0.1) / il.cam_near, 1.0);
 }
 
 void main(void)
@@ -83,6 +85,7 @@ void main(void)
 	vec3 out_path_albedo;
 	vec3 out_path_normal;
 	vec3 out_path_direct_light;
+	vec3 out_direct_light = textureLod(last_direct_light, last_view_pos, 0).xyz;
 	vec3 out_output;
 
 	bool ray_inhibit = false;
@@ -91,7 +94,7 @@ void main(void)
 	vec3 ray_direction;
 	if (last_step == 0) {
 		ray_origin = view;
-		ray_Tmin = tmin_calc(texelFetch(cdepth, pos, 0).x);
+		ray_Tmin = tmin_calc(length(ray_origin));
 		ray_direction = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
 		out_path_albedo = alb;
 		out_path_direct_light = vec3(0.0);
@@ -141,8 +144,18 @@ void main(void)
 		vec3 direct_light = out_path_albedo * max(0.0, align) * (rp.hit ? 0.0 : 1.0) * 2.5;
 		out_path_direct_light += direct_light;
 
+
+		if (sharp_divergence(last_view_pos) > 0.0) {
+			if (length(out_direct_light - direct_light) > 0.01)
+				out_acc = 0;
+		}
+		out_direct_light = direct_light;
+
 		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 		out_output = irradiance_correct(outp, last_alb, alb);
+	}
+	if (last_step != 0) {
+		out_direct_light = irradiance_correct(out_direct_light, last_alb, alb);
 	}
 	if (last_step == 1) {
 		if (rp.hit) {
@@ -163,8 +176,6 @@ void main(void)
 
 			out_output = irradiance_correct_adv(outp, last_alb, out_path_direct_light, alb, out_acc);
 			out_acc++;
-			if (sharp_divergence(last_view_pos) > 0.0)
-				out_acc = 0;
 		}
 	}
 	if (last_step == 2) {
@@ -192,5 +203,6 @@ void main(void)
 	imageStore(s_path_albedo, pos, vec4(out_path_albedo, 0.0));
 	imageStore(s_path_normal, pos, vec4(out_path_normal, 0.0));
 	imageStore(s_path_direct_light, pos, vec4(out_path_direct_light, 0.0));
+	imageStore(s_direct_light, pos, vec4(out_direct_light, 0.0));
 	imageStore(s_output, pos, vec4(out_output, 1.0));
 }
