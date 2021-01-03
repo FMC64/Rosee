@@ -146,15 +146,17 @@ void main(void)
 		vec3 direct_light = out_path_albedo * max(0.0, align) * (rp.hit ? 0.0 : 1.0) * 2.5;
 		out_path_direct_light += direct_light;
 
-
 		if (sharp_divergence(last_view_pos) > 0.0) {
-			if (length(out_direct_light - direct_light) > 0.01)
+			if (length(out_direct_light - direct_light) > 0.05)
 				out_acc = 0;
 		}
 		out_direct_light = direct_light;
 
 		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
-		out_output = irradiance_correct(outp, last_alb, alb);
+		if (out_acc == 0)
+			out_output = direct_light + (rp.hit ? 0.0 : 1.0) * (out_path_albedo * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz));
+		else
+			out_output = irradiance_correct(outp, last_alb, alb);
 	}
 	if (last_step != 0) {
 		out_direct_light = irradiance_correct(out_direct_light, last_alb, alb);
@@ -177,7 +179,7 @@ void main(void)
 			out_path_direct_light += out_path_albedo * env_sample_novoid((il.view_normal_inv * vec4(ray_direction, 1.0)).xyz);
 
 			out_output = irradiance_correct_adv(outp, last_alb, out_path_direct_light, alb, out_acc);
-			out_acc++;
+			out_acc = min(65000, out_acc + 1);
 		}
 	}
 	if (last_step == 2) {
