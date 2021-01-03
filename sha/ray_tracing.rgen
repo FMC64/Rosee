@@ -81,6 +81,27 @@ void main(void)
 		last_acc = 0;
 	}
 
+	vec3 outp;
+	{
+		/*float d = texelFetch(last_cdepth, ilast_view_pos, 0).x;
+		bool wl = rt_depth_to_z(abs(d - texelFetch(last_cdepth, ilast_view_pos + ivec2(-1, 0), 0).x)) < 1.0;
+		bool wr = rt_depth_to_z(abs(d - texelFetch(last_cdepth, ilast_view_pos + ivec2(1, 0), 0).x)) < 1.0;
+		bool wt = rt_depth_to_z(abs(d - texelFetch(last_cdepth, ilast_view_pos + ivec2(0, -1), 0).x)) < 1.0;
+		bool wb = rt_depth_to_z(abs(d - texelFetch(last_cdepth, ilast_view_pos + ivec2(0, 1), 0).x)) < 1.0;
+		float w = (wl ? 1.0 : 0.0) + (wr ? 1.0 : 0.0) + (wt ? 1.0 : 0.0) + (wb ? 1.0 : 0.0);
+		vec2 outp_pos = vec2(0.5) + vec2(wr ? 0.5 : 0.0, wb ? 0.5 : 0.0) / w;*/
+		ivec2 b0 = ivec2(last_view_pos - .5);
+		ivec2 b1 = b0 + 1;
+		vec2 w = fract(last_view_pos - .5);
+		vec3 a;
+			a = mix(texelFetch(last_output, b0, 0).xyz, texelFetch(last_output, ivec2(b1.x, b0.y), 0).xyz, w.x);
+		vec3 b;
+			b = mix(texelFetch(last_output, ivec2(b0.x, b1.y), 0).xyz, texelFetch(last_output, b1, 0).xyz, w.x);
+		vec3 c = mix(a, b, w.y);
+		outp = c;
+		//outp = textureLod(last_output, last_view_pos, 0).xyz;
+	}
+
 	int out_step;
 	uint out_acc = last_acc;
 	vec3 out_path_next_origin;
@@ -153,7 +174,6 @@ void main(void)
 		}
 		out_direct_light = direct_light;
 
-		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 		if (!repr_success && repr_dist > 30.0)
 			out_output = direct_light + (rp.hit ? 0.0 : 1.0) * (out_path_albedo * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz) * 0.1);
 		else
@@ -171,12 +191,9 @@ void main(void)
 
 			out_path_albedo *= rp.albedo;
 
-			vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 			out_output = irradiance_correct(outp, last_alb, alb);
 		} else {
 			out_step = 0;
-			vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
-
 			out_path_direct_light += out_path_albedo * env_sample_novoid((il.view_normal_inv * vec4(ray_direction, 1.0)).xyz);
 
 			out_output = irradiance_correct_adv(outp, last_alb, out_path_direct_light, alb, out_acc);
@@ -194,7 +211,6 @@ void main(void)
 			out_path_direct_light += direct_light;
 		}
 
-		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
 		out_output = irradiance_correct(outp, last_alb, alb);
 	}
 
