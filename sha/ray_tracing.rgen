@@ -65,9 +65,10 @@ void main(void)
 		last_view_pos = vec2(ilast_view_pos) + 0.5;
 
 	const float repr_dist_tres = 0.5;
+	float repr_dist = length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz);
 	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
 		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
-		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz) < repr_dist_tres &&
+		repr_dist < repr_dist_tres &&
 		texelFetch(cdepth, pos, 0).x < 0.9999999;
 
 	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
@@ -153,8 +154,8 @@ void main(void)
 		out_direct_light = direct_light;
 
 		vec3 outp = textureLod(last_output, last_view_pos, 0).xyz;
-		if (out_acc == 0)
-			out_output = direct_light + (rp.hit ? 0.0 : 1.0) * (out_path_albedo * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz));
+		if (!repr_success && repr_dist > 30.0)
+			out_output = direct_light + (rp.hit ? 0.0 : 1.0) * (out_path_albedo * env_sample((il.view_normal_inv * vec4(norm, 1.0)).xyz) * 0.1);
 		else
 			out_output = irradiance_correct(outp, last_alb, alb);
 	}
