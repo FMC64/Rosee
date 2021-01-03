@@ -107,6 +107,8 @@ void main(void)
 	vec4 last_view = il.view_cur_to_last * vec4(view, 1.0);
 	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
 	ivec2 ilast_view_pos = ivec2(last_view_pos);
+	if (sharp_divergence(last_view_pos) == 0.0)
+		last_view_pos = vec2(ilast_view_pos) + 0.5;
 
 	const float repr_dist_tres = 0.5;
 	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&

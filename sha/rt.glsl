@@ -108,7 +108,7 @@ float sharp_divergence(vec2 pos)
 {
 	vec2 center = floor(pos) + 0.5;
 	float res = length(pos - center);
-	if (res < 0.01)
+	if (res < 0.05)
 		return 0.0;
 	return 1.0;
 }
