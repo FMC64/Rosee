@@ -145,7 +145,7 @@ public:
 		r.loadBuffer(res.vertexBuffer, buf_size, vertices);
 		r.loadBuffer(res.indexBuffer, ind_size, indices);
 
-		if (r.m_illum_technique == Renderer::IllumTechnique::RayTracing) {
+		if (r.needsAccStructure()) {
 			size_t a_ind_stride = (chunk_size_gen - 1) * 6;
 			size_t a_ind_count = (chunk_size_gen - 1) * a_ind_stride;
 			uint16_t a_indices[a_ind_count];
@@ -215,7 +215,7 @@ class Game
 	{
 		int64_t scav = static_cast<int64_t>(1) << scale;
 		AccelerationStructure *acc = nullptr;
-		if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing)
+		if (m_r.needsAccStructure())
 			acc = acc_pool.allocate();
 		*model = m_w.createChunk(m_r, cpos, scale, acc);
 		auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, MW_local, OpaqueRender, RT_instance>(1);
@@ -227,7 +227,7 @@ class Game
 		r.pipeline = pipeline;
 		r.material = material;
 		r.model = model;
-		if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing) {
+		if (m_r.needsAccStructure()) {
 			auto &rt = b.get<RT_instance>()[n];
 			rt.mask = 1;
 			rt.instanceShaderBindingTableRecordOffset = 1;
@@ -331,7 +331,7 @@ public:
 		auto material_albedo = material_pool.allocate();
 		*reinterpret_cast<int32_t*>(material_albedo) = mat_alb[1].albedo;
 
-		if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing)
+		if (m_r.needsAccStructure())
 			m_r.bindMaterials_albedo(array_size(mat_alb), mat_alb);
 
 		{
@@ -359,9 +359,9 @@ public:
 			r.material = material_albedo;
 			uint32_t model_ndx = model_pool.currentIndex();
 			r.model = model_pool.allocate();
-			AccelerationStructure *acc = m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing ? acc_pool.allocate() : nullptr;
+			AccelerationStructure *acc = m_r.needsAccStructure() ? acc_pool.allocate() : nullptr;
 			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj", acc);
-			if (m_r.m_illum_technique == Renderer::IllumTechnique::RayTracing) {
+			if (m_r.needsAccStructure()) {
 				auto &rt = b.get<RT_instance>()[n];
 				rt.mask = 1;
 				rt.instanceShaderBindingTableRecordOffset = 0;

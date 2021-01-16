@@ -322,6 +322,13 @@ public:
 					void *m_custom_instance_buffer_staging_ptr;
 					Vk::BufferAllocation m_custom_instance_buffer_staging;
 
+					void destroy(Renderer &r);
+					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers
+				};
+			};
+
+			struct Rtpt {
+				struct Fbs {
 					Vk::ImageAllocation m_step;
 					Vk::ImageView m_step_view;
 					Vk::ImageAllocation m_acc;
@@ -340,7 +347,6 @@ public:
 					Vk::ImageView m_direct_light_view;
 
 					void destroy(Renderer &r);
-					void destroy_acc(Renderer &r);	// destroy only acc structure & related buffers
 				};
 			};
 		};
@@ -348,8 +354,8 @@ public:
 		using Type = uint32_t;
 		static inline constexpr Type Potato = 0;
 		static inline constexpr Type Ssgi = 1;
-		static inline constexpr Type RayTracing = 2;
-		static inline constexpr Type MaxEnum = RayTracing + 1;
+		static inline constexpr Type Rtpt = 2;
+		static inline constexpr Type MaxEnum = Rtpt + 1;
 
 		struct Props {
 			uint32_t descriptorCombinedImageSamplerCount;
@@ -361,6 +367,7 @@ public:
 	};
 
 	IllumTechnique::Type m_illum_technique;
+	bool needsAccStructure(void);
 
 private:
 	const IllumTechnique::Props &m_illum_technique_props;
@@ -394,7 +401,7 @@ private:
 	Vk::DescriptorSetLayout createIlluminationSetLayout(void);
 	Pipeline m_illumination_pipeline;	// VK_NULL_HANDLE on ray tracing
 	Pipeline createIlluminationPipeline(void);
-	IllumTechnique::Data::RayTracing::Shared m_illum_ray_tracing;
+	IllumTechnique::Data::RayTracing::Shared m_illum_rt;
 	IllumTechnique::Data::RayTracing::Shared createIllumRayTracing(void);
 	Vk::RenderPass m_wsi_pass;
 	Vk::RenderPass createWsiPass(void);
@@ -462,6 +469,8 @@ private:
 			const VkDescriptorSet *pDescriptorSetsMip);
 		IllumTechnique::Data::RayTracing::Fbs m_illum_rt;
 		IllumTechnique::Data::RayTracing::Fbs createIllumRtFbs(VkDescriptorSet descriptorSetRes);
+		IllumTechnique::Data::Rtpt::Fbs m_illum_rtpt;
+		IllumTechnique::Data::Rtpt::Fbs createIllumRtptFbs(void);
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
