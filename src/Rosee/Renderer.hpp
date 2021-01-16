@@ -220,7 +220,7 @@ public:
 				static inline constexpr uint32_t addBarrsPerFrame = 0;
 			};
 
-			struct Ssgi {
+			struct Sspt {
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 1 +	// depth_resolve
 					6 +
 					7;
@@ -360,7 +360,7 @@ public:
 
 		using Type = uint32_t;
 		static inline constexpr Type Potato = 0;
-		static inline constexpr Type Ssgi = 1;	// Screen-space global illumination
+		static inline constexpr Type Sspt = 1;	// Screen-space path tracing
 		static inline constexpr Type Rtpt = 2;	// Ray-traced path tracing
 		static inline constexpr Type Rtdp = 3;	// Ray-traced dynamic probes
 		static inline constexpr Type MaxEnum = Rtdp + 1;
@@ -472,8 +472,8 @@ private:
 		Vk::ImageAllocation m_normal;
 		Vk::ImageView m_normal_view;
 
-		IllumTechnique::Data::Ssgi::Fbs m_illum_ssgi_fbs;
-		IllumTechnique::Data::Ssgi::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
+		IllumTechnique::Data::Sspt::Fbs m_illum_ssgi_fbs;
+		IllumTechnique::Data::Sspt::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
 			const VkDescriptorSet *pDescriptorSetsMip);
 		IllumTechnique::Data::RayTracing::Fbs m_illum_rt;
 		IllumTechnique::Data::RayTracing::Fbs createIllumRtFbs(VkDescriptorSet descriptorSetRes);

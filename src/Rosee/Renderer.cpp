@@ -850,11 +850,11 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 			.addBarrsPerFrame = IllumTechnique::Data::Potato::addBarrsPerFrame
 		},
 		{
-			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Ssgi::descriptorCombinedImageSamplerCount,
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Sspt::descriptorCombinedImageSamplerCount,
 			.fragShaderPath = "sha/ssgi",
 			.fragShaderColorAttachmentCount = 7,
-			.barrsPerFrame = IllumTechnique::Data::Ssgi::barrsPerFrame,
-			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::addBarrsPerFrame
+			.barrsPerFrame = IllumTechnique::Data::Sspt::barrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Sspt::addBarrsPerFrame
 		},
 		{
 			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Rtpt::descriptorCombinedImageSamplerCount,
@@ -881,11 +881,11 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 			.addBarrsPerFrame = IllumTechnique::Data::Potato::addBarrsPerFrame
 		},
 		{
-			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Ssgi::msDescriptorCombinedImageSamplerCount,
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Sspt::msDescriptorCombinedImageSamplerCount,
 			.fragShaderPath = "sha/ssgi_ms",
 			.fragShaderColorAttachmentCount = 7,
-			.barrsPerFrame = IllumTechnique::Data::Ssgi::msBarrsPerFrame,
-			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::msAddBarrsPerFrame
+			.barrsPerFrame = IllumTechnique::Data::Sspt::msBarrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Sspt::msAddBarrsPerFrame
 		},
 		{
 			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Rtpt::descriptorCombinedImageSamplerCount,
@@ -912,7 +912,7 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 Renderer::IllumTechnique::Type Renderer::fitIllumTechnique(IllumTechnique::Type illumTechnique)
 {
 	if (needsAccStructure() && !ext.ray_tracing)
-		return IllumTechnique::Ssgi;
+		return IllumTechnique::Sspt;
 	else
 		return illumTechnique;
 }
@@ -1333,7 +1333,7 @@ Vk::RenderPass Renderer::createIlluminationPass(void)
 
 		return device.createRenderPass(ci);
 	}
-	if (m_illum_technique == IllumTechnique::Ssgi) {
+	if (m_illum_technique == IllumTechnique::Sspt) {
 		VkAttachmentDescription atts[] {
 			{0, VK_FORMAT_R8_SINT, Vk::SampleCount_1Bit, Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::Store,	// step 0
 				Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
@@ -1411,7 +1411,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 		ci.pBindings = bindings;
 		return device.createDescriptorSetLayout(ci);
 	}
-	if (m_illum_technique == IllumTechnique::Ssgi) {
+	if (m_illum_technique == IllumTechnique::Sspt) {
 		if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
 			VkDescriptorSetLayoutBinding bindings[] {
 				{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
@@ -1513,7 +1513,7 @@ Pipeline Renderer::createIlluminationPipeline(void)
 {
 	Pipeline res;
 
-	if (m_illum_technique == IllumTechnique::Potato || m_illum_technique == IllumTechnique::Ssgi) {
+	if (m_illum_technique == IllumTechnique::Potato || m_illum_technique == IllumTechnique::Sspt) {
 		VkGraphicsPipelineCreateInfo ci{};
 		ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, m_illum_technique_props.fragShaderPath);
@@ -1796,7 +1796,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 	VkDescriptorPoolCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	uint32_t sets_per_frame = const_sets_per_frame +
-		(m_illum_technique == IllumTechnique::Ssgi ?
+		(m_illum_technique == IllumTechnique::Sspt ?
 		1 +	// depth_resolve
 			(m_sample_count > VK_SAMPLE_COUNT_1_BIT ?
 				1	// color_resolved
@@ -1868,7 +1868,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 	device.allocateCommandBuffers(m_ccommand_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_frame_count * ccmds_per_frame, ccmds);
 
 	uint32_t sets_per_frame = const_sets_per_frame +
-		(m_illum_technique == IllumTechnique::Ssgi ?
+		(m_illum_technique == IllumTechnique::Sspt ?
 		1 +	// depth_resolve
 			(m_sample_count > VK_SAMPLE_COUNT_1_BIT ?
 				1	// color_resolved
@@ -1884,7 +1884,7 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 		set_layouts[i * sets_per_frame + set_offset++] = m_descriptor_set_layout_dynamic;
 		set_layouts[i * sets_per_frame + set_offset++] = m_illumination_set_layout;
 		set_layouts[i * sets_per_frame + set_offset++] = m_wsi_set_layout;
-		if (m_illum_technique == IllumTechnique::Ssgi) {
+		if (m_illum_technique == IllumTechnique::Sspt) {
 			set_layouts[i * sets_per_frame + set_offset++] = m_depth_resolve_set_layout;
 			if (m_sample_count > VK_SAMPLE_COUNT_1_BIT)
 				set_layouts[i * sets_per_frame + set_offset++] = m_color_resolve_set_layout;
@@ -1938,8 +1938,8 @@ vector<Renderer::Frame> Renderer::createFrames(void)
 		res.emplace(*this, i, gcmds[i * gcmds_per_frame], gcmds[i * gcmds_per_frame + 1], gcmds[i * gcmds_per_frame + 2],
 			ccmds[i * ccmds_per_frame], ccmds[i * ccmds_per_frame + 1],
 			sets[i * sets_per_frame], sets[i * sets_per_frame + 1],
-			m_illum_technique == IllumTechnique::Ssgi && m_sample_count > VK_SAMPLE_COUNT_1_BIT ? sets[i * sets_per_frame + 5] : VK_NULL_HANDLE,
-			m_illum_technique == IllumTechnique::Ssgi ? sets[i * sets_per_frame + 4] : VK_NULL_HANDLE,
+			m_illum_technique == IllumTechnique::Sspt && m_sample_count > VK_SAMPLE_COUNT_1_BIT ? sets[i * sets_per_frame + 5] : VK_NULL_HANDLE,
+			m_illum_technique == IllumTechnique::Sspt ? sets[i * sets_per_frame + 4] : VK_NULL_HANDLE,
 			sets[i * sets_per_frame + 2], needsAccStructure() ? sets[i * sets_per_frame + 4] : VK_NULL_HANDLE,
 			sets[i * sets_per_frame + 3],
 			&sets_mip[i * sets_mip_stride],
@@ -3068,7 +3068,7 @@ void Renderer::bindFrameDescriptors(void)
 			IllumTechnique::Data::RayTracing::bufWritesPerFrame :	// instance_buffer, custom_instance_buffer
 			0);
 	uint32_t buf_writes_offset = img_writes_per_frame;
-	uint32_t img_mip_writes_per_frame = m_illum_technique == IllumTechnique::Ssgi ?
+	uint32_t img_mip_writes_per_frame = m_illum_technique == IllumTechnique::Sspt ?
 		m_swapchain_mip_levels - 1 : 0;	// depth_acc
 	uint32_t img_mip_writes_offset = img_writes_per_frame + buf_writes_per_frame;
 	uint32_t writes_per_frame = img_writes_per_frame + buf_writes_per_frame + img_mip_writes_per_frame;
@@ -3109,9 +3109,9 @@ void Renderer::bindFrameDescriptors(void)
 			for (size_t i = 0; i < array_size(descs); i++)
 				write_img_descs[write_img_descs_offset++] = descs[i];
 		}
-		if (m_illum_technique == IllumTechnique::Ssgi) {
+		if (m_illum_technique == IllumTechnique::Sspt) {
 			if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
-				WriteImgDesc descs[IllumTechnique::Data::Ssgi::descriptorCombinedImageSamplerCount] {
+				WriteImgDesc descs[IllumTechnique::Data::Sspt::descriptorCombinedImageSamplerCount] {
 					{cur_frame.m_illum_ssgi_fbs.m_depth_resolve_set, cis, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 1, m_sampler_fb_mip, cur_frame.m_illum_ssgi_fbs.m_depth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -3130,7 +3130,7 @@ void Renderer::bindFrameDescriptors(void)
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
 			} else {
-				WriteImgDesc descs[IllumTechnique::Data::Ssgi::msDescriptorCombinedImageSamplerCount] {
+				WriteImgDesc descs[IllumTechnique::Data::Sspt::msDescriptorCombinedImageSamplerCount] {
 					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, cis, 0, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, cis, 1, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illum_ssgi_fbs.m_color_resolve_set, cis, 2, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -3275,7 +3275,7 @@ void Renderer::bindFrameDescriptors(void)
 			writes[i * writes_per_frame + buf_writes_offset + j] = w;
 		}
 
-		if (m_illum_technique == IllumTechnique::Ssgi) {
+		if (m_illum_technique == IllumTechnique::Sspt) {
 			WriteImgDesc write_img_mip_descs[img_mip_writes_per_frame];
 			for (uint32_t j = 0; j < img_mip_writes_per_frame; j++)
 				write_img_mip_descs[j] = WriteImgDesc{cur_frame.m_illum_ssgi_fbs.m_depth_acc_sets[j], cis, 0, m_sampler_fb,
@@ -3323,9 +3323,9 @@ void Renderer::bindFrameDescriptors(void)
 						images[images_offset++] = imgs[i];
 				}
 
-				if (m_illum_technique == IllumTechnique::Ssgi) {
+				if (m_illum_technique == IllumTechnique::Sspt) {
 					if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
-						VkImage imgs[IllumTechnique::Data::Ssgi::barrsPerFrame] {
+						VkImage imgs[IllumTechnique::Data::Sspt::barrsPerFrame] {
 							m_frames[i].m_illum_ssgi_fbs.m_depth,
 							m_frames[i].m_illum_ssgi_fbs.m_step,
 							m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos,
@@ -3334,7 +3334,7 @@ void Renderer::bindFrameDescriptors(void)
 						for (uint32_t i = 0; i < array_size(imgs); i++)
 							images[images_offset++] = imgs[i];
 					} else {
-						VkImage imgs[IllumTechnique::Data::Ssgi::msBarrsPerFrame] {
+						VkImage imgs[IllumTechnique::Data::Sspt::msBarrsPerFrame] {
 							m_frames[i].m_illum_ssgi_fbs.m_depth,
 							m_frames[i].m_illum_ssgi_fbs.m_albedo_resolved,
 							m_frames[i].m_illum_ssgi_fbs.m_normal_resolved,
@@ -3389,9 +3389,9 @@ void Renderer::bindFrameDescriptors(void)
 						images[images_offset++] = imgs[i];
 				}
 
-				if (m_illum_technique == IllumTechnique::Ssgi) {
+				if (m_illum_technique == IllumTechnique::Sspt) {
 					if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
-						ImgDesc imgs[IllumTechnique::Data::Ssgi::barrsPerFrame] {
+						ImgDesc imgs[IllumTechnique::Data::Sspt::barrsPerFrame] {
 							{m_frames[i].m_illum_ssgi_fbs.m_depth, &cv_f32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_step, &cv_i32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos, &cv_i32_zero},
@@ -3400,7 +3400,7 @@ void Renderer::bindFrameDescriptors(void)
 						for (uint32_t i = 0; i < array_size(imgs); i++)
 							images[images_offset++] = imgs[i];
 					} else {
-						ImgDesc imgs[IllumTechnique::Data::Ssgi::msBarrsPerFrame] {
+						ImgDesc imgs[IllumTechnique::Data::Sspt::msBarrsPerFrame] {
 							{m_frames[i].m_illum_ssgi_fbs.m_depth, &cv_f32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_albedo_resolved, &cv_f32_zero},
 							{m_frames[i].m_illum_ssgi_fbs.m_normal_resolved, &cv_f32_zero},
@@ -3450,9 +3450,9 @@ void Renderer::bindFrameDescriptors(void)
 						images[images_offset++] = imgs[i];
 				}
 
-				if (m_illum_technique == IllumTechnique::Ssgi) {
+				if (m_illum_technique == IllumTechnique::Sspt) {
 					if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
-						ImgDesc imgs[IllumTechnique::Data::Ssgi::addBarrsPerFrame] {
+						ImgDesc imgs[IllumTechnique::Data::Sspt::addBarrsPerFrame] {
 							{m_frames[i].m_illum_ssgi_fbs.m_depth, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_step, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_acc_path_pos, Vk::ImageLayout::TransferDstOptimal},
@@ -3464,7 +3464,7 @@ void Renderer::bindFrameDescriptors(void)
 						for (uint32_t i = 0; i < array_size(imgs); i++)
 							images[images_offset++] = imgs[i];
 					} else {
-						ImgDesc imgs[IllumTechnique::Data::Ssgi::msAddBarrsPerFrame] {
+						ImgDesc imgs[IllumTechnique::Data::Sspt::msAddBarrsPerFrame] {
 							{m_frames[i].m_illum_ssgi_fbs.m_depth, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_albedo_resolved, Vk::ImageLayout::TransferDstOptimal},
 							{m_frames[i].m_illum_ssgi_fbs.m_normal_resolved, Vk::ImageLayout::TransferDstOptimal},
@@ -3739,11 +3739,11 @@ Vk::ImageView Renderer::Frame::createFbImageMip(VkFormat format, VkImageAspectFl
 	return m_r.createImageView(*pAllocation, VK_IMAGE_VIEW_TYPE_2D, format, aspect);
 }
 
-Renderer::IllumTechnique::Data::Ssgi::Fbs Renderer::Frame::createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
+Renderer::IllumTechnique::Data::Sspt::Fbs Renderer::Frame::createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,
 	const VkDescriptorSet *pDescriptorSetsMip)
 {
-	IllumTechnique::Data::Ssgi::Fbs res;
-	if (m_r.m_illum_technique != IllumTechnique::Ssgi)
+	IllumTechnique::Data::Sspt::Fbs res;
+	if (m_r.m_illum_technique != IllumTechnique::Sspt)
 		return res;
 
 	if (m_r.m_sample_count > VK_SAMPLE_COUNT_1_BIT) {
@@ -3782,7 +3782,7 @@ Renderer::IllumTechnique::Data::Ssgi::Fbs Renderer::Frame::createIllumSsgiFbs(Vk
 	return res;
 }
 
-Vk::Framebuffer Renderer::IllumTechnique::Data::Ssgi::Fbs::createColorResolveFb(Renderer &r)
+Vk::Framebuffer Renderer::IllumTechnique::Data::Sspt::Fbs::createColorResolveFb(Renderer &r)
 {
 	VkFramebufferCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -3799,7 +3799,7 @@ Vk::Framebuffer Renderer::IllumTechnique::Data::Ssgi::Fbs::createColorResolveFb(
 	return r.device.createFramebuffer(ci);
 }
 
-Vk::Framebuffer Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthResolveFb(Renderer &r)
+Vk::Framebuffer Renderer::IllumTechnique::Data::Sspt::Fbs::createDepthResolveFb(Renderer &r)
 {
 	VkFramebufferCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -3815,7 +3815,7 @@ Vk::Framebuffer Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthResolveFb(
 	return r.device.createFramebuffer(ci);
 }
 
-vector<Vk::ImageView> Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthAccViews(Renderer &r)
+vector<Vk::ImageView> Renderer::IllumTechnique::Data::Sspt::Fbs::createDepthAccViews(Renderer &r)
 {
 	size_t acc_sets = r.m_swapchain_mip_levels - 1;
 	auto res = vector<Vk::ImageView>(acc_sets);
@@ -3824,7 +3824,7 @@ vector<Vk::ImageView> Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthAccV
 	return res;
 }
 
-vector<Vk::Framebuffer> Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthAccFbs(Renderer &r)
+vector<Vk::Framebuffer> Renderer::IllumTechnique::Data::Sspt::Fbs::createDepthAccFbs(Renderer &r)
 {
 	size_t acc_sets = r.m_swapchain_mip_levels - 1;
 	auto res = vector<Vk::Framebuffer>(acc_sets);
@@ -3846,7 +3846,7 @@ vector<Vk::Framebuffer> Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthAc
 	return res;
 }
 
-vector<VkDescriptorSet> Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthAccSets(Renderer &r, const VkDescriptorSet *pDescriptorSetsMip)
+vector<VkDescriptorSet> Renderer::IllumTechnique::Data::Sspt::Fbs::createDepthAccSets(Renderer &r, const VkDescriptorSet *pDescriptorSetsMip)
 {
 	size_t acc_sets = r.m_swapchain_mip_levels - 1;
 	auto res = vector<VkDescriptorSet>(acc_sets);
@@ -3854,7 +3854,7 @@ vector<VkDescriptorSet> Renderer::IllumTechnique::Data::Ssgi::Fbs::createDepthAc
 	return res;
 }
 
-void Renderer::IllumTechnique::Data::Ssgi::Fbs::destroy(Renderer &r)
+void Renderer::IllumTechnique::Data::Sspt::Fbs::destroy(Renderer &r)
 {
 	r.device.destroy(m_depth_resolve_fb);
 	for (auto v : m_depth_acc_views)
@@ -4203,7 +4203,7 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 
 Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 {
-	if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Ssgi) {
+	if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Sspt) {
 		VkFramebufferCreateInfo ci{};
 		ci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 
@@ -4219,7 +4219,7 @@ Vk::Framebuffer Renderer::Frame::createIlluminationFb(void)
 			ci.layers = 1;
 			return m_r.device.createFramebuffer(ci);
 		}
-		if (m_r.m_illum_technique == IllumTechnique::Ssgi) {
+		if (m_r.m_illum_technique == IllumTechnique::Sspt) {
 			ci.renderPass = m_r.m_illumination_pass;
 			VkImageView atts[] {
 				m_illum_ssgi_fbs.m_step_view,
@@ -4329,7 +4329,7 @@ void Renderer::Frame::destroy(bool with_ext_res)
 		m_illum_rtpt.destroy(m_r);
 	if (m_r.needsAccStructure())
 		m_illum_rt.destroy(m_r);
-	if (m_r.m_illum_technique == IllumTechnique::Ssgi)
+	if (m_r.m_illum_technique == IllumTechnique::Sspt)
 		m_illum_ssgi_fbs.destroy(m_r);
 	m_r.device.destroy(m_output_view);
 	m_r.allocator.destroy(m_output);
@@ -4453,7 +4453,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 		illum.cam_a = camera.far / (camera.far - camera.near);
 		illum.cam_b = -(camera.far * camera.near) / (camera.far - camera.near);
 
-		if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Ssgi) {
+		if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Sspt) {
 			{
 				VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
 					Vk::Access::ColorAttachmentWriteBit | Vk::Access::DepthStencilAttachmentWriteBit, Vk::Access::ShaderReadBit };
@@ -4461,7 +4461,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					Vk::PipelineStage::FragmentShaderBit, 0,
 					1, &barrier, 0, nullptr, 0, nullptr);
 			}
-			if (m_r.m_illum_technique == IllumTechnique::Ssgi) {
+			if (m_r.m_illum_technique == IllumTechnique::Sspt) {
 				if (m_r.m_sample_count > VK_SAMPLE_COUNT_1_BIT) {
 					{
 						VkRenderPassBeginInfo bi{};
@@ -4892,7 +4892,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 	}
 	m_cmd_gtransfer.end();
 
-	if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Ssgi) {
+	if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Sspt) {
 		VkCommandBuffer gcmds0[] {
 			m_cmd_gtransfer,
 			m_cmd_grender_pass
