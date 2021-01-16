@@ -66,7 +66,7 @@ SHAD = sha
 SHA = $(SHAD)/opaque.vert $(SHAD)/opaque.frag $(SHAD)/opaque_uvgen.vert $(SHAD)/opaque_uvgen.frag \
 	$(SHAD)/fwd_p2.vert $(SHAD)/color_resolve.frag $(SHAD)/depth_resolve.frag $(SHAD)/depth_resolve_ms.frag $(SHAD)/depth_acc.frag \
 	$(SHAD)/potato.frag $(SHAD)/potato_ms.frag $(SHAD)/ssgi.frag $(SHAD)/ssgi_ms.frag \
-	$(SHAD)/ray_tracing.rgen $(SHAD)/opaque.rahit $(SHAD)/opaque_uvgen.rchit $(SHAD)/sky.rmiss \
+	$(SHAD)/rtpt.rgen $(SHAD)/opaque.rahit $(SHAD)/opaque_uvgen.rchit $(SHAD)/sky.rmiss \
 	$(SHAD)/wsi.frag
 
 SHA_VERT = $(SHA:.vert=.vert.spv)

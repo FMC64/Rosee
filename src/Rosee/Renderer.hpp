@@ -353,9 +353,10 @@ public:
 
 		using Type = uint32_t;
 		static inline constexpr Type Potato = 0;
-		static inline constexpr Type Ssgi = 1;
-		static inline constexpr Type Rtpt = 2;
-		static inline constexpr Type MaxEnum = Rtpt + 1;
+		static inline constexpr Type Ssgi = 1;	// Screen-space global illumination
+		static inline constexpr Type Rtpt = 2;	// Ray-traced path tracing
+		static inline constexpr Type Rtdp = 3;	// Ray-traced dynamic probes
+		static inline constexpr Type MaxEnum = Rtdp + 1;
 
 		struct Props {
 			uint32_t descriptorCombinedImageSamplerCount;

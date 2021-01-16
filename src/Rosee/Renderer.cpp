@@ -3934,7 +3934,7 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	Pipeline res;
 	VkRayTracingPipelineCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
-	auto ray_tracing = r.loadShaderModule(VK_SHADER_STAGE_RAYGEN_BIT_KHR, "sha/ray_tracing");
+	auto ray_tracing = r.loadShaderModule(VK_SHADER_STAGE_RAYGEN_BIT_KHR, r.m_illum_technique == IllumTechnique::Rtpt ? "sha/rtpt" : "sha/rtdp");
 	res.pushShaderModule(ray_tracing);
 	auto sky = r.loadShaderModule(VK_SHADER_STAGE_MISS_BIT_KHR, "sha/sky");
 	res.pushShaderModule(sky);
