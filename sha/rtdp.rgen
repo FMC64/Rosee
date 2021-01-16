@@ -1,0 +1,28 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+
+#include "ray_tracing.glsl"
+
+layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
+
+layout(set = 0, binding = 2) uniform sampler2D cdepth;
+layout(set = 0, binding = 3) uniform sampler2D albedo;
+layout(set = 0, binding = 4) uniform sampler2D normal;
+
+layout(set = 0, binding = 5, rgba16f) uniform image2D s_output;
+
+layout(location = 0) rayPayloadEXT RayPayload rp;
+
+void main(void)
+{
+	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
+	ivec2 pos = ivec2(fpos);
+	float val = 0.0;
+	if (((pos.x ^ pos.y) & 1) == 1)
+		val = 0.5;
+	int cluster_size = 16;
+	if (pos.x % cluster_size == 0 || pos.y % cluster_size == 0)
+		val = 1.0;
+	vec3 out_output = vec3(val);
+	imageStore(s_output, pos, vec4(out_output, 1.0));
+}

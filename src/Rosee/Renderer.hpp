@@ -274,14 +274,8 @@ public:
 			};
 
 			struct RayTracing {
-				static inline constexpr uint32_t storageImageCount = 9;
 				static inline constexpr uint32_t groupCount = 4;
-
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6 + 9;
-				static inline constexpr uint32_t barrsPerFrame = 3;
-				static inline constexpr uint32_t addBarrsPerFrame = 9;
 				static inline constexpr uint32_t bufWritesPerFrame = 2;
-
 				static inline constexpr uint32_t customInstancePoolSize = 16000000;
 
 				struct Shared {
@@ -328,6 +322,11 @@ public:
 			};
 
 			struct Rtpt {
+				static inline constexpr uint32_t storageImageCount = 9;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 6 + 9;
+				static inline constexpr uint32_t barrsPerFrame = 3;
+				static inline constexpr uint32_t addBarrsPerFrame = 9;
+
 				struct Fbs {
 					Vk::ImageAllocation m_step;
 					Vk::ImageView m_step_view;
@@ -348,6 +347,14 @@ public:
 
 					void destroy(Renderer &r);
 				};
+			};
+
+			struct Rtdp {
+				static inline constexpr uint32_t storageImageCount = 1;
+
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 3;
+				static inline constexpr uint32_t barrsPerFrame = 0;
+				static inline constexpr uint32_t addBarrsPerFrame = 0;
 			};
 		};
 

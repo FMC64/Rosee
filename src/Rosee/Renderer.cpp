@@ -836,7 +836,7 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 
 bool Renderer::needsAccStructure(void)
 {
-	return m_illum_technique == IllumTechnique::Rtpt;
+	return m_illum_technique == IllumTechnique::Rtpt || m_illum_technique == IllumTechnique::Rtdp;
 }
 
 const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
@@ -857,12 +857,20 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::addBarrsPerFrame
 		},
 		{
-			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::RayTracing::descriptorCombinedImageSamplerCount,
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Rtpt::descriptorCombinedImageSamplerCount,
 			.fragShaderPath = nullptr,
 			.fragShaderColorAttachmentCount = 0,
-			.barrsPerFrame = IllumTechnique::Data::RayTracing::barrsPerFrame,
-			.addBarrsPerFrame = IllumTechnique::Data::RayTracing::addBarrsPerFrame
+			.barrsPerFrame = IllumTechnique::Data::Rtpt::barrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Rtpt::addBarrsPerFrame
+		},
+		{
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Rtdp::descriptorCombinedImageSamplerCount,
+			.fragShaderPath = nullptr,
+			.fragShaderColorAttachmentCount = 0,
+			.barrsPerFrame = IllumTechnique::Data::Rtdp::barrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Rtdp::addBarrsPerFrame
 		}
+
 	};
 	static const IllumTechnique::Props props_ms[IllumTechnique::MaxEnum] {
 		{
@@ -880,11 +888,18 @@ const Renderer::IllumTechnique::Props& Renderer::getIllumTechniqueProps(void)
 			.addBarrsPerFrame = IllumTechnique::Data::Ssgi::msAddBarrsPerFrame
 		},
 		{
-			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::RayTracing::descriptorCombinedImageSamplerCount,
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Rtpt::descriptorCombinedImageSamplerCount,
 			.fragShaderPath = nullptr,
 			.fragShaderColorAttachmentCount = 0,
-			.barrsPerFrame = IllumTechnique::Data::RayTracing::barrsPerFrame,
-			.addBarrsPerFrame = IllumTechnique::Data::RayTracing::addBarrsPerFrame
+			.barrsPerFrame = IllumTechnique::Data::Rtpt::barrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Rtpt::addBarrsPerFrame
+		},
+		{
+			.descriptorCombinedImageSamplerCount = IllumTechnique::Data::Rtdp::descriptorCombinedImageSamplerCount,
+			.fragShaderPath = nullptr,
+			.fragShaderColorAttachmentCount = 0,
+			.barrsPerFrame = IllumTechnique::Data::Rtdp::barrsPerFrame,
+			.addBarrsPerFrame = IllumTechnique::Data::Rtdp::addBarrsPerFrame
 		}
 	};
 
@@ -1477,6 +1492,20 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 		ci.pBindings = bindings;
 		return device.createDescriptorSetLayout(ci);
 	}
+	if (m_illum_technique == IllumTechnique::Rtdp) {
+		VkDescriptorSetLayoutBinding bindings[] {
+			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
+			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
+			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
+			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
+			{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
+
+			{5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
+		};
+		ci.bindingCount = array_size(bindings);
+		ci.pBindings = bindings;
+		return device.createDescriptorSetLayout(ci);
+	}
 	throw std::runtime_error("createIlluminationSetLayout");
 }
 
@@ -1788,7 +1817,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		)},
 		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_frame_count * (
 			(m_illum_technique == IllumTechnique::Rtpt ?
-				IllumTechnique::Data::RayTracing::storageImageCount :	// illum
+				IllumTechnique::Data::Rtpt::storageImageCount :	// illum
 				0)
 		)},
 		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, m_frame_count * (
@@ -2889,7 +2918,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
-	m_illum_technique(fitIllumTechnique(IllumTechnique::Rtpt)),
+	m_illum_technique(fitIllumTechnique(IllumTechnique::Rtdp)),
 	m_illum_technique_props(getIllumTechniqueProps()),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
@@ -3026,7 +3055,10 @@ void Renderer::bindFrameDescriptors(void)
 		const_img_writes_per_frame +
 		m_illum_technique_props.descriptorCombinedImageSamplerCount +
 		(m_illum_technique == IllumTechnique::Rtpt ?
-			IllumTechnique::Data::RayTracing::storageImageCount :
+			IllumTechnique::Data::Rtpt::storageImageCount :
+			0) +	// illum
+		(m_illum_technique == IllumTechnique::Rtdp ?
+			IllumTechnique::Data::Rtdp::storageImageCount :
 			0);	// illum
 	uint32_t img_writes_offset = 0;
 	static constexpr uint32_t const_buf_writes_per_frame =
@@ -3126,7 +3158,7 @@ void Renderer::bindFrameDescriptors(void)
 		}
 		if (m_illum_technique == IllumTechnique::Rtpt) {
 			{
-				WriteImgDesc descs[IllumTechnique::Data::RayTracing::storageImageCount] {
+				WriteImgDesc descs[IllumTechnique::Data::Rtpt::storageImageCount] {
 					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 17, VK_NULL_HANDLE, cur_frame.m_illum_rtpt.m_step_view, Vk::ImageLayout::General},
 					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 18, VK_NULL_HANDLE, cur_frame.m_illum_rtpt.m_acc_view, Vk::ImageLayout::General},
 					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 19, VK_NULL_HANDLE, cur_frame.m_illum_rtpt.m_path_next_origin_view, Vk::ImageLayout::General},
@@ -3141,7 +3173,7 @@ void Renderer::bindFrameDescriptors(void)
 					write_img_descs[write_img_descs_offset++] = descs[i];
 			}
 			{
-				WriteImgDesc descs[IllumTechnique::Data::RayTracing::descriptorCombinedImageSamplerCount] {
+				WriteImgDesc descs[IllumTechnique::Data::Rtpt::descriptorCombinedImageSamplerCount] {
 					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -3158,6 +3190,24 @@ void Renderer::bindFrameDescriptors(void)
 					{next_frame.m_illumination_set, cis, 14, m_sampler_fb, cur_frame.m_illum_rtpt.m_path_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 15, m_sampler_fb, cur_frame.m_illum_rtpt.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_output_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+				};
+				for (size_t i = 0; i < array_size(descs); i++)
+					write_img_descs[write_img_descs_offset++] = descs[i];
+			}
+		}
+		if (m_illum_technique == IllumTechnique::Rtdp) {
+			{
+				WriteImgDesc descs[IllumTechnique::Data::Rtdp::storageImageCount] {
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 5, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
+				};
+				for (size_t i = 0; i < array_size(descs); i++)
+					write_img_descs[write_img_descs_offset++] = descs[i];
+			}
+			{
+				WriteImgDesc descs[IllumTechnique::Data::Rtdp::descriptorCombinedImageSamplerCount] {
+					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3198,8 +3248,7 @@ void Renderer::bindFrameDescriptors(void)
 				write_buf_descs[write_buf_offset++] = bufs[i];
 		}
 
-		if (needsAccStructure())
-		{
+		if (needsAccStructure()) {
 			WriteBufDesc bufs[IllumTechnique::Data::RayTracing::bufWritesPerFrame] {
 				{cur_frame.m_illum_rt.m_res_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, cur_frame.m_illum_rt.m_custom_instance_buffer},
 				{cur_frame.m_illum_rt.m_res_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, cur_frame.m_illum_rt.m_materials_albedo_buffer}
@@ -3298,7 +3347,7 @@ void Renderer::bindFrameDescriptors(void)
 					}
 				}
 				if (m_illum_technique == IllumTechnique::Rtpt) {
-					VkImage imgs[IllumTechnique::Data::RayTracing::barrsPerFrame] {
+					VkImage imgs[IllumTechnique::Data::Rtpt::barrsPerFrame] {
 						m_frames[i].m_cdepth,
 						m_frames[i].m_illum_rtpt.m_step,
 						m_frames[i].m_illum_rtpt.m_acc
@@ -3364,7 +3413,7 @@ void Renderer::bindFrameDescriptors(void)
 					}
 				}
 				if (m_illum_technique == IllumTechnique::Rtpt) {
-					ImgDesc imgs[IllumTechnique::Data::RayTracing::barrsPerFrame] {
+					ImgDesc imgs[IllumTechnique::Data::Rtpt::barrsPerFrame] {
 						{m_frames[i].m_cdepth, &cv_f32_zero},
 						{m_frames[i].m_illum_rtpt.m_step, &cv_i32_zero},
 						{m_frames[i].m_illum_rtpt.m_acc, &cv_i32_zero}
@@ -3431,7 +3480,7 @@ void Renderer::bindFrameDescriptors(void)
 					}
 				}
 				if (m_illum_technique == IllumTechnique::Rtpt) {
-					ImgDesc imgs[IllumTechnique::Data::RayTracing::addBarrsPerFrame] {
+					ImgDesc imgs[IllumTechnique::Data::Rtpt::addBarrsPerFrame] {
 						{m_frames[i].m_cdepth, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_illum_rtpt.m_step, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_illum_rtpt.m_acc, Vk::ImageLayout::TransferDstOptimal},
@@ -4760,6 +4809,50 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 						0, nullptr, 0, nullptr, 1, &ibarrier);
 				}
 			}
+
+			if (m_r.m_illum_technique == IllumTechnique::Rtdp) {
+				{
+					VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::TransferWriteBit, Vk::Access::ShaderReadBit };
+					m_cmd_ctransfer.pipelineBarrier(Vk::PipelineStage::TransferBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+						1, &barrier, 0, nullptr, 0, nullptr);
+				}
+				m_cmd_ctransfer.end();
+
+				m_cmd_ctrace_rays.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+				{
+					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
+						Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_graphics, m_r.m_queue_family_compute, m_output,
+						{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
+					m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+						0, nullptr, 0, nullptr, 1, &ibarrier);
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+						0, nullptr, 0, nullptr, 1, &ibarrier);
+				}
+				m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_r.m_illum_rt.m_pipeline);
+				{
+					VkDescriptorSet sets[] {
+						m_illumination_set,
+						m_illum_rt.m_res_set
+					};
+					m_cmd_ctrace_rays.bindDescriptorSets(VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_r.m_illum_rt.m_pipeline.pipelineLayout,
+						0, array_size(sets), sets, 0, nullptr);
+				}
+				m_cmd_ctrace_rays.traceRaysKHR(&m_r.m_illum_rt.m_sbt_raygen_region,
+					&m_r.m_illum_rt.m_sbt_miss_region,
+					&m_r.m_illum_rt.m_sbt_hit_region,
+					&m_r.m_illum_rt.m_sbt_callable_region,
+					m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1);
+				{
+					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit,
+						Vk::ImageLayout::General, Vk::ImageLayout::ShaderReadOnlyOptimal, m_r.m_queue_family_compute, m_r.m_queue_family_graphics, m_output,
+						{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+						0, nullptr, 0, nullptr, 1, &ibarrier);
+					m_cmd_gwsi.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+						0, nullptr, 0, nullptr, 1, &ibarrier);
+				}
+			}
+
 			m_cmd_ctrace_rays.end();
 		}
 
