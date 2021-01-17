@@ -34,6 +34,7 @@ layout(set = 0, binding = 25, rgba16f) uniform image2D s_output;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
+#include "illum.glsl"
 #include "rt.glsl"
 
 vec3 rt_pos_view(vec2 pos)

@@ -1,6 +1,7 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 
+#include "illum.glsl"
 #include "ray_tracing.glsl"
 
 layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
@@ -28,6 +29,9 @@ void main(void)
 	vec2 pos_loc_n = (vec2(probe_pos_loc) + 0.5) / vec2(probe_diffuse_size_next);
 	vec3 dir = oct_proj_inv(pos_loc_n);
 
+	ivec2 offs[8];
+	uint off_count = oct_fill_mirror(probe_pos_loc, offs);
+
 	for (uint i = 0; i < probe_layer_count; i++) {
 		Probe probe = probes_pos.probes[(probe_pos.y * il.probe_extent.x + probe_pos.x) * probe_layer_count + i];
 		vec3 out_probe = vec3(1.0);
@@ -50,22 +54,10 @@ void main(void)
 
 		imageStore(s_probes, ivec3(pos_out, i), vec4(out_probe, 1.0));
 
-		if (probe_pos_loc.x == 0)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(0, probe_diffuse_size_next - probe_pos_loc.y), i), vec4(out_probe, 1.0));
-		if (probe_pos_loc.y == 0)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(probe_diffuse_size_next - probe_pos_loc.x, 0), i), vec4(out_probe, 1.0));
-		if (probe_pos_loc.x == probe_diffuse_size_next - 1)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(probe_diffuse_size - 1, probe_diffuse_size_next - probe_pos_loc.y), i), vec4(out_probe, 1.0));
-		if (probe_pos_loc.y == probe_diffuse_size_next - 1)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(probe_diffuse_size_next - probe_pos_loc.x, probe_diffuse_size - 1), i), vec4(out_probe, 1.0));
-
-		if (probe_pos_loc.x == 0 && probe_pos_loc.y == 0)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(probe_diffuse_size - 1, probe_diffuse_size - 1), i), vec4(out_probe, 1.0));
-		if (probe_pos_loc.x == probe_diffuse_size_next - 1 && probe_pos_loc.y == 0)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(0, probe_diffuse_size - 1), i), vec4(out_probe, 1.0));
-		if (probe_pos_loc.x == 0 && probe_pos_loc.y == probe_diffuse_size_next - 1)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(probe_diffuse_size - 1, 0), i), vec4(out_probe, 1.0));
-		if (probe_pos_loc.x == probe_diffuse_size_next - 1 && probe_pos_loc.y == probe_diffuse_size_next - 1)
-			imageStore(s_probes, ivec3(probe_pos_base + ivec2(0, 0), i), vec4(out_probe, 1.0));
+		for (uint j = 0; j < 8; j++) {
+			if (j >= off_count)
+				break;
+			imageStore(s_probes, ivec3(probe_pos_base + offs[j], i), vec4(out_probe, 1.0));
+		}
 	}
 }

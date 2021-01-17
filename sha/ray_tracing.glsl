@@ -1,5 +1,3 @@
-#include "illum.glsl"
-
 struct RayPayload {
 	bool hit;
 	vec3 pos;

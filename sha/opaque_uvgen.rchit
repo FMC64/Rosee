@@ -1,6 +1,7 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 
+#include "illum.glsl"
 #include "ray_tracing.glsl"
 
 layout(location = 0) rayPayloadInEXT RayPayload rp;

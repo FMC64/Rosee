@@ -1,8 +1,8 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 
-#include "rtdp.glsl"
 #include "illum.glsl"
+#include "rtdp.glsl"
 #include "rt.glsl"
 
 void main(void)

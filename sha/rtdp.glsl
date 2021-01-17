@@ -1,3 +1,4 @@
+
 layout(set = 0, binding = 2) uniform sampler2D cdepth;
 layout(set = 0, binding = 3) uniform sampler2D albedo;
 layout(set = 0, binding = 4) uniform sampler2D normal;
@@ -18,6 +19,11 @@ const int probe_diffuse_size_next = probe_diffuse_size - 2;
 layout(set = 0, binding = 5) buffer Probes {
 	Probe probes[];
 } probes_pos;
+
+uint probe_offset(ivec2 pos, uint layer)
+{
+	return (pos.y * il.probe_extent.x + pos.x) * probe_layer_count + layer;
+}
 
 vec2 oct_flip(vec2 p)
 {
@@ -44,4 +50,27 @@ vec3 oct_proj_inv(vec2 p)
 	if (is_neg)
 		res.y = -res.y;
 	return res;
+}
+
+uint oct_fill_mirror(ivec2 pos, out ivec2 offs[8])
+{
+	uint off_count = 0;
+	if (pos.x == 0)
+		offs[off_count++] = ivec2(0, probe_diffuse_size_next - pos.y);
+	if (pos.y == 0)
+		offs[off_count++] = ivec2(probe_diffuse_size_next - pos.x, 0);
+	if (pos.x == probe_diffuse_size_next - 1)
+		offs[off_count++] = ivec2(probe_diffuse_size - 1, probe_diffuse_size_next - pos.y);
+	if (pos.y == probe_diffuse_size_next - 1)
+		offs[off_count++] = ivec2(probe_diffuse_size_next - pos.x, probe_diffuse_size - 1);
+
+	if (pos.x == 0 && pos.y == 0)
+		offs[off_count++] = ivec2(probe_diffuse_size - 1, probe_diffuse_size - 1);
+	if (pos.x == probe_diffuse_size_next - 1 && pos.y == 0)
+		offs[off_count++] = ivec2(0, probe_diffuse_size - 1);
+	if (pos.x == 0 && pos.y == probe_diffuse_size_next - 1)
+		offs[off_count++] = ivec2(probe_diffuse_size - 1, 0);
+	if (pos.x == probe_diffuse_size_next - 1 && pos.y == probe_diffuse_size_next - 1)
+		offs[off_count++] = ivec2(0, 0);
+	return off_count;
 }
