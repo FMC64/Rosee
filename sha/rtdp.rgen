@@ -26,7 +26,7 @@ void main(void)
 	ivec2 probe_pos_loc = pos % probe_diffuse_size_next;
 	ivec2 probe_pos_base = probe_pos * probe_diffuse_size;
 	ivec2 pos_out = 1 + probe_pos_base + probe_pos_loc;
-	vec3 dir = probe_pos_to_dir(probe_pos_loc);
+	vec3 dir = (il.view_normal * vec4(probe_pos_to_dir(probe_pos_loc), 1.0)).xyz;
 
 	ivec2 offs[8];
 	uint off_count = oct_fill_mirror(probe_pos_loc, offs);
@@ -34,18 +34,19 @@ void main(void)
 	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
 
 	for (uint i = 0; i < probe_layer_count; i++) {
-		Probe probe = probes_pos.probes[(probe_pos.y * il.probe_extent.x + probe_pos.x) * probe_layer_count + i];
+		Probe probe = probes_pos.probes[probe_offset(probe_pos, i)];
 		vec3 ray_albedo = vec3(1.0);
 		vec3 ray_origin = probe.pos;
 		vec3 ray_dir = dir;
 		vec3 out_probe = vec3(0.0);
 
-		for (uint j = 0; j < probe_max_bounces; j++) {
-			if (j == 0 && dot(dir, texelFetch(normal, probe.ipos, 0).xyz) >= 0.0) {
+		for (uint j = 0; j < 1; j++) {
+			if (j == 0 && dot(dir, texelFetch(normal, probe.ipos, 0).xyz) <= 0.0) {
+				break;
 				rp.hit = true;
 				rp.pos = probe.pos;
 				rp.albedo = texelFetch(albedo, probe.ipos, 0).xyz;
-				rp.normal = texelFetch(normal, probe.ipos, 0).xyz;
+				rp.normal = (il.view_normal * vec4(texelFetch(normal, probe.ipos, 0).xyz, 1.0)).xyz;
 			} else
 				traceRayEXT(acc,
 					gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
@@ -61,8 +62,8 @@ void main(void)
 			if (rp.hit) {
 				ray_albedo *= rp.albedo;
 				ray_origin = rp.pos;
-				vec3 dif_normal = rp.normal;
-				ray_dir = rnd_diffuse_around_rough(ray_dir, rp.normal, 0.0, rnd);
+				vec3 dif_normal = (il.view_normal * vec4(rp.normal, 1.0)).xyz;
+				ray_dir = rnd_diffuse_around_rough(ray_dir, dif_normal, 0.0, rnd);
 
 				vec3 sun_dir = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
 

@@ -45,6 +45,6 @@ void main(void)
 		probe.depth = p_c_depths[k];
 		probe.ipos = p_c_pos[k];
 		probe.pos = rt_pos_view(vec2(probe.ipos) + 0.5, probe.depth);
-		probes_pos.probes[(probe_pos.y * il.probe_extent.x + probe_pos.x) * probe_layer_count + k] = probe;
+		probes_pos.probes[probe_offset(probe_pos, k)] = probe;
 	}
 }

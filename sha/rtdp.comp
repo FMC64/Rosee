@@ -15,18 +15,31 @@ void main(void)
 	ivec2 pos = ivec2(gl_WorkGroupID.xy);
 
 	ivec2 probe_pos = pos / probe_size;
-	//Probe probe = probes_pos.probes[probe_offset(probe_pos, 2)];
+	float d = texelFetch(cdepth, pos, 0).x;
+	uint min_ndx;
+	uint max_ndx;
+	float blend_factor;
+	for (uint i = 0; i < probe_layer_count - 1; i++) {
+		Probe p0 = probes_pos.probes[probe_offset(probe_pos, i)];
+		Probe p1 = probes_pos.probes[probe_offset(probe_pos, i + 1)];
+		if (p0.depth <= d && p1.depth >= d) {
+			max_ndx = i + 1;
+			min_ndx = i;
+			blend_factor = (d - p0.depth) / (p1.depth - p0.depth);
+			break;
+		}
+	}
 
 	vec3 out_output;
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 	vec3 norm = texelFetch(normal, pos, 0).xyz;
 	vec2 p_pos = probe_pos * probe_diffuse_size + probe_dir_to_pos(norm);
-	out_output = alb * texelFetch(probes_diffuse, ivec3(ivec2(p_pos), probe_layer_count - 1), 0).xyz;
-	imageStore(s_output, pos, vec4(out_output, 1.0));
+	out_output = mix(
+		alb * textureLod(probes_diffuse, vec3(p_pos / (il.probe_extent * probe_size), min_ndx), 0).xyz,
+		alb * textureLod(probes_diffuse, vec3(p_pos / (il.probe_extent * probe_size), max_ndx), 0).xyz,
+		blend_factor
+	);
 
-	/*vec3 out_output = texelFetch(probes_diffuse, ivec3(pos, probe_layer_count - 1), 0).xyz;
-	int scale = 4;
-	for (int i = 0; i < scale; i++)
-		for (int j = 0; j < scale; j++)
-			imageStore(s_output, pos * scale + ivec2(j, i), vec4(out_output, 1.0));*/
+	//out_output = texelFetch(probes_diffuse, ivec3(ivec2(p_pos), probe_layer_count - 1), 0).xyz;
+	imageStore(s_output, pos, vec4(out_output, 1.0));
 }
