@@ -379,6 +379,9 @@ public:
 					Pipeline m_diffuse_pipeline;
 					Pipeline createDiffusePipeline(Renderer &r);
 
+					glm::vec3 m_rnd_sun[256];
+					glm::vec3 m_rnd_diffuse[256];
+
 					void destroy(Renderer &r);
 				};
 

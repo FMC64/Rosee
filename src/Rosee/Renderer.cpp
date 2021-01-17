@@ -3997,6 +3997,11 @@ Renderer::IllumTechnique::Data::Rtdp::Shared Renderer::createIllumRtdp(void)
 	res.m_schedule_pipeline = res.createSchedulePipeline(*this);
 	res.m_pipeline = res.createPipeline(*this);
 	res.m_diffuse_pipeline = res.createDiffusePipeline(*this);
+
+	for (size_t i = 0; i < 256; i++) {
+		reinterpret_cast<glm::vec3&>(res.m_rnd_sun[i]) = genDiffuseVector(*this, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
+		reinterpret_cast<glm::vec3&>(res.m_rnd_diffuse[i]) = genDiffuseVector(*this, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
+	}
 	return res;
 }
 
@@ -4728,10 +4733,14 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 		illum.view_last_to_cur_normal = illum.view_last_to_cur;
 		for (size_t i = 0; i < 3; i++)
 			illum.view_last_to_cur_normal[3][i] = 0.0f;
-		for (size_t i = 0; i < 256; i++) {
-			reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
-			reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
-		}
+		if (m_r.m_illum_technique == IllumTechnique::Rtdp) {
+			std::memcpy(illum.rnd_sun, m_r.m_illum_rtdp.m_rnd_sun, sizeof(m_r.m_illum_rtdp.m_rnd_sun));
+			std::memcpy(illum.rnd_diffuse, m_r.m_illum_rtdp.m_rnd_diffuse, sizeof(m_r.m_illum_rtdp.m_rnd_diffuse));
+		} else
+			for (size_t i = 0; i < 256; i++) {
+				reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
+				reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
+			}
 		illum.sun = illum.view_normal * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
 		illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
 		illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);
