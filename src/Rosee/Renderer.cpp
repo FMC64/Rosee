@@ -1510,7 +1510,8 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 
 			{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// probes_pos
 			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_probes
-			{7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
+			{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},	// probes
+			{8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}	// out_output
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -3221,7 +3222,7 @@ void Renderer::bindFrameDescriptors(void)
 			{
 				WriteImgDesc descs[IllumTechnique::Data::Rtdp::storageImageCount] {
 					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, VK_NULL_HANDLE, cur_frame.m_illum_rtdp.m_probes_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 7, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 8, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3231,6 +3232,7 @@ void Renderer::bindFrameDescriptors(void)
 					{cur_frame.m_illumination_set, cis, 2, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 3, m_sampler_fb_lin, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 4, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 7, m_sampler_fb_mip, cur_frame.m_illum_rtdp.m_probes_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3989,6 +3991,7 @@ Renderer::IllumTechnique::Data::Rtdp::Shared Renderer::createIllumRtdp(void)
 	if (m_illum_technique != IllumTechnique::Rtdp)
 		return res;
 	res.m_schedule_pipeline = res.createSchedulePipeline(*this);
+	res.m_pipeline = res.createPipeline(*this);
 	return res;
 }
 
@@ -4034,7 +4037,8 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
 		{3, offsetof(Spec, probe_size_l2), sizeof(Spec::probe_size_l2)},
 		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)},
-		{5, offsetof(Spec, probe_diffuse_size), sizeof(Spec::probe_diffuse_size)}
+		{5, offsetof(Spec, probe_diffuse_size), sizeof(Spec::probe_diffuse_size)},
+		{6, offsetof(Spec, probe_max_bounces), sizeof(Spec::probe_max_bounces)}
 	};
 	VkSpecializationInfo spec;
 	spec.mapEntryCount = r.m_illum_technique == IllumTechnique::Rtpt ? 2 : array_size(spec_entries);
@@ -4279,22 +4283,32 @@ void Renderer::IllumTechnique::Data::Rtpt::Fbs::destroy(Renderer &r)
 Pipeline Renderer::IllumTechnique::Data::Rtdp::Shared::createSchedulePipeline(Renderer &r)
 {
 	struct Spec {
+		uint32_t model_pool_size;
+		uint32_t samplers_pool_size;
 		uint32_t probe_layer_count;
 		uint32_t probe_size_l2;
 		uint32_t probe_size;
+		uint32_t probe_diffuse_size;
+		uint32_t probe_max_bounces;
 	} spec_data{
+		static_cast<uint32_t>(modelPoolSize),
+		static_cast<uint32_t>(s0_sampler_count),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
-		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2)
+		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeDiffuseSize),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeMaxBounces)
 	};
-	VkSpecializationMapEntry frag_spec_entries[] {
+	VkSpecializationMapEntry spec_entries[] {
 		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
 		{3, offsetof(Spec, probe_size_l2), sizeof(Spec::probe_size_l2)},
-		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)}
+		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)},
+		{5, offsetof(Spec, probe_diffuse_size), sizeof(Spec::probe_diffuse_size)},
+		{6, offsetof(Spec, probe_max_bounces), sizeof(Spec::probe_max_bounces)}
 	};
 	VkSpecializationInfo spec;
-	spec.mapEntryCount = array_size(frag_spec_entries);
-	spec.pMapEntries = frag_spec_entries;
+	spec.mapEntryCount = array_size(spec_entries);
+	spec.pMapEntries = spec_entries;
 	spec.dataSize = sizeof(Spec);
 	spec.pData = &spec_data;
 
@@ -4316,9 +4330,62 @@ Pipeline Renderer::IllumTechnique::Data::Rtdp::Shared::createSchedulePipeline(Re
 	return res;
 }
 
+Pipeline Renderer::IllumTechnique::Data::Rtdp::Shared::createPipeline(Renderer &r)
+{
+	struct Spec {
+		uint32_t model_pool_size;
+		uint32_t samplers_pool_size;
+		uint32_t probe_layer_count;
+		uint32_t probe_size_l2;
+		uint32_t probe_size;
+		uint32_t probe_diffuse_size;
+		uint32_t probe_max_bounces;
+	} spec_data{
+		static_cast<uint32_t>(modelPoolSize),
+		static_cast<uint32_t>(s0_sampler_count),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
+		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeDiffuseSize),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeMaxBounces)
+	};
+	VkSpecializationMapEntry spec_entries[] {
+		{0, offsetof(Spec, model_pool_size), sizeof(Spec::model_pool_size)},
+		{1, offsetof(Spec, samplers_pool_size), sizeof(Spec::samplers_pool_size)},
+		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
+		{3, offsetof(Spec, probe_size_l2), sizeof(Spec::probe_size_l2)},
+		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)},
+		{5, offsetof(Spec, probe_diffuse_size), sizeof(Spec::probe_diffuse_size)},
+		{6, offsetof(Spec, probe_max_bounces), sizeof(Spec::probe_max_bounces)}
+	};
+	VkSpecializationInfo spec;
+	spec.mapEntryCount = array_size(spec_entries);
+	spec.pMapEntries = spec_entries;
+	spec.dataSize = sizeof(Spec);
+	spec.pData = &spec_data;
+
+	Pipeline res;
+	VkComputePipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	auto shader = r.loadShaderModule(VK_SHADER_STAGE_COMPUTE_BIT, "sha/rtdp");
+	res.pushShaderModule(shader);
+	VkPipelineShaderStageCreateInfo stage {
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_COMPUTE_BIT, shader, "main", &spec},
+	};
+	ci.stage = stage;
+	ci.layout = r.m_illum_rt.m_pipeline.pipelineLayout;
+	res.pipelineLayout = VK_NULL_HANDLE;
+	VkPipeline pip;
+	vkAssert(vkCreateComputePipelines(r.device, r.m_pipeline_cache, 1, &ci, nullptr, &pip));
+	res = pip;
+	return res;
+}
+
 void Renderer::IllumTechnique::Data::Rtdp::Shared::destroy(Renderer &r)
 {
 	m_schedule_pipeline.destroy(r.device);
+	m_pipeline.destroy(r.device);
 }
 
 Vk::BufferAllocation Renderer::IllumTechnique::Data::Rtdp::Fbs::createProbesPos(Renderer &r)
@@ -5011,6 +5078,11 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 						0, array_size(sets), sets, 0, nullptr);
 				}
 				m_cmd_ctrace_rays.dispatch(m_illum_rtdp.m_probe_extent.x, m_illum_rtdp.m_probe_extent.y, 1);
+				{
+					VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit};
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::ComputeShaderBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+						1, &barrier, 0, nullptr, 0, nullptr);
+				}
 				m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_r.m_illum_rt.m_pipeline);
 				{
 					VkDescriptorSet sets[] {
@@ -5029,11 +5101,20 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					1);
 				{
 					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit,
+						Vk::ImageLayout::General, Vk::ImageLayout::ShaderReadOnlyOptimal, m_r.m_queue_family_compute, m_r.m_queue_family_compute, m_illum_rtdp.m_probes,
+						{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::ComputeShaderBit, 0,
+						0, nullptr, 0, nullptr, 1, &ibarrier);
+				}
+				m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, m_r.m_illum_rtdp.m_pipeline);
+				m_cmd_ctrace_rays.dispatch(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1);
+				{
+					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit,
 						Vk::ImageLayout::General, Vk::ImageLayout::ShaderReadOnlyOptimal, m_r.m_queue_family_compute, m_r.m_queue_family_graphics, m_output,
 						{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
-					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::ComputeShaderBit, Vk::PipelineStage::FragmentShaderBit, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
-					m_cmd_gwsi.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+					m_cmd_gwsi.pipelineBarrier(Vk::PipelineStage::ComputeShaderBit, Vk::PipelineStage::FragmentShaderBit, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
 				}
 			}

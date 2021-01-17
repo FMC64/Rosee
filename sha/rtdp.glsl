@@ -11,6 +11,9 @@ struct Probe {
 layout(constant_id = 2) const uint probe_layer_count = 1;
 layout(constant_id = 3) const int probe_size_l2 = 1;
 layout(constant_id = 4) const int probe_size = 1;
+layout(constant_id = 5) const int probe_diffuse_size = 1;
+layout(constant_id = 6) const int probe_max_bounces = 1;
+const int probe_diffuse_size_next = probe_diffuse_size - 2;
 
 layout(set = 0, binding = 5) buffer Probes {
 	Probe probes[];

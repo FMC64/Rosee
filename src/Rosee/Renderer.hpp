@@ -353,7 +353,7 @@ public:
 			struct Rtdp {
 				static inline constexpr uint32_t storageImageCount = 2;
 
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 3;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 4;
 				static inline constexpr uint32_t barrsPerFrame = 0;
 				static inline constexpr uint32_t addBarrsPerFrame = 0;
 
@@ -374,6 +374,8 @@ public:
 				struct Shared {
 					Pipeline m_schedule_pipeline;
 					Pipeline createSchedulePipeline(Renderer &r);
+					Pipeline m_pipeline;
+					Pipeline createPipeline(Renderer &r);
 
 					void destroy(Renderer &r);
 				};
