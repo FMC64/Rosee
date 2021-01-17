@@ -1502,13 +1502,13 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	}
 	if (m_illum_technique == IllumTechnique::Rtdp) {
 		VkDescriptorSetLayoutBinding bindings[] {
-			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
+			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
-			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
-			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
-			{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
+			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
+			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
+			{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
 
-			{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},	// probes_pos
+			{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// probes_pos
 			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
 		};
 		ci.bindingCount = array_size(bindings);
@@ -4012,13 +4012,25 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	struct Spec {
 		uint32_t model_pool_size;
 		uint32_t samplers_pool_size;
-	} spec_data{static_cast<uint32_t>(modelPoolSize), static_cast<uint32_t>(s0_sampler_count)};
+		uint32_t probe_layer_count;
+		uint32_t probe_size_l2;
+		uint32_t probe_size;
+	} spec_data{
+		static_cast<uint32_t>(modelPoolSize),
+		static_cast<uint32_t>(s0_sampler_count),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
+		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2)
+	};
 	VkSpecializationMapEntry frag_spec_entries[] {
 		{0, offsetof(Spec, model_pool_size), sizeof(Spec::model_pool_size)},
-		{1, offsetof(Spec, samplers_pool_size), sizeof(Spec::samplers_pool_size)}
+		{1, offsetof(Spec, samplers_pool_size), sizeof(Spec::samplers_pool_size)},
+		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
+		{3, offsetof(Spec, probe_size_l2), sizeof(Spec::probe_size_l2)},
+		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)}
 	};
 	VkSpecializationInfo spec;
-	spec.mapEntryCount = array_size(frag_spec_entries);
+	spec.mapEntryCount = r.m_illum_technique == IllumTechnique::Rtpt ? 2 : array_size(frag_spec_entries);
 	spec.pMapEntries = frag_spec_entries;
 	spec.dataSize = sizeof(Spec);
 	spec.pData = &spec_data;
@@ -4242,9 +4254,17 @@ Pipeline Renderer::IllumTechnique::Data::Rtdp::Shared::createSchedulePipeline(Re
 {
 	struct Spec {
 		uint32_t probe_layer_count;
-	} spec_data{static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount)};
+		uint32_t probe_size_l2;
+		uint32_t probe_size;
+	} spec_data{
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
+		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2)
+	};
 	VkSpecializationMapEntry frag_spec_entries[] {
 		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
+		{3, offsetof(Spec, probe_size_l2), sizeof(Spec::probe_size_l2)},
+		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)}
 	};
 	VkSpecializationInfo spec;
 	spec.mapEntryCount = array_size(frag_spec_entries);
@@ -4279,7 +4299,7 @@ Vk::BufferAllocation Renderer::IllumTechnique::Data::Rtdp::Fbs::createProbesPos(
 {
 	VkBufferCreateInfo bi{};
 	bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bi.size = m_probe_extent.x * m_probe_extent.y * sizeof(IllumTechnique::Data::Rtdp::Probe);
+	bi.size = m_probe_extent.x * m_probe_extent.y * IllumTechnique::Data::Rtdp::probeLayerCount * sizeof(IllumTechnique::Data::Rtdp::Probe);
 	bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	VmaAllocationCreateInfo ai{};
 	ai.usage = VMA_MEMORY_USAGE_GPU_ONLY;

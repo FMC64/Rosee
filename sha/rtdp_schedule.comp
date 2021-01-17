@@ -3,8 +3,47 @@
 
 #include "rtdp.glsl"
 #include "illum.glsl"
+#include "rt.glsl"
 
 void main(void)
 {
-	gl_LocalInvocationID.xy;
+	ivec2 pos = ivec2(gl_WorkGroupID.xy);
+	ivec2 off = pos * probe_size;
+	float min_d = 1.0;
+	float max_d = 0.0;
+	for (int i = 0; i < probe_size; i++)
+		for (int j = 0; j < probe_size; j++) {
+			float d = texelFetch(cdepth, off + ivec2(j, i), 0).x;
+			min_d = min(d, min_d);
+			max_d = max(d, max_d);
+		}
+	float p_depths[probe_layer_count];
+	p_depths[0] = min_d;
+	for (uint i = 0; i < probe_layer_count - 2; i++)
+		p_depths[1 + i] = mix(min_d, max_d, float(1 + i) / float(probe_layer_count - 1));
+	p_depths[probe_layer_count] = max_d;
+	ivec2 p_c_pos[probe_layer_count];
+	float p_c_depths[probe_layer_count];
+	float p_c_depth_diffs[probe_layer_count];
+	for (uint i = 0; i < probe_layer_count; i++)
+		p_c_depth_diffs[i] = 100.0;
+	for (int i = 0; i < probe_size; i++)
+		for (int j = 0; j < probe_size; j++)
+			for (uint k = 0; k < probe_layer_count; k++) {
+				ivec2 pos = off + ivec2(j, i);
+				float d = texelFetch(cdepth, pos, 0).x;
+				float diff = abs(d - p_depths[k]);
+				if (diff < p_c_depth_diffs[k]) {
+					p_c_pos[k] = pos;
+					p_c_depths[k] = d;
+					p_c_depth_diffs[k] = diff;
+				}
+			}
+	ivec2 probe_pos = pos;
+	for (uint k = 0; k < probe_layer_count; k++) {
+		Probe probe;
+		probe.depth = p_c_depths[k];
+		probe.pos = rt_pos_view(vec2(p_c_pos[k]) + 0.5, probe.depth);
+		probes_pos.probes[(probe_pos.y * il.probe_extent.x + probe_pos.x) * probe_layer_count + k] = probe;
+	}
 }
