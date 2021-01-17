@@ -351,9 +351,9 @@ public:
 			};
 
 			struct Rtdp {
-				static inline constexpr uint32_t storageImageCount = 2;
+				static inline constexpr uint32_t storageImageCount = 3;
 
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 4;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 5;
 				static inline constexpr uint32_t barrsPerFrame = 0;
 				static inline constexpr uint32_t addBarrsPerFrame = 0;
 
@@ -376,6 +376,8 @@ public:
 					Pipeline createSchedulePipeline(Renderer &r);
 					Pipeline m_pipeline;
 					Pipeline createPipeline(Renderer &r);
+					Pipeline m_diffuse_pipeline;
+					Pipeline createDiffusePipeline(Renderer &r);
 
 					void destroy(Renderer &r);
 				};
@@ -388,6 +390,8 @@ public:
 					Vk::BufferAllocation createProbesPos(Renderer &r);
 					Vk::ImageAllocation m_probes;
 					Vk::ImageView m_probes_view;
+					Vk::ImageAllocation m_probes_diffuse;
+					Vk::ImageView m_probes_diffuse_view;
 
 					void destroy(Renderer &r);
 				};

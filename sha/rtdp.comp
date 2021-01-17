@@ -5,14 +5,15 @@
 #include "rtdp.glsl"
 #include "rt.glsl"
 
-layout(set = 0, binding = 7) uniform sampler2DArray probes;
+layout(set = 0, binding = 8) uniform sampler2DArray probes;
+layout(set = 0, binding = 9) uniform sampler2DArray probes_diffuse;
 
-layout(set = 0, binding = 8, rgba16f) uniform image2D s_output;
+layout(set = 0, binding = 10, rgba16f) uniform image2D s_output;
 
 void main(void)
 {
 	ivec2 pos = ivec2(gl_WorkGroupID.xy);
-	vec3 out_output = texelFetch(probes, ivec3(pos, 0), 0).xyz;
+	vec3 out_output = texelFetch(probes_diffuse, ivec3(pos, 0), 0).xyz;
 	int scale = 4;
 	for (int i = 0; i < scale; i++)
 		for (int j = 0; j < scale; j++)

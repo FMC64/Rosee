@@ -74,3 +74,8 @@ uint oct_fill_mirror(ivec2 pos, out ivec2 offs[8])
 		offs[off_count++] = ivec2(0, 0);
 	return off_count;
 }
+
+vec3 probe_pos_to_dir(ivec2 pos)
+{
+	return oct_proj_inv((vec2(pos) + 0.5) / vec2(probe_diffuse_size_next));
+}

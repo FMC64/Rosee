@@ -1,0 +1,46 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+
+#include "illum.glsl"
+#include "rtdp.glsl"
+#include "rt.glsl"
+
+layout(set = 0, binding = 6, rgba16f) uniform image2DArray s_probes;
+layout(set = 0, binding = 7, rgba16f) uniform image2DArray s_probes_diffuse;
+
+void main(void)
+{
+	ivec2 pos = ivec2(gl_WorkGroupID.xy);
+
+	ivec2 probe_pos = pos / probe_diffuse_size_next;
+	ivec2 probe_pos_loc = pos % probe_diffuse_size_next;
+	ivec2 probe_pos_base = probe_pos * probe_diffuse_size;
+	ivec2 pos_out = 1 + probe_pos_base + probe_pos_loc;
+	vec3 dir = probe_pos_to_dir(probe_pos_loc);
+
+	ivec2 offs[8];
+	uint off_count = oct_fill_mirror(probe_pos_loc, offs);
+
+	for (uint i = 0; i < probe_layer_count; i++) {
+		vec3 out_probe = vec3(0.0);
+		int out_probe_count = 0;
+
+		for (int j = 0; j < probe_diffuse_size_next; j++)
+			for (int k = 0; k < probe_diffuse_size_next; k++) {
+				ivec2 p = ivec2(k, j);
+				if (dot(probe_pos_to_dir(p), dir) >= 0.0) {
+					out_probe += imageLoad(s_probes, ivec3(probe_pos_base + 1 + p, i)).xyz;
+					out_probe_count++;
+				}
+			}
+		out_probe /= float(out_probe_count);
+
+		imageStore(s_probes_diffuse, ivec3(pos_out, i), vec4(out_probe, 1.0));
+
+		for (uint j = 0; j < 8; j++) {
+			if (j >= off_count)
+				break;
+			imageStore(s_probes_diffuse, ivec3(probe_pos_base + offs[j], i), vec4(out_probe, 1.0));
+		}
+	}
+}
