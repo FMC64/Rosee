@@ -13,9 +13,20 @@ layout(set = 0, binding = 10, rgba16f) uniform image2D s_output;
 void main(void)
 {
 	ivec2 pos = ivec2(gl_WorkGroupID.xy);
-	vec3 out_output = texelFetch(probes_diffuse, ivec3(pos, probe_layer_count - 1), 0).xyz;
+
+	ivec2 probe_pos = pos / probe_size;
+	//Probe probe = probes_pos.probes[probe_offset(probe_pos, 2)];
+
+	vec3 out_output;
+	vec3 alb = texelFetch(albedo, pos, 0).xyz;
+	vec3 norm = texelFetch(normal, pos, 0).xyz;
+	vec2 p_pos = probe_pos * probe_diffuse_size + probe_dir_to_pos(norm);
+	out_output = alb * texelFetch(probes_diffuse, ivec3(ivec2(p_pos), probe_layer_count - 1), 0).xyz;
+	imageStore(s_output, pos, vec4(out_output, 1.0));
+
+	/*vec3 out_output = texelFetch(probes_diffuse, ivec3(pos, probe_layer_count - 1), 0).xyz;
 	int scale = 4;
 	for (int i = 0; i < scale; i++)
 		for (int j = 0; j < scale; j++)
-			imageStore(s_output, pos * scale + ivec2(j, i), vec4(out_output, 1.0));
+			imageStore(s_output, pos * scale + ivec2(j, i), vec4(out_output, 1.0));*/
 }

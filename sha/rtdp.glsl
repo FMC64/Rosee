@@ -79,3 +79,8 @@ vec3 probe_pos_to_dir(ivec2 pos)
 {
 	return oct_proj_inv((vec2(pos) + 0.5) / vec2(probe_diffuse_size_next));
 }
+
+vec2 probe_dir_to_pos(vec3 dir)
+{
+	return vec2(1.0) + oct_proj(dir) * probe_diffuse_size_next;
+}
