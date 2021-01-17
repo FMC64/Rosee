@@ -1509,7 +1509,8 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 			{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
 
 			{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// probes_pos
-			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
+			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_probes
+			{7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -3219,7 +3220,8 @@ void Renderer::bindFrameDescriptors(void)
 		if (m_illum_technique == IllumTechnique::Rtdp) {
 			{
 				WriteImgDesc descs[IllumTechnique::Data::Rtdp::storageImageCount] {
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, VK_NULL_HANDLE, cur_frame.m_illum_rtdp.m_probes_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 7, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -4015,23 +4017,26 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		uint32_t probe_layer_count;
 		uint32_t probe_size_l2;
 		uint32_t probe_size;
+		uint32_t probe_diffuse_size;
 	} spec_data{
 		static_cast<uint32_t>(modelPoolSize),
 		static_cast<uint32_t>(s0_sampler_count),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
-		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2)
+		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeDiffuseSize)
 	};
-	VkSpecializationMapEntry frag_spec_entries[] {
+	VkSpecializationMapEntry spec_entries[] {
 		{0, offsetof(Spec, model_pool_size), sizeof(Spec::model_pool_size)},
 		{1, offsetof(Spec, samplers_pool_size), sizeof(Spec::samplers_pool_size)},
 		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
 		{3, offsetof(Spec, probe_size_l2), sizeof(Spec::probe_size_l2)},
-		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)}
+		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)},
+		{5, offsetof(Spec, probe_diffuse_size), sizeof(Spec::probe_diffuse_size)}
 	};
 	VkSpecializationInfo spec;
-	spec.mapEntryCount = r.m_illum_technique == IllumTechnique::Rtpt ? 2 : array_size(frag_spec_entries);
-	spec.pMapEntries = frag_spec_entries;
+	spec.mapEntryCount = r.m_illum_technique == IllumTechnique::Rtpt ? 2 : array_size(spec_entries);
+	spec.pMapEntries = spec_entries;
 	spec.dataSize = sizeof(Spec);
 	spec.pData = &spec_data;
 
@@ -4227,6 +4232,25 @@ Renderer::IllumTechnique::Data::Rtdp::Fbs Renderer::Frame::createIllumRtdpFbs(vo
 	res.m_probe_extent.x = divAlignUp(m_r.m_swapchain_extent.width, res.m_probe_size);
 	res.m_probe_extent.y = divAlignUp(m_r.m_swapchain_extent.height, res.m_probe_size);
 	res.m_probes_pos = res.createProbesPos(m_r);
+	{
+		VkImageCreateInfo ici{};
+		ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		ici.imageType = VK_IMAGE_TYPE_2D;
+		ici.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+		ici.extent = VkExtent3D{
+			res.m_probe_extent.x * IllumTechnique::Data::Rtdp::probeDiffuseSize,
+			res.m_probe_extent.y * IllumTechnique::Data::Rtdp::probeDiffuseSize,
+			1};
+		ici.mipLevels = 1;
+		ici.arrayLayers = IllumTechnique::Data::Rtdp::probeLayerCount;
+		ici.samples = VK_SAMPLE_COUNT_1_BIT;
+		ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+		ici.usage = Vk::ImageUsage::StorageBit | Vk::ImageUsage::SampledBit;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		res.m_probes = m_r.allocator.createImage(ici, aci);
+		res.m_probes_view = m_r.createImageView(res.m_probes, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ici.format, Vk::ImageAspect::ColorBit);
+	}
 	return res;
 }
 
@@ -4308,6 +4332,8 @@ Vk::BufferAllocation Renderer::IllumTechnique::Data::Rtdp::Fbs::createProbesPos(
 
 void Renderer::IllumTechnique::Data::Rtdp::Fbs::destroy(Renderer &r)
 {
+	r.device.destroy(m_probes_view);
+	r.allocator.destroy(m_probes);
 	r.allocator.destroy(m_probes_pos);
 }
 
@@ -4964,6 +4990,16 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
 				}
+				{
+					VkImageMemoryBarrier ibarrier[] {
+						{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
+							Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_compute, m_r.m_queue_family_compute, m_illum_rtdp.m_probes,
+							{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS }
+						}
+					};
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+						0, nullptr, 0, nullptr, array_size(ibarrier), ibarrier);
+				}
 				m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, m_r.m_illum_rtdp.m_schedule_pipeline);
 				{
 					VkDescriptorSet sets[] {
@@ -4986,7 +5022,9 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					&m_r.m_illum_rt.m_sbt_miss_region,
 					&m_r.m_illum_rt.m_sbt_hit_region,
 					&m_r.m_illum_rt.m_sbt_callable_region,
-					m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1);
+					m_illum_rtdp.m_probe_extent.x * (IllumTechnique::Data::Rtdp::probeDiffuseSize),
+					m_illum_rtdp.m_probe_extent.y * (IllumTechnique::Data::Rtdp::probeDiffuseSize),
+					1);
 				{
 					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit,
 						Vk::ImageLayout::General, Vk::ImageLayout::ShaderReadOnlyOptimal, m_r.m_queue_family_compute, m_r.m_queue_family_graphics, m_output,

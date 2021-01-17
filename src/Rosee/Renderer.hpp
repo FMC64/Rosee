@@ -351,7 +351,7 @@ public:
 			};
 
 			struct Rtdp {
-				static inline constexpr uint32_t storageImageCount = 1;
+				static inline constexpr uint32_t storageImageCount = 2;
 
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 3;
 				static inline constexpr uint32_t barrsPerFrame = 0;
@@ -362,6 +362,7 @@ public:
 
 				static inline constexpr uint32_t probeLayerCount = 3;
 				static inline constexpr uint32_t probeSizeL2 = 5;
+				static inline constexpr uint32_t probeDiffuseSize = 8;
 
 				struct Probe {
 					glm::vec4 pos;
@@ -381,6 +382,8 @@ public:
 					uint32_t m_probe_size;
 					Vk::BufferAllocation m_probes_pos;
 					Vk::BufferAllocation createProbesPos(Renderer &r);
+					Vk::ImageAllocation m_probes;
+					Vk::ImageView m_probes_view;
 
 					void destroy(Renderer &r);
 				};

@@ -8,7 +8,12 @@ layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
 #include "rtdp.glsl"
 #include "rt.glsl"
 
-layout(set = 0, binding = 6, rgba16f) uniform image2D s_output;
+layout(constant_id = 5) const int probe_diffuse_size = 1;
+
+layout(set = 0, binding = 6, rgba16f) uniform image2DArray s_probes;
+layout(set = 0, binding = 7, rgba16f) uniform image2D s_output;
+
+layout(set = 0, binding = 8) uniform sampler2D probes;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
@@ -19,16 +24,22 @@ void main(void)
 	vec3 val = vec3(0.0);
 	if (((pos.x ^ pos.y) & 1) == 1)
 		val = vec3(0.5);
-	if (pos.x % probe_size == 0 || pos.y % probe_size == 0)
+	if (pos.x % probe_diffuse_size == 0 || pos.y % probe_diffuse_size == 0)
 		val = vec3(1.0);
 
 	vec3 view = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
-	ivec2 probe_pos = ivec2(pos.x >> il.probe_size_l2, pos.y >> il.probe_size_l2);
+	ivec2 probe_pos = ivec2(pos.x / probe_diffuse_size, pos.y / probe_diffuse_size);
 	for (uint i = 0; i < probe_layer_count; i++) {
 		if (length(view - probes_pos.probes[(probe_pos.y * il.probe_extent.x + probe_pos.x) * probe_layer_count + i].pos) < 0.01)
 			val = vec3(1.0, 0.0, 0.0);
 	}
 
 	vec3 out_output = vec3(val);
-	imageStore(s_output, pos, vec4(out_output, 1.0));
+	for (uint i = 0; i < probe_layer_count; i++) {
+		imageStore(s_probes, ivec3(pos, i), vec4(out_output, 1.0));
+	}
+	int scale = 4;
+	for (int i = 0; i < scale; i++)
+		for (int j = 0; j < scale; j++)
+			imageStore(s_output, pos * scale + ivec2(j, i), vec4(out_output, 1.0));
 }
