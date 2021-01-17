@@ -4018,13 +4018,15 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		uint32_t probe_size_l2;
 		uint32_t probe_size;
 		uint32_t probe_diffuse_size;
+		uint32_t probe_max_bounces;
 	} spec_data{
 		static_cast<uint32_t>(modelPoolSize),
 		static_cast<uint32_t>(s0_sampler_count),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
 		1 << static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeSizeL2),
-		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeDiffuseSize)
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeDiffuseSize),
+		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeMaxBounces)
 	};
 	VkSpecializationMapEntry spec_entries[] {
 		{0, offsetof(Spec, model_pool_size), sizeof(Spec::model_pool_size)},
@@ -5022,8 +5024,8 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					&m_r.m_illum_rt.m_sbt_miss_region,
 					&m_r.m_illum_rt.m_sbt_hit_region,
 					&m_r.m_illum_rt.m_sbt_callable_region,
-					m_illum_rtdp.m_probe_extent.x * (IllumTechnique::Data::Rtdp::probeDiffuseSize),
-					m_illum_rtdp.m_probe_extent.y * (IllumTechnique::Data::Rtdp::probeDiffuseSize),
+					m_illum_rtdp.m_probe_extent.x * (IllumTechnique::Data::Rtdp::probeDiffuseSize - 2),
+					m_illum_rtdp.m_probe_extent.y * (IllumTechnique::Data::Rtdp::probeDiffuseSize - 2),
 					1);
 				{
 					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit,

@@ -363,10 +363,12 @@ public:
 				static inline constexpr uint32_t probeLayerCount = 3;
 				static inline constexpr uint32_t probeSizeL2 = 5;
 				static inline constexpr uint32_t probeDiffuseSize = 8;
+				static inline constexpr uint32_t probeMaxBounces = 4;
 
 				struct Probe {
 					glm::vec4 pos;
-					glm::vec4 depth;
+					glm::vec2 ipos;
+					glm::vec2 depth;
 				};
 
 				struct Shared {

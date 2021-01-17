@@ -9,6 +9,7 @@ layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
 #include "rt.glsl"
 
 layout(constant_id = 5) const int probe_diffuse_size = 1;
+layout(constant_id = 6) const int probe_max_bounces = 1;
 
 layout(set = 0, binding = 6, rgba16f) uniform image2DArray s_probes;
 layout(set = 0, binding = 7, rgba16f) uniform image2D s_output;
@@ -17,29 +18,50 @@ layout(set = 0, binding = 8) uniform sampler2D probes;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
+const int probe_diffuse_size_next = probe_diffuse_size - 2;
+
+float tmin_calc(float z)
+{
+	return 0.00001 + min((z * 0.1) / il.cam_near, 1.0);
+}
+
 void main(void)
 {
-	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
-	ivec2 pos = ivec2(fpos);
-	vec3 val = vec3(0.0);
-	if (((pos.x ^ pos.y) & 1) == 1)
-		val = vec3(0.5);
-	if (pos.x % probe_diffuse_size == 0 || pos.y % probe_diffuse_size == 0)
-		val = vec3(1.0);
+	ivec2 pos = ivec2(gl_LaunchIDEXT.xy);
 
-	vec3 view = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
-	ivec2 probe_pos = ivec2(pos.x / probe_diffuse_size, pos.y / probe_diffuse_size);
-	for (uint i = 0; i < probe_layer_count; i++) {
-		if (length(view - probes_pos.probes[(probe_pos.y * il.probe_extent.x + probe_pos.x) * probe_layer_count + i].pos) < 0.01)
-			val = vec3(1.0, 0.0, 0.0);
-	}
+	ivec2 probe_pos = pos / probe_diffuse_size_next;
+	ivec2 probe_pos_loc = pos % probe_diffuse_size_next;
+	ivec2 pos_out = 1 + probe_pos * probe_diffuse_size + probe_pos_loc;
+	vec2 pos_loc_n = (vec2(probe_pos_loc) + 0.5) / vec2(probe_diffuse_size_next);
+	vec3 dir = oct_proj_inv(pos_loc_n);
 
-	vec3 out_output = vec3(val);
+	vec3 out_output;
 	for (uint i = 0; i < probe_layer_count; i++) {
-		imageStore(s_probes, ivec3(pos, i), vec4(out_output, 1.0));
+		Probe probe = probes_pos.probes[(probe_pos.y * il.probe_extent.x + probe_pos.x) * probe_layer_count + i];
+		vec3 out_probe = vec3(1.0);
+
+		traceRayEXT(acc,
+			gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+			0xFF,	// cullMask
+			0,	// sbtRecordOffset
+			0,	// sbtRecordStride
+			0,	// missIndex
+			probe.pos,	// origin
+			tmin_calc(length(probe.pos)),	// Tmin
+			dir,	// direction
+			il.cam_near * 2.0,	// Tmax
+			0);
+		if (rp.hit)
+			out_probe = rp.albedo;
+		else
+			out_probe = vec3(0.0);
+
+		imageStore(s_probes, ivec3(pos_out, i), vec4(out_probe, 1.0));
+
+		out_output = out_probe;
 	}
 	int scale = 4;
 	for (int i = 0; i < scale; i++)
 		for (int j = 0; j < scale; j++)
-			imageStore(s_output, pos * scale + ivec2(j, i), vec4(out_output, 1.0));
+			imageStore(s_output, pos_out * scale + ivec2(j, i), vec4(out_output, 1.0));
 }
