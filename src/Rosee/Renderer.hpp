@@ -163,6 +163,7 @@ private:
 	static uint32_t extentLog2(uint32_t val);
 	static uint32_t extentMipLevels(const VkExtent2D &extent);
 	static uint32_t nextExtentMip(uint32_t extent);
+	static uint32_t divAlignUp(uint32_t a, uint32_t b);
 
 public:
 	const VkExtent2D& swapchainExtent(void) const { return m_swapchain_extent; }
@@ -355,6 +356,34 @@ public:
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 3;
 				static inline constexpr uint32_t barrsPerFrame = 0;
 				static inline constexpr uint32_t addBarrsPerFrame = 0;
+
+				static inline constexpr uint32_t bufWritesPerFrame = 1;	// probes_pos
+
+
+				static inline constexpr uint32_t probeLayerCount = 3;
+				static inline constexpr uint32_t probeSizeL2 = 5;
+
+				struct Probe {
+					glm::vec4 pos;
+					glm::vec4 depth;
+				};
+
+				struct Shared {
+					Pipeline m_schedule_pipeline;
+					Pipeline createSchedulePipeline(Renderer &r);
+
+					void destroy(Renderer &r);
+				};
+
+				struct Fbs {
+					glm::ivec2 m_probe_extent;
+					uint32_t m_probe_size_l2;
+					uint32_t m_probe_size;
+					Vk::BufferAllocation m_probes_pos;
+					Vk::BufferAllocation createProbesPos(Renderer &r);
+
+					void destroy(Renderer &r);
+				};
 			};
 		};
 
@@ -411,6 +440,8 @@ private:
 	Pipeline createIlluminationPipeline(void);
 	IllumTechnique::Data::RayTracing::Shared m_illum_rt;
 	IllumTechnique::Data::RayTracing::Shared createIllumRayTracing(void);
+	IllumTechnique::Data::Rtdp::Shared m_illum_rtdp;
+	IllumTechnique::Data::Rtdp::Shared createIllumRtdp(void);
 	Vk::RenderPass m_wsi_pass;
 	Vk::RenderPass createWsiPass(void);
 	Vk::DescriptorSetLayout m_wsi_set_layout;
@@ -479,6 +510,8 @@ private:
 		IllumTechnique::Data::RayTracing::Fbs createIllumRtFbs(VkDescriptorSet descriptorSetRes);
 		IllumTechnique::Data::Rtpt::Fbs m_illum_rtpt;
 		IllumTechnique::Data::Rtpt::Fbs createIllumRtptFbs(void);
+		IllumTechnique::Data::Rtdp::Fbs m_illum_rtdp;
+		IllumTechnique::Data::Rtdp::Fbs createIllumRtdpFbs(void);
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
@@ -512,6 +545,9 @@ private:
 			glm::vec2 size_inv;
 			glm::vec2 depth_size;
 			glm::vec2 ratio;
+			glm::ivec2 probe_extent;	// rtdp
+			uint32_t probe_size_l2;
+			uint32_t probe_size;
 			float cam_near;
 			float cam_far;
 			float cam_a;

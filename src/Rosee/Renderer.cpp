@@ -598,6 +598,14 @@ uint32_t Renderer::nextExtentMip(uint32_t extent)
 	return max(extent / static_cast<uint32_t>(2), static_cast<uint32_t>(1));
 }
 
+uint32_t Renderer::divAlignUp(uint32_t a, uint32_t b)
+{
+	auto res = a / b;
+	if (a % b > 0)
+		res++;
+	return res;
+}
+
 Vk::SwapchainKHR Renderer::createSwapchain(void)
 {
 	while (true) {
@@ -1500,7 +1508,8 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
 			{4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
 
-			{5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
+			{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},	// probes_pos
+			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// out_output
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -1818,6 +1827,9 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_frame_count * (
 			(m_illum_technique == IllumTechnique::Rtpt ?
 				IllumTechnique::Data::Rtpt::storageImageCount :	// illum
+				0) +
+			(m_illum_technique == IllumTechnique::Rtdp ?
+				IllumTechnique::Data::Rtdp::storageImageCount :	// illum
 				0)
 		)},
 		{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, m_frame_count * (
@@ -1830,6 +1842,9 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 				1 +	// instances
 				modelPoolSize * 3 +	// models
 				1 :	// materials
+				0) +
+			(m_illum_technique == IllumTechnique::Rtdp ?
+				IllumTechnique::Data::Rtdp::bufWritesPerFrame :
 				0)
 		)}
 	};
@@ -2934,6 +2949,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_illumination_set_layout(createIlluminationSetLayout()),
 	m_illumination_pipeline(createIlluminationPipeline()),
 	m_illum_rt(createIllumRayTracing()),
+	m_illum_rtdp(createIllumRtdp()),
 	m_wsi_pass(createWsiPass()),
 	m_wsi_set_layout(createWsiSetLayout()),
 	m_wsi_pipeline(createWsiPipeline()),
@@ -3003,6 +3019,8 @@ Renderer::~Renderer(void)
 	m_wsi_pipeline.destroy(device);
 	device.destroy(m_wsi_set_layout);
 	device.destroy(m_wsi_pass);
+	if (m_illum_technique == IllumTechnique::Rtdp)
+		m_illum_rtdp.destroy(*this);
 	if (needsAccStructure())
 		m_illum_rt.destroy(*this);
 	else
@@ -3066,6 +3084,9 @@ void Renderer::bindFrameDescriptors(void)
 	uint32_t buf_writes_per_frame = const_buf_writes_per_frame +
 		(needsAccStructure() ?
 			IllumTechnique::Data::RayTracing::bufWritesPerFrame :	// instance_buffer, custom_instance_buffer
+			0) +
+		(m_illum_technique == IllumTechnique::Rtdp ?
+			IllumTechnique::Data::Rtdp::bufWritesPerFrame :
 			0);
 	uint32_t buf_writes_offset = img_writes_per_frame;
 	uint32_t img_mip_writes_per_frame = m_illum_technique == IllumTechnique::Sspt ?
@@ -3198,7 +3219,7 @@ void Renderer::bindFrameDescriptors(void)
 		if (m_illum_technique == IllumTechnique::Rtdp) {
 			{
 				WriteImgDesc descs[IllumTechnique::Data::Rtdp::storageImageCount] {
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 5, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3257,6 +3278,14 @@ void Renderer::bindFrameDescriptors(void)
 			for (size_t i = 0; i < array_size(bufs); i++)
 				write_buf_descs[write_buf_offset++] = bufs[i];
 		}
+		if (m_illum_technique == IllumTechnique::Rtdp) {
+			WriteBufDesc bufs[IllumTechnique::Data::Rtdp::bufWritesPerFrame] {
+				{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, cur_frame.m_illum_rtdp.m_probes_pos}
+			};
+
+			for (size_t i = 0; i < array_size(bufs); i++)
+				write_buf_descs[write_buf_offset++] = bufs[i];
+		}
 
 		for (uint32_t j = 0; j < buf_writes_per_frame; j++) {
 			auto &bi = buffer_infos[i * buf_writes_per_frame + j];
@@ -3305,16 +3334,20 @@ void Renderer::bindFrameDescriptors(void)
 
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	{
-		static constexpr uint32_t const_barrs_per_frame = 3;
-		uint32_t barrs_per_frame = const_barrs_per_frame + m_illum_technique_props.barrsPerFrame;
+		static constexpr uint32_t const_barrs_per_frame = 0;
+		bool clear_prev_bufs = m_illum_technique == IllumTechnique::Sspt || m_illum_technique == IllumTechnique::Rtpt;
+		static constexpr uint32_t clear_barrs_per_frame = 3;
+		uint32_t barrs_per_frame = const_barrs_per_frame +
+			(clear_prev_bufs ? clear_barrs_per_frame : 0) +
+			m_illum_technique_props.barrsPerFrame;
 		{
 			VkImageMemoryBarrier img_barrs[barrs_per_frame * m_frame_count];
 			for (uint32_t i = 0; i < m_frame_count; i++) {
 				VkImage images[barrs_per_frame];
 				size_t images_offset = 0;
 
-				{
-					VkImage imgs[const_barrs_per_frame] {
+				if (clear_prev_bufs) {
+					VkImage imgs[clear_barrs_per_frame] {
 						m_frames[i].m_albedo,
 						m_frames[i].m_normal,
 						m_frames[i].m_output
@@ -3379,8 +3412,8 @@ void Renderer::bindFrameDescriptors(void)
 				} images[barrs_per_frame];
 				size_t images_offset = 0;
 
-				{
-					ImgDesc imgs[const_barrs_per_frame] {
+				if (clear_prev_bufs) {
+					ImgDesc imgs[clear_barrs_per_frame] {
 						{m_frames[i].m_albedo, &cv_f32_zero},
 						{m_frames[i].m_normal, &cv_f32_zero},
 						{m_frames[i].m_output, &cv_f32_zero}
@@ -3430,7 +3463,7 @@ void Renderer::bindFrameDescriptors(void)
 		}
 
 		{
-			uint32_t tbarrs_per_frame = const_barrs_per_frame + m_illum_technique_props.addBarrsPerFrame;
+			uint32_t tbarrs_per_frame = const_barrs_per_frame + (clear_prev_bufs ? clear_barrs_per_frame : 0) + m_illum_technique_props.addBarrsPerFrame;
 			uint32_t img_barr_count = tbarrs_per_frame * m_frame_count;
 			VkImageMemoryBarrier img_barrs[img_barr_count];
 			for (uint32_t i = 0; i < m_frame_count; i++) {
@@ -3440,8 +3473,8 @@ void Renderer::bindFrameDescriptors(void)
 				} images[tbarrs_per_frame];
 				size_t images_offset = 0;
 
-				{
-					ImgDesc imgs[const_barrs_per_frame] {
+				if (clear_prev_bufs) {
+					ImgDesc imgs[clear_barrs_per_frame] {
 						{m_frames[i].m_albedo, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_normal, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_output, Vk::ImageLayout::TransferDstOptimal},
@@ -3947,6 +3980,16 @@ Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTraci
 	return res;
 }
 
+Renderer::IllumTechnique::Data::Rtdp::Shared Renderer::createIllumRtdp(void)
+{
+	IllumTechnique::Data::Rtdp::Shared res;
+
+	if (m_illum_technique != IllumTechnique::Rtdp)
+		return res;
+	res.m_schedule_pipeline = res.createSchedulePipeline(*this);
+	return res;
+}
+
 VkDescriptorSetLayout Renderer::IllumTechnique::Data::RayTracing::Shared::createResSetLayout(Renderer &r)
 {
 	VkDescriptorSetLayoutCreateInfo ci{};
@@ -4161,6 +4204,20 @@ Renderer::IllumTechnique::Data::Rtpt::Fbs Renderer::Frame::createIllumRtptFbs(vo
 	return res;
 }
 
+Renderer::IllumTechnique::Data::Rtdp::Fbs Renderer::Frame::createIllumRtdpFbs(void)
+{
+	IllumTechnique::Data::Rtdp::Fbs res;
+
+	if (m_r.m_illum_technique != IllumTechnique::Rtdp)
+		return res;
+	res.m_probe_size_l2 = IllumTechnique::Data::Rtdp::probeSizeL2;
+	res.m_probe_size = 1 << res.m_probe_size_l2;
+	res.m_probe_extent.x = divAlignUp(m_r.m_swapchain_extent.width, res.m_probe_size);
+	res.m_probe_extent.y = divAlignUp(m_r.m_swapchain_extent.height, res.m_probe_size);
+	res.m_probes_pos = res.createProbesPos(m_r);
+	return res;
+}
+
 void Renderer::IllumTechnique::Data::Rtpt::Fbs::destroy(Renderer &r)
 {
 	r.device.destroy(m_step_view);
@@ -4179,6 +4236,59 @@ void Renderer::IllumTechnique::Data::Rtpt::Fbs::destroy(Renderer &r)
 	r.allocator.destroy(m_path_direct_light);
 	r.device.destroy(m_direct_light_view);
 	r.allocator.destroy(m_direct_light);
+}
+
+Pipeline Renderer::IllumTechnique::Data::Rtdp::Shared::createSchedulePipeline(Renderer &r)
+{
+	struct Spec {
+		uint32_t probe_layer_count;
+	} spec_data{static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount)};
+	VkSpecializationMapEntry frag_spec_entries[] {
+		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
+	};
+	VkSpecializationInfo spec;
+	spec.mapEntryCount = array_size(frag_spec_entries);
+	spec.pMapEntries = frag_spec_entries;
+	spec.dataSize = sizeof(Spec);
+	spec.pData = &spec_data;
+
+	Pipeline res;
+	VkComputePipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	auto shader = r.loadShaderModule(VK_SHADER_STAGE_COMPUTE_BIT, "sha/rtdp_schedule");
+	res.pushShaderModule(shader);
+	VkPipelineShaderStageCreateInfo stage {
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_COMPUTE_BIT, shader, "main", &spec},
+	};
+	ci.stage = stage;
+	ci.layout = r.m_illum_rt.m_pipeline.pipelineLayout;
+	res.pipelineLayout = VK_NULL_HANDLE;
+	VkPipeline pip;
+	vkAssert(vkCreateComputePipelines(r.device, r.m_pipeline_cache, 1, &ci, nullptr, &pip));
+	res = pip;
+	return res;
+}
+
+void Renderer::IllumTechnique::Data::Rtdp::Shared::destroy(Renderer &r)
+{
+	m_schedule_pipeline.destroy(r.device);
+}
+
+Vk::BufferAllocation Renderer::IllumTechnique::Data::Rtdp::Fbs::createProbesPos(Renderer &r)
+{
+	VkBufferCreateInfo bi{};
+	bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bi.size = m_probe_extent.x * m_probe_extent.y * sizeof(IllumTechnique::Data::Rtdp::Probe);
+	bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	VmaAllocationCreateInfo ai{};
+	ai.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	return r.allocator.createBuffer(bi, ai);
+}
+
+void Renderer::IllumTechnique::Data::Rtdp::Fbs::destroy(Renderer &r)
+{
+	r.allocator.destroy(m_probes_pos);
 }
 
 Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
@@ -4305,6 +4415,7 @@ Renderer::Frame::Frame(Renderer &r, size_t i, Vk::CommandBuffer cmdGtransfer, Vk
 	m_illum_ssgi_fbs(createIllumSsgiFbs(descriptorSetColorResolve, descriptorSetDepthResolve, pDescriptorSetsMip)),
 	m_illum_rt(createIllumRtFbs(descriptorSetRayTracingRes)),
 	m_illum_rtpt(createIllumRtptFbs()),
+	m_illum_rtdp(createIllumRtdpFbs()),
 	m_output_view(createFbImage(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		(m_r.needsAccStructure() ? Vk::ImageUsage::StorageBit : Vk::ImageUsage::ColorAttachmentBit) |
 		Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_output)),
@@ -4325,6 +4436,8 @@ void Renderer::Frame::destroy(bool with_ext_res)
 		m_r.device.destroy(m_illumination_fb);
 	m_r.device.destroy(m_opaque_fb);
 
+	if (m_r.m_illum_technique == IllumTechnique::Rtdp)
+		m_illum_rtdp.destroy(m_r);
 	if (m_r.m_illum_technique == IllumTechnique::Rtpt)
 		m_illum_rtpt.destroy(m_r);
 	if (m_r.needsAccStructure())
@@ -4448,6 +4561,9 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 		illum.size_inv = glm::vec2(1.0f) / illum.size;
 		illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
 		illum.ratio = camera.ratio;
+		illum.probe_extent = m_illum_rtdp.m_probe_extent;
+		illum.probe_size_l2 = m_illum_rtdp.m_probe_size_l2;
+		illum.probe_size = m_illum_rtdp.m_probe_size;
 		illum.cam_near = camera.near;
 		illum.cam_far = camera.far;
 		illum.cam_a = camera.far / (camera.far - camera.near);
@@ -4828,6 +4944,15 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
 				}
+				m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, m_r.m_illum_rtdp.m_schedule_pipeline);
+				{
+					VkDescriptorSet sets[] {
+						m_illumination_set
+					};
+					m_cmd_ctrace_rays.bindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, m_r.m_illum_rt.m_pipeline.pipelineLayout,
+						0, array_size(sets), sets, 0, nullptr);
+				}
+				m_cmd_ctrace_rays.dispatch(m_illum_rtdp.m_probe_extent.x, m_illum_rtdp.m_probe_extent.y, 1);
 				m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_r.m_illum_rt.m_pipeline);
 				{
 					VkDescriptorSet sets[] {

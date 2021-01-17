@@ -282,6 +282,11 @@ public:
 		ext.vkCmdTraceRaysKHR(*this, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable,
 			width, height, depth);
 	}
+
+	void dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
+	{
+		vkCmdDispatch(*this, groupCountX, groupCountY, groupCountZ);
+	}
 };
 
 class Queue : public Handle<VkQueue>

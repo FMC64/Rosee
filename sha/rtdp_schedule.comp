@@ -1,0 +1,10 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+
+#include "rtdp.glsl"
+#include "illum.glsl"
+
+void main(void)
+{
+	gl_LocalInvocationID.xy;
+}
