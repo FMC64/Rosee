@@ -401,11 +401,11 @@ public:
 			};
 
 			struct Rtbp {
-				static inline constexpr uint32_t storageImageCount = 3;
+				static inline constexpr uint32_t storageImageCount = 5;
 
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 8;
-				static inline constexpr uint32_t barrsPerFrame = 3;
-				static inline constexpr uint32_t addBarrsPerFrame = 3;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 10;
+				static inline constexpr uint32_t barrsPerFrame = 5;
+				static inline constexpr uint32_t addBarrsPerFrame = 5;
 
 				static inline constexpr uint32_t bufWritesPerFrame = 0;
 
@@ -420,6 +420,10 @@ public:
 					Vk::ImageView m_diffuse_view;
 					Vk::ImageAllocation m_diffuse_acc;
 					Vk::ImageView m_diffuse_acc_view;
+					Vk::ImageAllocation m_direct_light;
+					Vk::ImageView m_direct_light_view;
+					Vk::ImageAllocation m_direct_light_acc;
+					Vk::ImageView m_direct_light_acc_view;
 
 					void destroy(Renderer &r);
 				};
