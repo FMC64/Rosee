@@ -32,11 +32,86 @@ float tmin_calc(float z)
 
 void main(void)
 {
-	ivec2 pos = ivec2(gl_LaunchIDEXT.xy);
+	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
+	ivec2 pos = ivec2(fpos);
+	vec3 view = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
+	vec3 view_norm = normalize(view);
+	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
+
+	vec3 sun = il.sun;
+	vec3 alb = texelFetch(albedo, pos, 0).xyz;
+	vec3 norm = texelFetch(normal, pos, 0).xyz;
+
+	vec3 out_output = vec3(0.0);
+
+	traceRayEXT(acc,
+		gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+		0xFF,	// cullMask
+		0,	// sbtRecordOffset
+		0,	// sbtRecordStride
+		0,	// missIndex
+		view,	// origin
+		tmin_calc(length(view)),	// Tmin
+		sun,	// direction
+		il.cam_near * 2.0,	// Tmax
+		0);
+	if (!rp.hit)
+		out_output += max(0.0, dot(norm, sun)) * alb * 2.5;
+
+	vec3 diffuse = vec3(0.0);
+	vec3 first_diffuse_dir = rnd_diffuse_around_rough(view_norm, norm, 0.0, rnd);
+	{
+		vec3 ray_albedo = vec3(1.0);
+		vec3 ray_origin = view;
+		vec3 ray_dir = first_diffuse_dir;
+
+		for (uint j = 0; j < 4; j++) {
+			traceRayEXT(acc,
+				gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+				0xFF,	// cullMask
+				0,	// sbtRecordOffset
+				0,	// sbtRecordStride
+				0,	// missIndex
+				ray_origin,	// origin
+				tmin_calc(length(ray_origin)),	// Tmin
+				ray_dir,	// direction
+				il.cam_near * 2.0,	// Tmax
+				0);
+			if (rp.hit) {
+				ray_albedo *= rp.albedo;
+				ray_origin = rp.pos;
+				vec3 dif_normal = (il.view_normal * vec4(rp.normal, 1.0)).xyz;
+				ray_dir = rnd_diffuse_around_rough(ray_dir, dif_normal, 0.0, rnd);
+
+				vec3 sun_dir = sun;
+
+				traceRayEXT(acc,
+					gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+					0xFF,	// cullMask
+					0,	// sbtRecordOffset
+					0,	// sbtRecordStride
+					0,	// missIndex
+					ray_origin,	// origin
+					tmin_calc(length(ray_origin)),	// Tmin
+					sun_dir,	// direction
+					il.cam_near * 2.0,	// Tmax
+					0);
+				if (!rp.hit)
+					diffuse += ray_albedo * max(0.0, dot(sun_dir, dif_normal)) * 2.5;
+			} else {
+				diffuse += ray_albedo * env_sample_novoid((il.view_normal_inv * vec4(ray_dir, 1.0)).xyz);
+				break;
+			}
+		}
+	}
+
+	out_output += diffuse * alb;
+	if (texelFetch(cdepth, pos, 0).x == 0.0)
+		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 
 	for (uint i = 0; i < 3; i++) {
 		imageStore(s_diffuse, ivec3(pos, i), vec4(vec3(0.5), 0.0));
 		imageStore(s_diffuse_acc, ivec3(pos, i), vec4(0.0, vec3(0.0)));
 	}
-	imageStore(s_output, pos, vec4(vec3(((pos.x ^ pos.y) & 1) == 1 ? 0.5 : 1.0), 0.0));
+	imageStore(s_output, pos, vec4(out_output, 0.0));
 }
