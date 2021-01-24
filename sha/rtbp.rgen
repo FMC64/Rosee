@@ -1,0 +1,42 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+
+#include "illum.glsl"
+#include "ray_tracing.glsl"
+
+layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
+
+//#include "rtbp.glsl"
+#include "rt.glsl"
+
+layout(set = 0, binding = 2, rgba16f) uniform image2DArray s_diffuse;
+layout(set = 0, binding = 3, r32f) uniform image2DArray s_diffuse_acc;
+layout(set = 0, binding = 4, rgba16f) uniform image2D s_output;
+
+layout(set = 0, binding = 5) uniform sampler2D cdepth;
+layout(set = 0, binding = 6) uniform sampler2D albedo;
+layout(set = 0, binding = 7) uniform sampler2D normal;
+layout(set = 0, binding = 8) uniform sampler2D last_cdepth;
+layout(set = 0, binding = 9) uniform sampler2D last_albedo;
+layout(set = 0, binding = 10) uniform sampler2D last_normal;
+
+layout(set = 0, binding = 11) uniform sampler2D last_diffuse;
+layout(set = 0, binding = 12) uniform sampler2D last_diffuse_acc;
+
+layout(location = 0) rayPayloadEXT RayPayload rp;
+
+float tmin_calc(float z)
+{
+	return 0.00001 + min((z * 0.1) / il.cam_near, 1.0);
+}
+
+void main(void)
+{
+	ivec2 pos = ivec2(gl_LaunchIDEXT.xy);
+
+	for (uint i = 0; i < 3; i++) {
+		imageStore(s_diffuse, ivec3(pos, i), vec4(vec3(0.5), 0.0));
+		imageStore(s_diffuse_acc, ivec3(pos, i), vec4(0.0, vec3(0.0)));
+	}
+	imageStore(s_output, pos, vec4(vec3(((pos.x ^ pos.y) & 1) == 1 ? 0.5 : 1.0), 0.0));
+}

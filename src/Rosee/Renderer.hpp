@@ -399,6 +399,31 @@ public:
 					void destroy(Renderer &r);
 				};
 			};
+
+			struct Rtbp {
+				static inline constexpr uint32_t storageImageCount = 3;
+
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 8;
+				static inline constexpr uint32_t barrsPerFrame = 3;
+				static inline constexpr uint32_t addBarrsPerFrame = 3;
+
+				static inline constexpr uint32_t bufWritesPerFrame = 0;
+
+				struct Shared {
+					// nothing yet
+
+					void destroy(Renderer &r);
+				};
+
+				struct Fbs {
+					Vk::ImageAllocation m_diffuse;
+					Vk::ImageView m_diffuse_view;
+					Vk::ImageAllocation m_diffuse_acc;
+					Vk::ImageView m_diffuse_acc_view;
+
+					void destroy(Renderer &r);
+				};
+			};
 		};
 
 		using Type = uint32_t;
@@ -406,7 +431,8 @@ public:
 		static inline constexpr Type Sspt = 1;	// Screen-space path tracing
 		static inline constexpr Type Rtpt = 2;	// Ray-traced path tracing
 		static inline constexpr Type Rtdp = 3;	// Ray-traced dynamic probes
-		static inline constexpr Type MaxEnum = Rtdp + 1;
+		static inline constexpr Type Rtbp = 4;	// Ray-traced basis probes
+		static inline constexpr Type MaxEnum = Rtbp + 1;
 
 		struct Props {
 			uint32_t descriptorCombinedImageSamplerCount;
@@ -456,6 +482,8 @@ private:
 	IllumTechnique::Data::RayTracing::Shared createIllumRayTracing(void);
 	IllumTechnique::Data::Rtdp::Shared m_illum_rtdp;
 	IllumTechnique::Data::Rtdp::Shared createIllumRtdp(void);
+	IllumTechnique::Data::Rtbp::Shared m_illum_rtbp;
+	IllumTechnique::Data::Rtbp::Shared createIllumRtbp(void);
 	Vk::RenderPass m_wsi_pass;
 	Vk::RenderPass createWsiPass(void);
 	Vk::DescriptorSetLayout m_wsi_set_layout;
@@ -526,6 +554,8 @@ private:
 		IllumTechnique::Data::Rtpt::Fbs createIllumRtptFbs(void);
 		IllumTechnique::Data::Rtdp::Fbs m_illum_rtdp;
 		IllumTechnique::Data::Rtdp::Fbs createIllumRtdpFbs(void);
+		IllumTechnique::Data::Rtbp::Fbs m_illum_rtbp;
+		IllumTechnique::Data::Rtbp::Fbs createIllumRtbpFbs(void);
 		Vk::ImageAllocation m_output;
 		Vk::ImageView m_output_view;
 
