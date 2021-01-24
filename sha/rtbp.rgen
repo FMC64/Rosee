@@ -63,7 +63,7 @@ void main(void)
 		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
 		repr_dist < repr_dist_tres;
 
-	vec3 sun = il.sun;
+	vec3 sun = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 	vec3 norm = texelFetch(normal, pos, 0).xyz;
 
@@ -147,7 +147,7 @@ void main(void)
 			if (last_acc > 0.0) {
 				vec3 last_direct_light = textureLod(last_direct_light, last_view_pos, 0.0).xyz;
 				acc_direct_light = last_acc + 1.0;
-				diffuse = (last_direct_light * last_acc + direct_light) / acc_direct_light;
+				direct_light = (last_direct_light * last_acc + direct_light) / acc_direct_light;
 			}
 		}
 	}
@@ -156,7 +156,7 @@ void main(void)
 		float div = center_divergence(last_view_pos);
 		if (div > 0.01) {
 			acc_diffuse *= mix(1.0 - div, 1.0, 0.9);
-			acc_direct_light *= mix(1.0 - div, 1.0, 0.8);
+			acc_direct_light *= mix(1.0 - div, 1.0, 0.9);
 		}
 	}
 
@@ -169,7 +169,7 @@ void main(void)
 	}
 
 	out_output += (direct_light + diffuse) * alb;
-	out_output = diffuse;
+	//out_output = direct_light;
 
 	imageStore(s_diffuse, pos, vec4(diffuse, 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
