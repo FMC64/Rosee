@@ -35,6 +35,12 @@ float tmin_calc(float z)
 	return 0.00001 + min((z * 0.1) / il.cam_near, 1.0);
 }
 
+float center_divergence(vec2 pos)
+{
+	vec2 p = abs(fract(pos) - .5);
+	return p.x + p.y;
+}
+
 void main(void)
 {
 	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
@@ -127,6 +133,13 @@ void main(void)
 			vec3 last_diffuse = textureLod(last_diffuse, last_view_pos, 0.0).xyz;
 			acc = last_acc + 1.0;
 			diffuse = (last_diffuse * last_acc + diffuse) / acc;
+		}
+	}
+
+	{
+		float div = center_divergence(last_view_pos);
+		if (div > 0.01) {
+			acc *= mix(1.0 - div, 1.0, 0.9);
 		}
 	}
 

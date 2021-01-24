@@ -4935,7 +4935,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
 				reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
 			}
-		illum.sun = illum.view_normal * glm::vec4(glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 1.0);
+		illum.sun = illum.view_normal * glm::vec4(glm::normalize(glm::vec3(1.3, 1.0, 1.0)), 1.0);
 		illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
 		illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);
 		illum.size_inv = glm::vec2(1.0f) / illum.size;
