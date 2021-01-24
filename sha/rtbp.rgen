@@ -9,8 +9,8 @@ layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
 //#include "rtbp.glsl"
 #include "rt.glsl"
 
-layout(set = 0, binding = 2, rgba16f) uniform image2DArray s_diffuse;
-layout(set = 0, binding = 3, r32f) uniform image2DArray s_diffuse_acc;
+layout(set = 0, binding = 2, rgba16f) uniform image2D s_diffuse;
+layout(set = 0, binding = 3, r32f) uniform image2D s_diffuse_acc;
 layout(set = 0, binding = 4, rgba16f) uniform image2D s_output;
 
 layout(set = 0, binding = 5) uniform sampler2D cdepth;
@@ -25,6 +25,11 @@ layout(set = 0, binding = 12) uniform sampler2D last_diffuse_acc;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
+vec3 last_pos_view(vec2 pos)
+{
+	return rt_pos_view(pos, texelFetch(last_cdepth, ivec2(pos), 0).x);
+}
+
 float tmin_calc(float z)
 {
 	return 0.00001 + min((z * 0.1) / il.cam_near, 1.0);
@@ -37,6 +42,16 @@ void main(void)
 	vec3 view = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
 	vec3 view_norm = normalize(view);
 	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
+
+	vec4 last_view = il.view_cur_to_last * vec4(view, 1.0);
+	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
+	ivec2 ilast_view_pos = ivec2(last_view_pos);
+
+	const float repr_dist_tres = 0.5;
+	float repr_dist = length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz);
+	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
+		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
+		repr_dist < repr_dist_tres;
 
 	vec3 sun = il.sun;
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
@@ -105,13 +120,26 @@ void main(void)
 		}
 	}
 
-	out_output += diffuse * alb;
-	if (texelFetch(cdepth, pos, 0).x == 0.0)
-		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-
-	for (uint i = 0; i < 3; i++) {
-		imageStore(s_diffuse, ivec3(pos, i), vec4(vec3(0.5), 0.0));
-		imageStore(s_diffuse_acc, ivec3(pos, i), vec4(0.0, vec3(0.0)));
+	float acc = 1.0;
+	if (repr_success) {
+		float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
+		if (last_acc > 0.0) {
+			vec3 last_diffuse = textureLod(last_diffuse, last_view_pos, 0.0).xyz;
+			acc = last_acc + 1.0;
+			diffuse = (last_diffuse * last_acc + diffuse) / acc;
+		}
 	}
+
+	if (texelFetch(cdepth, pos, 0).x == 0.0) {
+		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
+		diffuse = vec3(0.0);
+		acc = 0.0;
+	}
+
+	out_output += diffuse * alb;
+	//out_output = diffuse;
+
+	imageStore(s_diffuse, pos, vec4(diffuse, 0.0));
+	imageStore(s_diffuse_acc, pos, vec4(acc, vec3(0.0)));
 	imageStore(s_output, pos, vec4(out_output, 0.0));
 }

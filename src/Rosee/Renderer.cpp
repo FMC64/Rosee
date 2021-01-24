@@ -3312,8 +3312,8 @@ void Renderer::bindFrameDescriptors(void)
 					{next_frame.m_illumination_set, cis, 8, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 9, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 10, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 11, m_sampler_fb, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{next_frame.m_illumination_set, cis, 11, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 12, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -4638,18 +4638,18 @@ Renderer::IllumTechnique::Data::Rtbp::Fbs Renderer::Frame::createIllumRtbpFbs(vo
 			m_r.m_swapchain_extent.width,
 			1};
 		ici.mipLevels = 1;
-		ici.arrayLayers = 3;
+		ici.arrayLayers = 1;
 		ici.samples = VK_SAMPLE_COUNT_1_BIT;
 		ici.tiling = VK_IMAGE_TILING_OPTIMAL;
 		ici.usage = Vk::ImageUsage::StorageBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst;
 		VmaAllocationCreateInfo aci{};
 		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		res.m_diffuse = m_r.allocator.createImage(ici, aci);
-		res.m_diffuse_view = m_r.createImageView(res.m_diffuse, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ici.format, Vk::ImageAspect::ColorBit);
+		res.m_diffuse_view = m_r.createImageView(res.m_diffuse, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
 
 		ici.format = VK_FORMAT_R32_SFLOAT;
 		res.m_diffuse_acc = m_r.allocator.createImage(ici, aci);
-		res.m_diffuse_acc_view = m_r.createImageView(res.m_diffuse_acc, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ici.format, Vk::ImageAspect::ColorBit);
+		res.m_diffuse_acc_view = m_r.createImageView(res.m_diffuse_acc, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
 	}
 	return res;
 }
