@@ -2937,7 +2937,7 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	m_fwd_p2_module(loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, "sha/fwd_p2")),
 	m_sample_count(fitSampleCount(VK_SAMPLE_COUNT_1_BIT)),
-	m_illum_technique(fitIllumTechnique(IllumTechnique::Rtdp)),
+	m_illum_technique(fitIllumTechnique(IllumTechnique::Rtpt)),
 	m_illum_technique_props(getIllumTechniqueProps()),
 	m_screen_vertex_buffer(createScreenVertexBuffer()),
 
@@ -4027,12 +4027,29 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	struct Spec {
 		uint32_t model_pool_size;
 		uint32_t samplers_pool_size;
+	} spec_data{
+		static_cast<uint32_t>(modelPoolSize),
+		static_cast<uint32_t>(s0_sampler_count)
+	};
+	VkSpecializationMapEntry spec_entries[] {
+		{0, offsetof(Spec, model_pool_size), sizeof(Spec::model_pool_size)},
+		{1, offsetof(Spec, samplers_pool_size), sizeof(Spec::samplers_pool_size)}
+	};
+	VkSpecializationInfo spec;
+	spec.mapEntryCount = array_size(spec_entries);
+	spec.pMapEntries = spec_entries;
+	spec.dataSize = sizeof(Spec);
+	spec.pData = &spec_data;
+
+	struct RtdpSpec {
+		uint32_t model_pool_size;
+		uint32_t samplers_pool_size;
 		uint32_t probe_layer_count;
 		uint32_t probe_size_l2;
 		uint32_t probe_size;
 		uint32_t probe_diffuse_size;
 		uint32_t probe_max_bounces;
-	} spec_data{
+	} rtdp_spec_data{
 		static_cast<uint32_t>(modelPoolSize),
 		static_cast<uint32_t>(s0_sampler_count),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeLayerCount),
@@ -4041,25 +4058,36 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeDiffuseSize),
 		static_cast<uint32_t>(IllumTechnique::Data::Rtdp::probeMaxBounces)
 	};
-	VkSpecializationMapEntry spec_entries[] {
-		{0, offsetof(Spec, model_pool_size), sizeof(Spec::model_pool_size)},
-		{1, offsetof(Spec, samplers_pool_size), sizeof(Spec::samplers_pool_size)},
-		{2, offsetof(Spec, probe_layer_count), sizeof(Spec::probe_layer_count)},
-		{3, offsetof(Spec, probe_size_l2), sizeof(Spec::probe_size_l2)},
-		{4, offsetof(Spec, probe_size), sizeof(Spec::probe_size)},
-		{5, offsetof(Spec, probe_diffuse_size), sizeof(Spec::probe_diffuse_size)},
-		{6, offsetof(Spec, probe_max_bounces), sizeof(Spec::probe_max_bounces)}
+	VkSpecializationMapEntry rtdp_spec_entries[] {
+		{0, offsetof(RtdpSpec, model_pool_size), sizeof(RtdpSpec::model_pool_size)},
+		{1, offsetof(RtdpSpec, samplers_pool_size), sizeof(RtdpSpec::samplers_pool_size)},
+		{2, offsetof(RtdpSpec, probe_layer_count), sizeof(RtdpSpec::probe_layer_count)},
+		{3, offsetof(RtdpSpec, probe_size_l2), sizeof(RtdpSpec::probe_size_l2)},
+		{4, offsetof(RtdpSpec, probe_size), sizeof(RtdpSpec::probe_size)},
+		{5, offsetof(RtdpSpec, probe_diffuse_size), sizeof(RtdpSpec::probe_diffuse_size)},
+		{6, offsetof(RtdpSpec, probe_max_bounces), sizeof(RtdpSpec::probe_max_bounces)}
 	};
-	VkSpecializationInfo spec;
-	spec.mapEntryCount = r.m_illum_technique == IllumTechnique::Rtpt ? 2 : array_size(spec_entries);
-	spec.pMapEntries = spec_entries;
-	spec.dataSize = sizeof(Spec);
-	spec.pData = &spec_data;
+	VkSpecializationInfo rtdp_spec;
+	rtdp_spec.mapEntryCount = array_size(rtdp_spec_entries);
+	rtdp_spec.pMapEntries = rtdp_spec_entries;
+	rtdp_spec.dataSize = sizeof(RtdpSpec);
+	rtdp_spec.pData = &rtdp_spec_data;
+
+	VkSpecializationInfo *rgen_spec;
+	const char *rgen_path;
+	if (r.m_illum_technique == IllumTechnique::Rtpt) {
+		rgen_spec = &spec;
+		rgen_path = "sha/rtpt";
+	} else if (r.m_illum_technique == IllumTechnique::Rtdp) {
+		rgen_spec = &rtdp_spec;
+		rgen_path = "sha/rtdp";
+	} else
+		throw std::runtime_error("Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline");
 
 	Pipeline res;
 	VkRayTracingPipelineCreateInfoKHR ci{};
 	ci.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
-	auto ray_tracing = r.loadShaderModule(VK_SHADER_STAGE_RAYGEN_BIT_KHR, r.m_illum_technique == IllumTechnique::Rtpt ? "sha/rtpt" : "sha/rtdp");
+	auto ray_tracing = r.loadShaderModule(VK_SHADER_STAGE_RAYGEN_BIT_KHR, rgen_path);
 	res.pushShaderModule(ray_tracing);
 	auto sky = r.loadShaderModule(VK_SHADER_STAGE_MISS_BIT_KHR, "sha/sky");
 	res.pushShaderModule(sky);
@@ -4069,7 +4097,7 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	res.pushShaderModule(opaque_uvgen);
 	VkPipelineShaderStageCreateInfo stages[] {
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
-			VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing, "main", &spec},	// 0
+			VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing, "main", rgen_spec},	// 0
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
 			VK_SHADER_STAGE_MISS_BIT_KHR, sky, "main", &spec},	// 1
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
