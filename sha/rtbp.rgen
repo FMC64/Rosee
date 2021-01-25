@@ -106,8 +106,8 @@ void main(void)
 			if (rp.hit) {
 				ray_albedo *= rp.albedo;
 				ray_origin = rp.pos;
-				vec3 dif_normal = (il.view_normal * vec4(rp.normal, 1.0)).xyz;
-				ray_dir = rnd_diffuse_around_rough(ray_dir, dif_normal, 0.0, rnd);
+				vec3 dif_normal = rp.normal;
+				ray_dir = rnd_diffuse_around(dif_normal, (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y)) + hash(int(-1 - j * 19))) % 256);
 
 				vec3 sun_dir = sun;
 

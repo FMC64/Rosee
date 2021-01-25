@@ -6,6 +6,7 @@ struct RayPayload {
 };
 
 struct Instance {
+	mat3 mv_normal;
 	uint model;
 	uint material;
 };

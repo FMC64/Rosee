@@ -5088,10 +5088,12 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			uint32_t instance_offset = 0;
 			map.query<RT_instance>([&](Brush &b){
 				auto t = b.get<Transform>();
+				auto mv_normal = b.get<MV_normal>();
 				auto rt_i = b.get<RT_instance>();
 				for (size_t i = 0; i < b.size(); i++) {
 					auto &ins = instances[instance_offset + i];
 					auto &ct = t[i];
+					auto &cmv_normal = mv_normal[i];
 					auto &crt_i = rt_i[i];
 					auto trans = camera.view * ct;
 					for (size_t j = 0; j < 3; j++)
@@ -5101,6 +5103,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					ins.mask = crt_i.mask;
 					ins.instanceShaderBindingTableRecordOffset = crt_i.instanceShaderBindingTableRecordOffset;
 					ins.accelerationStructureReference = crt_i.accelerationStructureReference;
+					custom_instances[instance_offset + i].mv_normal = cmv_normal;
 					custom_instances[instance_offset + i].model = crt_i.model;
 					custom_instances[instance_offset + i].material = crt_i.material;
 				}

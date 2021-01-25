@@ -76,6 +76,7 @@ struct Material_albedo {
 };
 
 struct CustomInstance {
+	glm::mat3 mv_normal;
 	uint32_t model;
 	uint32_t material;
 };
