@@ -33,17 +33,3 @@ bool rt_inter_rect_strong(vec2 tl, vec2 br, vec2 p, vec2 d, float bias, out floa
 	vec2 inter = p + (res - bias) * d;
 	return inter.x >= tl.x && inter.y >= tl.y && inter.x <= br.x && inter.y <= br.y;
 }
-
-bool anynan(vec3 vec)
-{
-	bvec3 n = isnan(vec);
-	return n.x || n.y || n.z;
-}
-
-vec3 correct_nan(vec3 vec)
-{
-	if (anynan(vec))
-		return vec3(0.0);
-	else
-		return vec;
-}

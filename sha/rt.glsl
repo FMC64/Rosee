@@ -112,3 +112,17 @@ float sharp_divergence(vec2 pos)
 		return 0.0;
 	return 1.0;
 }
+
+bool anynan(vec3 vec)
+{
+	bvec3 n = isnan(vec);
+	return n.x || n.y || n.z;
+}
+
+vec3 correct_nan(vec3 vec)
+{
+	if (anynan(vec))
+		return vec3(0.0);
+	else
+		return vec;
+}

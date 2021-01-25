@@ -171,7 +171,7 @@ void main(void)
 	out_output += (direct_light + diffuse) * alb;
 	//out_output = direct_light;
 
-	imageStore(s_diffuse, pos, vec4(diffuse, 0.0));
+	imageStore(s_diffuse, pos, vec4(correct_nan(diffuse), 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
 	imageStore(s_direct_light, pos, vec4(direct_light, 0.0));
 	imageStore(s_direct_light_acc, pos, vec4(acc_direct_light, vec3(0.0)));
