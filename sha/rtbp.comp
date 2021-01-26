@@ -79,7 +79,7 @@ void main(void)
 			last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
 
 		float cum_w = 0.0;
-		int qual = 4;
+		int qual = 3;
 		/*if (last_acc < 16.0)
 			qual = 3;
 		if (last_acc == 0.0)
@@ -119,20 +119,22 @@ void main(void)
 	float acc_diffuse = 1.0;
 	float acc_direct_light = 1.0;
 	if (repr_success) {
-		{
-			float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
-			if (last_acc > 0.0) {
-				vec3 last_diffuse = textureLod(last_diffuse, last_view_pos, 0.0).xyz;
-				acc_diffuse = last_acc + 1.0;
-				diffuse = (last_diffuse * last_acc + diffuse) / acc_diffuse;
+		if (length(textureLod(last_normal, last_view_pos, 0.0).xyz - texelFetch(last_normal, ilast_view_pos, 0).xyz) < 0.05) {
+			{
+				float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
+				if (last_acc > 0.0) {
+					vec3 last_diffuse = textureLod(last_diffuse, last_view_pos, 0.0).xyz;
+					acc_diffuse = last_acc + 1.0;
+					diffuse = (last_diffuse * last_acc + diffuse) / acc_diffuse;
+				}
 			}
-		}
-		{
-			float last_acc = textureLod(last_direct_light_acc, last_view_pos, 0.0).x;
-			if (last_acc > 0.0) {
-				vec3 last_direct_light = textureLod(last_direct_light, last_view_pos, 0.0).xyz;
-				acc_direct_light = last_acc + 1.0;
-				direct_light = (last_direct_light * last_acc + direct_light) / acc_direct_light;
+			{
+				float last_acc = textureLod(last_direct_light_acc, last_view_pos, 0.0).x;
+				if (last_acc > 0.0) {
+					vec3 last_direct_light = textureLod(last_direct_light, last_view_pos, 0.0).xyz;
+					acc_direct_light = last_acc + 1.0;
+					direct_light = (last_direct_light * last_acc + direct_light) / acc_direct_light;
+				}
 			}
 		}
 	}

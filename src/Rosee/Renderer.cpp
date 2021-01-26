@@ -3321,7 +3321,7 @@ void Renderer::bindFrameDescriptors(void)
 					{cur_frame.m_illumination_set, cis, 11, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 13, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 14, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 14, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 17, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
@@ -3432,7 +3432,8 @@ void Renderer::bindFrameDescriptors(void)
 	m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	{
 		static constexpr uint32_t const_barrs_per_frame = 0;
-		bool clear_prev_bufs = m_illum_technique == IllumTechnique::Sspt || m_illum_technique == IllumTechnique::Rtpt || m_illum_technique == IllumTechnique::Rtdp;
+		bool clear_prev_bufs = m_illum_technique == IllumTechnique::Sspt || m_illum_technique == IllumTechnique::Rtpt ||
+			m_illum_technique == IllumTechnique::Rtdp || m_illum_technique == IllumTechnique::Rtbp;
 		static constexpr uint32_t clear_barrs_per_frame = 3;
 		uint32_t barrs_per_frame = const_barrs_per_frame +
 			(clear_prev_bufs ? clear_barrs_per_frame : 0) +
