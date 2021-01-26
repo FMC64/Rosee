@@ -99,12 +99,14 @@ void main(void)
 			vec3 ntmp = texelFetch(normal, uv, 0).xyz;
 			t = nval - ntmp;
 			dist2 = max(dot(t, t), 0.0);
-			float n_w = min(1.0 / (dist2 + 0.01), 1.0);
+			float dist22 = dist2 + 1.0;
+			float n_w = min(1.0 / (dist22 * dist22), 1.0);
 
 			/*vec3 ptmp = rt_pos_view(fuv, texelFetch(cdepth, uv, 0).x);
 			t = pval - ptmp;
 			dist2 = dot(t, t);
-			float p_w = min(1.0 / (dist2 + 0.01), 1.0);*/
+			dist22 = dist2 * dist2;
+			float p_w = min(1.0 / (dist22 * dist22 + 0.0001), 1.0);*/
 
 			float weight = n_w;// * p_w;//c_w * n_w * p_w;
 			sum += ctmp * weight;// * kernel[i];
