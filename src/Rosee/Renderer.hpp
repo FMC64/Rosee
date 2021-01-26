@@ -411,8 +411,7 @@ public:
 				static inline constexpr uint32_t bufWritesPerFrame = 0;
 
 				struct Shared {
-					Pipeline m_pipeline;
-					Pipeline createPipeline(Renderer &r);
+					// nothing yet !
 
 					void destroy(Renderer &r);
 				};
