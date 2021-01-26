@@ -79,32 +79,34 @@ void main(void)
 			last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
 
 		float cum_w = 0.0;
-		int qual = 2;
-		if (last_acc < 16.0)
+		int qual = 4;
+		/*if (last_acc < 16.0)
 			qual = 3;
 		if (last_acc == 0.0)
-			qual = 6;
+			qual = 6;*/
 		int max_it = 1 << qual;
 		for(int i = 0; i < max_it; i++) {
-			vec2 fuv = fpos + (vec2(i % qual, i / qual) - float(qual) * 0.5) * 2.5 * stepwidth;
+			vec2 fuv = clamp(fpos + (vec2(i % qual, i / qual) - float(qual) * 0.5) * 2.5 * stepwidth, vec2(0.0), il.size - 1.0);
 			ivec2 uv = ivec2(fuv);
+			vec3 t;
+			float dist2;
 
 			vec3 ctmp = imageLoad(s_diffuse_cur, uv).xyz;
-			vec3 t = cval - ctmp;
-			float dist2 = dot(t, t);
-			float c_w = min(exp(-(dist2) / c_phi), 1.0);
+			/*t = cval - ctmp;
+			dist2 = dot(t, t);
+			float c_w = min(1.0 / (dist2 + 0.01), 1.0);*/
 
 			vec3 ntmp = texelFetch(normal, uv, 0).xyz;
 			t = nval - ntmp;
-			dist2 = max(dot(t, t) / (stepwidth * stepwidth), 0.0);
-			float n_w = min(exp(-(dist2) / n_phi), 1.0);
+			dist2 = max(dot(t, t), 0.0);
+			float n_w = min(1.0 / (dist2 + 0.01), 1.0);
 
-			vec3 ptmp = rt_pos_view(fuv, texelFetch(cdepth, uv, 0).x);
+			/*vec3 ptmp = rt_pos_view(fuv, texelFetch(cdepth, uv, 0).x);
 			t = pval - ptmp;
 			dist2 = dot(t, t);
-			float p_w = min(exp(-(dist2) / p_phi), 1.0);
+			float p_w = min(1.0 / (dist2 + 0.01), 1.0);*/
 
-			float weight = c_w * n_w * p_w;
+			float weight = n_w;// * p_w;//c_w * n_w * p_w;
 			sum += ctmp * weight;// * kernel[i];
 			cum_w += weight;// * kernel[i];
 		}
