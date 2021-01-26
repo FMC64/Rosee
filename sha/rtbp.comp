@@ -38,6 +38,10 @@ float center_divergence(vec2 pos)
 	return p.x + p.y;
 }
 
+const float c_phi = 1.0, n_phi = 1.0, p_phi = 1.0, stepwidth = 1.0;
+//uniform float kernel[25];
+//uniform vec2 offset[25];
+
 void main(void)
 {
 	vec2 fpos = gl_WorkGroupID.xy + vec2(0.5);
@@ -63,6 +67,40 @@ void main(void)
 	vec3 out_output = vec3(0.0);
 	vec3 diffuse = imageLoad(s_diffuse_cur, pos).xyz;
 	vec3 direct_light = imageLoad(s_direct_light_cur, pos).xyz;
+
+	{
+		vec3 sum = vec3(0.0);
+		vec3 cval = diffuse;
+		vec3 nval = texelFetch(normal, pos, 0).xyz;
+		vec3 pval = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
+
+		float cum_w = 0.0;
+		for(int i = 0; i < 25; i++) {
+			vec2 fuv = fpos + (vec2(i % 5, i / 5) - 2.5) * 2.0 * stepwidth;
+			ivec2 uv = ivec2(fuv);
+
+			vec3 ctmp = imageLoad(s_diffuse_cur, uv).xyz;
+			vec3 t = cval - ctmp;
+			float dist2 = dot(t, t);
+			float c_w = min(exp(-(dist2) / c_phi), 1.0);
+
+			vec3 ntmp = texelFetch(normal, uv, 0).xyz;
+			t = nval - ntmp;
+			dist2 = max(dot(t, t) / (stepwidth * stepwidth), 0.0);
+			float n_w = min(exp(-(dist2) / n_phi), 1.0);
+
+			vec3 ptmp = rt_pos_view(fuv, texelFetch(cdepth, uv, 0).x);
+			t = pval - ptmp;
+			dist2 = dot(t, t);
+			float p_w = min(exp(-(dist2) / p_phi), 1.0);
+
+			float weight = c_w * n_w * p_w;
+			sum += ctmp * weight;// * kernel[i];
+			cum_w += weight;// * kernel[i];
+		}
+		diffuse = sum / cum_w;
+	}
+	vec3 diffuse_cur = diffuse;
 
 	float acc_diffuse = 1.0;
 	float acc_direct_light = 1.0;
@@ -102,7 +140,7 @@ void main(void)
 	}
 
 	out_output += (direct_light + diffuse) * alb;
-	//out_output = direct_light;
+	out_output = diffuse;
 
 	imageStore(s_diffuse, pos, vec4(correct_nan(diffuse), 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
