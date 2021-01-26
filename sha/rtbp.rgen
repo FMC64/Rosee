@@ -129,7 +129,7 @@ void main(void)
 	imageStore(s_diffuse_cur, pos, vec4(correct_nan(diffuse), 0.0));
 	imageStore(s_direct_light_cur, pos, vec4(direct_light, 0.0));
 
-	subgroupBarrier();
+	subgroupMemoryBarrierImage();
 
 	vec4 last_view = il.view_cur_to_last * vec4(view, 1.0);
 	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
@@ -219,8 +219,16 @@ void main(void)
 	{
 		float div = center_divergence(last_view_pos);
 		if (div > 0.01) {
+			float basea = min(acc_diffuse, 64.0);
+			bool wga = acc_diffuse >= basea;
 			acc_diffuse *= mix(1.0 - div, 1.0, 0.9);
+			if (wga)
+				acc_diffuse = max(acc_diffuse, basea);
+			float baseb = min(acc_direct_light, 16.0);
+			bool wgb = acc_direct_light >= baseb;
 			acc_direct_light *= mix(1.0 - div, 1.0, 0.9);
+			if (wgb)
+				acc_direct_light = max(acc_direct_light, baseb);
 		}
 	}
 
