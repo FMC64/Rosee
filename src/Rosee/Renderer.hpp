@@ -404,7 +404,7 @@ public:
 			struct Rtbp {
 				static inline constexpr uint32_t storageImageCount = 7;
 
-				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 10;
+				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 12;
 				static inline constexpr uint32_t barrsPerFrame = 5;
 				static inline constexpr uint32_t addBarrsPerFrame = 5;
 
@@ -553,6 +553,8 @@ private:
 		Vk::ImageView m_albedo_view;
 		Vk::ImageAllocation m_normal;
 		Vk::ImageView m_normal_view;
+		Vk::ImageAllocation m_normal_geom;
+		Vk::ImageView m_normal_geom_view;
 
 		IllumTechnique::Data::Sspt::Fbs m_illum_ssgi_fbs;
 		IllumTechnique::Data::Sspt::Fbs createIllumSsgiFbs(VkDescriptorSet descriptorSetColorResolve, VkDescriptorSet descriptorSetDepthResolve,

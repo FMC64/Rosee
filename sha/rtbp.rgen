@@ -21,14 +21,16 @@ layout(set = 0, binding = 8, rgba16f) uniform image2D s_output;
 layout(set = 0, binding = 9) uniform sampler2D cdepth;
 layout(set = 0, binding = 10) uniform sampler2D albedo;
 layout(set = 0, binding = 11) uniform sampler2D normal;
-layout(set = 0, binding = 12) uniform sampler2D last_cdepth;
-layout(set = 0, binding = 13) uniform sampler2D last_albedo;
-layout(set = 0, binding = 14) uniform sampler2D last_normal;
+layout(set = 0, binding = 12) uniform sampler2D normal_geom;
+layout(set = 0, binding = 13) uniform sampler2D last_cdepth;
+layout(set = 0, binding = 14) uniform sampler2D last_albedo;
+layout(set = 0, binding = 15) uniform sampler2D last_normal;
+layout(set = 0, binding = 16) uniform sampler2D last_normal_geom;
 
-layout(set = 0, binding = 15) uniform sampler2DArray last_diffuse;
-layout(set = 0, binding = 16) uniform sampler2D last_diffuse_acc;
-layout(set = 0, binding = 17) uniform sampler2D last_direct_light;
-layout(set = 0, binding = 18) uniform sampler2D last_direct_light_acc;
+layout(set = 0, binding = 17) uniform sampler2DArray last_diffuse;
+layout(set = 0, binding = 18) uniform sampler2D last_diffuse_acc;
+layout(set = 0, binding = 19) uniform sampler2D last_direct_light;
+layout(set = 0, binding = 20) uniform sampler2D last_direct_light_acc;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
@@ -73,7 +75,7 @@ void main(void)
 	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
 
 	vec3 sun = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
-	vec3 norm = texelFetch(normal, pos, 0).xyz;
+	vec3 norm = texelFetch(normal_geom, pos, 0).xyz;
 
 	float direct_light = 0.0;
 
@@ -178,7 +180,7 @@ void main(void)
 			vec3(0.0)
 		};
 		vec3 cval = diffuse_b[d_ndx];
-		vec3 nval = texelFetch(normal, pos, 0).xyz;
+		vec3 nval = texelFetch(normal_geom, pos, 0).xyz;
 		vec3 pval = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
 
 		float last_acc = 0.0;
@@ -202,7 +204,7 @@ void main(void)
 			dist2 = dot(t, t);
 			float c_w = min(1.0 / (dist2 + 0.01), 1.0);*/
 
-			vec3 ntmp = texelFetch(normal, uv, 0).xyz;
+			vec3 ntmp = texelFetch(normal_geom, uv, 0).xyz;
 			t = nval - ntmp;
 			dist2 = max(dot(t, t), 0.0);
 			float dist22 = dist2 + 1.0;
@@ -226,7 +228,7 @@ void main(void)
 	float acc_diffuse = 1.0;
 	float acc_direct_light = 1.0;
 	if (repr_success) {
-		if (length(textureLod(last_normal, last_view_pos, 0.0).xyz - texelFetch(last_normal, ilast_view_pos, 0).xyz) < 0.05) {
+		if (length(textureLod(last_normal_geom, last_view_pos, 0.0).xyz - texelFetch(last_normal_geom, ilast_view_pos, 0).xyz) < 0.05) {
 			{
 				float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
 				if (last_acc > 0.0) {
@@ -271,8 +273,9 @@ void main(void)
 		acc_direct_light = 0.0;
 	}
 
+	vec3 nor = texelFetch(normal, pos, 0).xyz;
 	vec3 norm_w = vec3(1.0 / 3.0);
-	out_output += (direct_light * max(0.0, dot(norm, il.sun)) * 2.5 + diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * alb;
+	out_output += (direct_light * max(0.0, dot(nor, il.sun)) * 2.5 + diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * alb;
 	//out_output = diffuse_b[0];
 
 	for (uint i = 0; i < 3; i++)

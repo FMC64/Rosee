@@ -13,6 +13,7 @@ layout(location = 1) in vec2 in_u;
 layout(location = 0) out float out_depth;
 layout(location = 1) out vec4 out_albedo;
 layout(location = 2) out vec3 out_normal;
+layout(location = 3) out vec3 out_normal_geom;
 
 void main(void)
 {
@@ -22,4 +23,5 @@ void main(void)
 	out_depth = gl_FragCoord.z;
 	out_albedo = vec4(t.xyz, 1.0);
 	out_normal = normalize(in_n);
+	out_normal_geom = out_normal;
 }

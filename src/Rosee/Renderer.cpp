@@ -813,17 +813,22 @@ Vk::RenderPass Renderer::createOpaquePass(void)
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
 		{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal 3
 			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
+			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal},
+		{0, VK_FORMAT_R16G16B16A16_SFLOAT, m_sample_count, Vk::AttachmentLoadOp::Clear, Vk::AttachmentStoreOp::Store,	// normal_geom 4
+			Vk::AttachmentLoadOp::DontCare, Vk::AttachmentStoreOp::DontCare,
 			Vk::ImageLayout::Undefined, Vk::ImageLayout::ShaderReadOnlyOptimal}
 	};
 	VkAttachmentReference depth {0, Vk::ImageLayout::DepthStencilAttachmentOptimal};
 	VkAttachmentReference cdepth {1, Vk::ImageLayout::ColorAttachmentOptimal};
 	VkAttachmentReference albedo {2, Vk::ImageLayout::ColorAttachmentOptimal};
 	VkAttachmentReference normal {3, Vk::ImageLayout::ColorAttachmentOptimal};
+	VkAttachmentReference normal_geom {4, Vk::ImageLayout::ColorAttachmentOptimal};
 
 	VkAttachmentReference color_atts[] {
 		cdepth,
 		albedo,
-		normal
+		normal,
+		normal_geom
 	};
 
 	VkSubpassDescription subpasses[] {
@@ -1549,14 +1554,16 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 			{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
 			{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
 			{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
-			{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_cdepth
-			{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
-			{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
+			{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal_geom
+			{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_cdepth
+			{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
+			{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
+			{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal_geom
 
-			{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse
-			{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse_acc
-			{17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_direct_light
-			{18, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// last_direct_light_acc
+			{17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse
+			{18, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse_acc
+			{19, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_direct_light
+			{20, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// last_direct_light_acc
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -2296,6 +2303,7 @@ Pipeline Renderer::createPipeline3D_pn(const char *stagesPath, uint32_t pushCons
 	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
 		color_blend_attachment,
 		color_blend_attachment,
+		color_blend_attachment,
 		color_blend_attachment
 	};
 	color_blend.attachmentCount = array_size(color_blend_attachments);
@@ -2401,6 +2409,7 @@ Pipeline Renderer::createPipeline3D_pnu(const char *stagesPath, uint32_t pushCon
 	color_blend_attachment.blendEnable = VK_FALSE;
 	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment,
 		color_blend_attachment,
 		color_blend_attachment,
 		color_blend_attachment
@@ -3319,13 +3328,15 @@ void Renderer::bindFrameDescriptors(void)
 					{cur_frame.m_illumination_set, cis, 9, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 10, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{cur_frame.m_illumination_set, cis, 11, m_sampler_fb, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 13, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 14, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_mip, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 17, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 18, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{cur_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_normal_geom_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 13, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 14, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_normal_geom_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 17, m_sampler_fb_mip, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 18, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 19, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 20, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -3434,7 +3445,7 @@ void Renderer::bindFrameDescriptors(void)
 		static constexpr uint32_t const_barrs_per_frame = 0;
 		bool clear_prev_bufs = m_illum_technique == IllumTechnique::Sspt || m_illum_technique == IllumTechnique::Rtpt ||
 			m_illum_technique == IllumTechnique::Rtdp || m_illum_technique == IllumTechnique::Rtbp;
-		static constexpr uint32_t clear_barrs_per_frame = 3;
+		static constexpr uint32_t clear_barrs_per_frame = 4;
 		uint32_t barrs_per_frame = const_barrs_per_frame +
 			(clear_prev_bufs ? clear_barrs_per_frame : 0) +
 			m_illum_technique_props.barrsPerFrame;
@@ -3448,6 +3459,7 @@ void Renderer::bindFrameDescriptors(void)
 					VkImage imgs[clear_barrs_per_frame] {
 						m_frames[i].m_albedo,
 						m_frames[i].m_normal,
+						m_frames[i].m_normal_geom,
 						m_frames[i].m_output
 					};
 					for (uint32_t i = 0; i < array_size(imgs); i++)
@@ -3525,6 +3537,7 @@ void Renderer::bindFrameDescriptors(void)
 					ImgDesc imgs[clear_barrs_per_frame] {
 						{m_frames[i].m_albedo, &cv_f32_zero},
 						{m_frames[i].m_normal, &cv_f32_zero},
+						{m_frames[i].m_normal_geom, &cv_f32_zero},
 						{m_frames[i].m_output, &cv_f32_zero}
 					};
 					for (uint32_t i = 0; i < array_size(imgs); i++)
@@ -3597,6 +3610,7 @@ void Renderer::bindFrameDescriptors(void)
 					ImgDesc imgs[clear_barrs_per_frame] {
 						{m_frames[i].m_albedo, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_normal, Vk::ImageLayout::TransferDstOptimal},
+						{m_frames[i].m_normal_geom, Vk::ImageLayout::TransferDstOptimal},
 						{m_frames[i].m_output, Vk::ImageLayout::TransferDstOptimal},
 					};
 					for (uint32_t i = 0; i < array_size(imgs); i++)
@@ -4710,7 +4724,8 @@ Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
 		m_depth_buffer_view,
 		m_cdepth_view,
 		m_albedo_view,
-		m_normal_view
+		m_normal_view,
+		m_normal_geom_view
 	};
 	ci.attachmentCount = array_size(atts);
 	ci.pAttachments = atts;
@@ -4823,6 +4838,8 @@ Renderer::Frame::Frame(Renderer &r, size_t i, Vk::CommandBuffer cmdGtransfer, Vk
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_albedo)),
 	m_normal_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
 		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal)),
+	m_normal_geom_view(createFbImageMs(VK_FORMAT_R16G16B16A16_SFLOAT, Vk::ImageAspect::ColorBit,
+		Vk::ImageUsage::ColorAttachmentBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst, &m_normal_geom)),
 	m_illum_ssgi_fbs(createIllumSsgiFbs(descriptorSetColorResolve, descriptorSetDepthResolve, pDescriptorSetsMip)),
 	m_illum_rt(createIllumRtFbs(descriptorSetRayTracingRes)),
 	m_illum_rtpt(createIllumRtptFbs()),
@@ -4861,6 +4878,8 @@ void Renderer::Frame::destroy(bool with_ext_res)
 	m_r.device.destroy(m_output_view);
 	m_r.allocator.destroy(m_output);
 
+	m_r.device.destroy(m_normal_geom_view);
+	m_r.allocator.destroy(m_normal_geom);
 	m_r.device.destroy(m_normal_view);
 	m_r.allocator.destroy(m_normal);
 	m_r.device.destroy(m_albedo_view);
@@ -4939,6 +4958,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				{ .depthStencil = cv_d0, },
 				{ .color = cv_zero },
 				{ .color = cv_grey },
+				{ .color = cv_zero },
 				{ .color = cv_zero }
 			};
 			bi.clearValueCount = array_size(cvs);
