@@ -172,7 +172,11 @@ void main(void)
 		if (d_w.z > d_w.y)
 			d_ndx = 2;
 
-		vec3 sum = vec3(0.0);
+		vec3 sum[3] = {
+			vec3(0.0),
+			vec3(0.0),
+			vec3(0.0)
+		};
 		vec3 cval = diffuse_b[d_ndx];
 		vec3 nval = texelFetch(normal, pos, 0).xyz;
 		vec3 pval = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
@@ -194,7 +198,6 @@ void main(void)
 			vec3 t;
 			float dist2;
 
-			vec3 ctmp = imageLoad(s_diffuse_cur, ivec3(uv, d_ndx)).xyz;
 			/*t = cval - ctmp;
 			dist2 = dot(t, t);
 			float c_w = min(1.0 / (dist2 + 0.01), 1.0);*/
@@ -212,10 +215,12 @@ void main(void)
 			float p_w = min(1.0 / (dist22 * dist22 + 0.0001), 1.0);*/
 
 			float weight = n_w;// * p_w;//c_w * n_w * p_w;
-			sum += ctmp * weight;// * kernel[i];
+			for (uint i = 0; i < 3; i++)
+				sum[i] += imageLoad(s_diffuse_cur, ivec3(uv, i)).xyz * weight;// * kernel[i];
 			cum_w += weight;// * kernel[i];
 		}
-		diffuse_b[d_ndx] = sum / cum_w;
+		for (uint i = 0; i < 3; i++)
+			diffuse_b[i] = sum[i] / cum_w;
 	}
 
 	float acc_diffuse = 1.0;
