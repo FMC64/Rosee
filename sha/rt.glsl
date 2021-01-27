@@ -66,15 +66,19 @@ vec3 irradiance_correct_adv(vec3 prev_value, vec3 prev_albedo, vec3 cur_value, v
 	return irradiance_to_output((last_irr * count + cur_irr) / (count + 1.0), cur_albedo);
 }
 
-vec3 rnd_diffuse_around(vec3 normal, int rand)
+void normal_gen_tb(vec3 normal, out vec3 nx, out vec3 ny)
 {
-	vec3 nx;
-	vec3 ny;
 	if (abs(normal.x) > abs(normal.y))
 		nx = vec3(normal.z, 0, -normal.x) / sqrt(normal.x * normal.x + normal.z * normal.z);
 	else
 		nx = vec3(0, -normal.z, normal.y) / sqrt(normal.y * normal.y + normal.z * normal.z);
 	ny = cross(normal, nx);
+}
+
+vec3 rnd_diffuse_around(vec3 normal, int rand)
+{
+	vec3 nx, ny;
+	normal_gen_tb(normal, nx, ny);
 
 	vec3 nz = normal;
 	vec3 rvec = il.rnd_diffuse[rand];

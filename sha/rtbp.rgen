@@ -264,6 +264,15 @@ void main(void)
 		}
 	}
 
+	vec3 nor = texelFetch(normal, pos, 0).xyz;
+	vec3 nt, nb;
+	normal_gen_tb(norm, nt, nb);
+	vec3 norm_w = basis_w(mat3(
+		vec3(nt.x, nb.x, norm.x),
+		vec3(nt.y, nb.y, norm.y),
+		vec3(nt.z, nb.z, norm.z)
+	) * nor);
+	out_output = (direct_light * max(0.0, dot(nor, il.sun)) * 2.5 + diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * alb;
 	if (texelFetch(cdepth, pos, 0).x == 0.0) {
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
 		for (uint i = 0; i < 3; i++)
@@ -273,9 +282,6 @@ void main(void)
 		acc_direct_light = 0.0;
 	}
 
-	vec3 nor = texelFetch(normal, pos, 0).xyz;
-	vec3 norm_w = vec3(1.0 / 3.0);
-	out_output += (direct_light * max(0.0, dot(nor, il.sun)) * 2.5 + diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * alb;
 	//out_output = diffuse_b[0];
 
 	for (uint i = 0; i < 3; i++)
