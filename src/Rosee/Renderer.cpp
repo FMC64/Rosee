@@ -4667,6 +4667,8 @@ Renderer::IllumTechnique::Data::Rtbp::Fbs Renderer::Frame::createIllumRtbpFbs(vo
 		res.m_diffuse_cur_view = m_r.createImageView(res.m_diffuse_cur, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
 		res.m_diffuse = m_r.allocator.createImage(ici, aci);
 		res.m_diffuse_view = m_r.createImageView(res.m_diffuse, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
+
+		ici.format = VK_FORMAT_R16_SFLOAT;
 		res.m_direct_light_cur = m_r.allocator.createImage(ici, aci);
 		res.m_direct_light_cur_view = m_r.createImageView(res.m_direct_light_cur, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
 		res.m_direct_light = m_r.allocator.createImage(ici, aci);
