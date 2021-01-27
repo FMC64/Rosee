@@ -597,6 +597,7 @@ private:
 			glm::vec2 size;
 			glm::vec2 size_inv;
 			glm::vec2 depth_size;
+			glm::vec2 depth_size_inv;
 			glm::vec2 ratio;
 			glm::ivec2 probe_extent;	// rtdp
 			uint32_t probe_size_l2;

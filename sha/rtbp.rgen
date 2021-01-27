@@ -10,8 +10,8 @@ layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
 //#include "rtbp.glsl"
 #include "rt.glsl"
 
-layout(set = 0, binding = 2, rgba16f) uniform image2D s_diffuse_cur;
-layout(set = 0, binding = 3, rgba16f) uniform image2D s_diffuse;
+layout(set = 0, binding = 2, rgba16f) uniform image2DArray s_diffuse_cur;
+layout(set = 0, binding = 3, rgba16f) uniform image2DArray s_diffuse;
 layout(set = 0, binding = 4, r32f) uniform image2D s_diffuse_acc;
 layout(set = 0, binding = 5, rgba16f) uniform image2D s_direct_light_cur;
 layout(set = 0, binding = 6, rgba16f) uniform image2D s_direct_light;
@@ -25,7 +25,7 @@ layout(set = 0, binding = 12) uniform sampler2D last_cdepth;
 layout(set = 0, binding = 13) uniform sampler2D last_albedo;
 layout(set = 0, binding = 14) uniform sampler2D last_normal;
 
-layout(set = 0, binding = 15) uniform sampler2D last_diffuse;
+layout(set = 0, binding = 15) uniform sampler2DArray last_diffuse;
 layout(set = 0, binding = 16) uniform sampler2D last_diffuse_acc;
 layout(set = 0, binding = 17) uniform sampler2D last_direct_light;
 layout(set = 0, binding = 18) uniform sampler2D last_direct_light_acc;
@@ -48,9 +48,21 @@ float center_divergence(vec2 pos)
 	return p.x + p.y;
 }
 
-const float c_phi = 1.0, n_phi = 1.0, p_phi = 1.0, stepwidth = 1.0;
-//uniform float kernel[25];
-//uniform vec2 offset[25];
+const vec3 basis[3] = {
+	vec3((2.0 * sqrt(2.0)) / 3.0, 0.0, 1.0 / 3.0),
+	vec3(-sqrt(2.0) / 3.0, sqrt(6.0) / 3.0, 1.0 / 3.0),
+	vec3(-sqrt(2.0) / 3.0, -sqrt(6.0) / 3.0, 1.0 / 3.0)
+};
+
+vec3 basis_w(vec3 normal)
+{
+	vec3 res = vec3(
+		max(0.0, dot(normal, basis[0])),
+		max(0.0, dot(normal, basis[1])),
+		max(0.0, dot(normal, basis[2]))
+	);
+	return res / (res.x + res.y + res.z);
+}
 
 void main(void)
 {
@@ -126,7 +138,15 @@ void main(void)
 		}
 	}
 
-	imageStore(s_diffuse_cur, pos, vec4(correct_nan(diffuse), 0.0));
+	diffuse = correct_nan(diffuse);
+	vec3 d_w = basis_w(il.rnd_diffuse[rnd]);
+	vec3 diffuse_b[3] = {
+		diffuse * d_w.x * 3.0,
+		diffuse * d_w.y * 3.0,
+		diffuse * d_w.z * 3.0
+	};
+	for (uint i = 0; i < 3; i++)
+		imageStore(s_diffuse_cur, ivec3(pos, i), vec4(diffuse_b[i], 0.0));
 	imageStore(s_direct_light_cur, pos, vec4(direct_light, vec3(0.0)));
 
 	subgroupMemoryBarrierImage();
@@ -146,8 +166,14 @@ void main(void)
 	vec3 out_output = vec3(0.0);
 
 	{
+		uint d_ndx = 0;
+		if (d_w.y > d_w.x)
+			d_ndx = 1;
+		if (d_w.z > d_w.y)
+			d_ndx = 2;
+
 		vec3 sum = vec3(0.0);
-		vec3 cval = diffuse;
+		vec3 cval = diffuse_b[d_ndx];
 		vec3 nval = texelFetch(normal, pos, 0).xyz;
 		vec3 pval = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
 
@@ -163,12 +189,12 @@ void main(void)
 			qual = 6;*/
 		int max_it = 1 << qual;
 		for(int i = 0; i < max_it; i++) {
-			vec2 fuv = clamp(fpos + (vec2(i % qual, i / qual) - float(qual) * 0.5) * 2.5 * stepwidth, vec2(0.0), il.size - 1.0);
+			vec2 fuv = clamp(fpos + (vec2(i % qual, i / qual) - float(qual) * 0.5) * 2.5, vec2(0.0), il.size - 1.0);
 			ivec2 uv = ivec2(fuv);
 			vec3 t;
 			float dist2;
 
-			vec3 ctmp = imageLoad(s_diffuse_cur, uv).xyz;
+			vec3 ctmp = imageLoad(s_diffuse_cur, ivec3(uv, d_ndx)).xyz;
 			/*t = cval - ctmp;
 			dist2 = dot(t, t);
 			float c_w = min(1.0 / (dist2 + 0.01), 1.0);*/
@@ -189,9 +215,8 @@ void main(void)
 			sum += ctmp * weight;// * kernel[i];
 			cum_w += weight;// * kernel[i];
 		}
-		diffuse = sum / cum_w;
+		diffuse_b[d_ndx] = sum / cum_w;
 	}
-	vec3 diffuse_cur = diffuse;
 
 	float acc_diffuse = 1.0;
 	float acc_direct_light = 1.0;
@@ -200,9 +225,9 @@ void main(void)
 			{
 				float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
 				if (last_acc > 0.0) {
-					vec3 last_diffuse = textureLod(last_diffuse, last_view_pos, 0.0).xyz;
 					acc_diffuse = last_acc + 1.0;
-					diffuse = (last_diffuse * last_acc + diffuse) / acc_diffuse;
+					for (uint i = 0; i < 3; i++)
+						diffuse_b[i] = (textureLod(last_diffuse, vec3(last_view_pos * vec2(il.size_inv.x), i), 0.0).xyz * last_acc + diffuse_b[i]) / acc_diffuse;
 				}
 			}
 			{
@@ -234,16 +259,19 @@ void main(void)
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0) {
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-		diffuse = vec3(0.0);
+		for (uint i = 0; i < 3; i++)
+			diffuse_b[i] = vec3(0.0);
 		acc_diffuse = 0.0;
 		direct_light = 0.0;
 		acc_direct_light = 0.0;
 	}
 
-	out_output += (direct_light * max(0.0, dot(norm, il.sun)) * 2.5 + diffuse) * alb;
-	//out_output = diffuse;
+	vec3 norm_w = vec3(1.0 / 3.0);
+	out_output += (direct_light * max(0.0, dot(norm, il.sun)) * 2.5 + diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * alb;
+	//out_output = diffuse_b[0];
 
-	imageStore(s_diffuse, pos, vec4(correct_nan(diffuse), 0.0));
+	for (uint i = 0; i < 3; i++)
+		imageStore(s_diffuse, ivec3(pos, i), vec4(diffuse_b[i], 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
 	imageStore(s_direct_light, pos, vec4(direct_light, vec3(0.0)));
 	imageStore(s_direct_light_acc, pos, vec4(acc_direct_light, vec3(0.0)));

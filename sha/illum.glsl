@@ -15,6 +15,7 @@ layout(set = 0, binding = 0) uniform Illum {
 	vec2 size;
 	vec2 size_inv;
 	vec2 depth_size;
+	vec2 depth_size_inv;
 	vec2 cam_ratio;
 	uvec2 probe_extent;
 	uint probe_size_l2;

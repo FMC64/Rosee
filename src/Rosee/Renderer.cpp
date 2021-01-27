@@ -3322,7 +3322,7 @@ void Renderer::bindFrameDescriptors(void)
 					{next_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 13, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 14, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_mip, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 17, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
 					{next_frame.m_illumination_set, cis, 18, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
@@ -4657,17 +4657,18 @@ Renderer::IllumTechnique::Data::Rtbp::Fbs Renderer::Frame::createIllumRtbpFbs(vo
 			m_r.m_swapchain_extent.width,
 			1};
 		ici.mipLevels = 1;
-		ici.arrayLayers = 1;
+		ici.arrayLayers = 3;
 		ici.samples = VK_SAMPLE_COUNT_1_BIT;
 		ici.tiling = VK_IMAGE_TILING_OPTIMAL;
 		ici.usage = Vk::ImageUsage::StorageBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst;
 		VmaAllocationCreateInfo aci{};
 		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		res.m_diffuse_cur = m_r.allocator.createImage(ici, aci);
-		res.m_diffuse_cur_view = m_r.createImageView(res.m_diffuse_cur, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
+		res.m_diffuse_cur_view = m_r.createImageView(res.m_diffuse_cur, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ici.format, Vk::ImageAspect::ColorBit);
 		res.m_diffuse = m_r.allocator.createImage(ici, aci);
-		res.m_diffuse_view = m_r.createImageView(res.m_diffuse, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
+		res.m_diffuse_view = m_r.createImageView(res.m_diffuse, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ici.format, Vk::ImageAspect::ColorBit);
 
+		ici.arrayLayers = 1;
 		ici.format = VK_FORMAT_R16_SFLOAT;
 		res.m_direct_light_cur = m_r.allocator.createImage(ici, aci);
 		res.m_direct_light_cur_view = m_r.createImageView(res.m_direct_light_cur, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
@@ -4973,10 +4974,10 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 				reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
 			}
 		illum.sun = illum.view_normal * glm::vec4(glm::normalize(glm::vec3(1.3, 1.0, 1.0)), 1.0);
-		illum.size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
 		illum.size = glm::vec2(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height);
 		illum.size_inv = glm::vec2(1.0f) / illum.size;
-		illum.depth_size = glm::vec2(1.0f) / glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
+		illum.depth_size = glm::vec2(m_r.m_swapchain_extent_mip.width, m_r.m_swapchain_extent_mip.height);
+		illum.depth_size_inv = glm::vec2(1.0f) / illum.depth_size;
 		illum.ratio = camera.ratio;
 		illum.probe_extent = m_illum_rtdp.m_probe_extent;
 		illum.probe_size_l2 = m_illum_rtdp.m_probe_size_l2;
