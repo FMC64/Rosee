@@ -19,4 +19,5 @@ void main(void)
 	rp.pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 	rp.albedo = alb.xyz;
 	rp.normal = normalize(ins.mv_normal * v.n);
+	rp.normal_geom = rp.normal;
 }

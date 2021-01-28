@@ -18,5 +18,14 @@ void main(void)
 	rp.hit = true;
 	rp.pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 	rp.albedo = alb.xyz;
-	rp.normal = normalize(ins.mv_normal * v.n);
+	vec3 n = normalize(ins.mv_normal * v.n);
+	vec3 t = normalize(ins.mv_normal * v.t);
+	vec3 b = normalize(ins.mv_normal * v.b);
+	vec3 nmap = texture(samplers[m.albedo + 1], vec2(v.u.x, -v.u.y) * 32.0).xyz * 2.0 - 1.0;
+	nmap.y *= -1.0;
+	nmap.z *= 0.6;
+	nmap = normalize(nmap);
+	rp.normal = t * nmap.x + b * nmap.y + n * nmap.z;
+	//rp.normal = n;
+	rp.normal_geom = n;
 }

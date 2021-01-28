@@ -110,7 +110,8 @@ void main(void)
 		vec3 ray_origin = view;
 		vec3 ray_dir = first_diffuse_dir;
 
-		for (uint j = 0; j < 2; j++) {
+		const uint bounces = 2;
+		for (uint j = 0; j < bounces; j++) {
 			traceRayEXT(acc,
 				gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
 				0xFF,	// cullMask
@@ -123,10 +124,20 @@ void main(void)
 				il.cam_near * 2.0,	// Tmax
 				0);
 			if (rp.hit) {
-				ray_albedo *= rp.albedo;
-				ray_origin = rp.pos;
-				vec3 dif_normal = rp.normal;
-				ray_dir = normal_view(rnd_diffuse_around(normal_view_inv(dif_normal), (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y)) + hash(int(-1 - j * 19))) % 256));
+				bool ok = false;
+				vec3 dif_normal;
+				for (uint k = 0; k < bounces; k++) {
+					ray_albedo *= rp.albedo;
+					ray_origin = rp.pos;
+					dif_normal = rp.normal_geom;
+					ray_dir = normal_view(rnd_diffuse_around(normal_view_inv(dif_normal), (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y)) + hash(int(-1 - (j + k) * 19))) % 256));
+					if (dot(ray_dir, rp.normal_geom) >= 0.0) {
+						ok = true;
+						break;
+					}
+				}
+				if (!ok)
+					break;
 
 				vec3 sun_dir = sun;
 

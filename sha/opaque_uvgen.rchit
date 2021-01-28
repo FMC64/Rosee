@@ -20,4 +20,5 @@ void main(void)
 	Material_albedo m = materials_albedo.materials[ins.material];
 	rp.albedo = texture(samplers[m.albedo], tex_3dmap((il.view_inv * vec4(rp.pos, 1.0)).xyz)).xyz;
 	rp.normal = normalize(ins.mv_normal * v.n);
+	rp.normal_geom = rp.normal;
 }

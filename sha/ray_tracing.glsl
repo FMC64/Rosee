@@ -3,6 +3,7 @@ struct RayPayload {
 	vec3 pos;
 	vec3 albedo;
 	vec3 normal;
+	vec3 normal_geom;
 };
 
 struct Instance {
