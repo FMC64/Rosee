@@ -282,7 +282,7 @@ void main(void)
 		acc_direct_light = 0.0;
 	}
 
-	//out_output = diffuse_b[0];
+	//out_output = nor;
 
 	for (uint i = 0; i < 3; i++)
 		imageStore(s_diffuse, ivec3(pos, i), vec4(diffuse_b[i], 0.0));

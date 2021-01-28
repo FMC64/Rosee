@@ -664,7 +664,7 @@ public:
 	void loadBufferCompute(VkBuffer buffer, size_t size, const void *data);
 	Model loadModel(const char *path, AccelerationStructure *acc);
 	Model loadModelTb(const char *path, AccelerationStructure *acc);
-	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
+	Vk::ImageAllocation loadImage(const char *path, bool gen_mips, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
 
 	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
 		VkIndexType indexType, uint32_t indexCount, VkBuffer indices, VkGeometryFlagsKHR flags);

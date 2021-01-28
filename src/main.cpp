@@ -351,9 +351,9 @@ public:
 			*view1 = m_r.createImageView(*img1, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
 			auto img2 = image_pool.allocate();
-			*img2 = m_r.loadImage("res/mod/normal.png", true);
+			*img2 = m_r.loadImage("res/mod/normal2.png", true, VK_FORMAT_R8G8B8A8_UNORM);
 			auto view2 = image_view_pool.allocate();
-			*view2 = m_r.createImageView(*img2, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+			*view2 = m_r.createImageView(*img2, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 
 			VkDescriptorImageInfo image_infos[image_count] {
 				{sampler_norm_l, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},

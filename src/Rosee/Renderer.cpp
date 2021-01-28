@@ -2869,7 +2869,7 @@ Model Renderer::loadModelTb(const char *path, AccelerationStructure *acc)
 	return res;
 }
 
-Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
+Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkFormat format)
 {
 	int x, y, chan;
 	auto data = stbi_load(path, &x, &y, &chan, 4);
@@ -2881,7 +2881,7 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips)
 	VkImageCreateInfo ici{};
 	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	ici.imageType = VK_IMAGE_TYPE_2D;
-	ici.format = VK_FORMAT_R8G8B8A8_SRGB;
+	ici.format = format;
 	auto extent = VkExtent3D{static_cast<uint32_t>(x), static_cast<uint32_t>(y), 1};
 	ici.extent = extent;
 	ici.mipLevels = gen_mips ? extentMipLevels(VkExtent2D{extent.width, extent.height}) : 1;

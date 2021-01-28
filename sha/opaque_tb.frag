@@ -27,7 +27,8 @@ void main(void)
 	vec3 n = normalize(in_n);
 	vec3 t = normalize(in_t);
 	vec3 b = normalize(in_b);
-	vec3 nmap = texture(samplers[p.albedo + 1], vec2(in_u.x, -in_u.y) * 32.0).xyz;
+	vec3 nmap = texture(samplers[p.albedo + 1], vec2(in_u.x, -in_u.y) * 32.0).xyz * 2.0 - 1.0;
+	nmap.xy *= vec2(-1.0);
 	nmap.z *= 0.6;
 	nmap = normalize(nmap);
 	out_normal = t * nmap.x + b * nmap.y + n * nmap.z;
