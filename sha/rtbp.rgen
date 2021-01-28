@@ -66,6 +66,16 @@ vec3 basis_w(vec3 normal)
 	return res / (res.x + res.y + res.z);
 }
 
+vec3 normal_view_inv(vec3 normal)
+{
+	return (il.view_normal_inv * vec4(normal, 1.0)).xyz;
+}
+
+vec3 normal_view(vec3 normal)
+{
+	return (il.view_normal * vec4(normal, 1.0)).xyz;
+}
+
 void main(void)
 {
 	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
@@ -94,7 +104,7 @@ void main(void)
 		direct_light += 1.0;
 
 	vec3 diffuse = vec3(0.0);
-	vec3 first_diffuse_dir = rnd_diffuse_around_rough(view_norm, norm, 0.0, rnd);
+	vec3 first_diffuse_dir = normal_view(rnd_diffuse_around(normal_view_inv(norm), rnd));
 	{
 		vec3 ray_albedo = vec3(1.0);
 		vec3 ray_origin = view;
@@ -116,7 +126,7 @@ void main(void)
 				ray_albedo *= rp.albedo;
 				ray_origin = rp.pos;
 				vec3 dif_normal = rp.normal;
-				ray_dir = rnd_diffuse_around(dif_normal, (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y)) + hash(int(-1 - j * 19))) % 256);
+				ray_dir = normal_view(rnd_diffuse_around(normal_view_inv(dif_normal), (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y)) + hash(int(-1 - j * 19))) % 256));
 
 				vec3 sun_dir = sun;
 
@@ -266,12 +276,13 @@ void main(void)
 
 	vec3 nor = texelFetch(normal, pos, 0).xyz;
 	vec3 nt, nb;
-	normal_gen_tb(norm, nt, nb);
+	vec3 norm_wr = (il.view_normal_inv * vec4(norm, 1.0)).xyz;
+	normal_gen_tb(norm_wr, nt, nb);
 	vec3 norm_w = basis_w(mat3(
-		vec3(nt.x, nb.x, norm.x),
-		vec3(nt.y, nb.y, norm.y),
-		vec3(nt.z, nb.z, norm.z)
-	) * nor);
+		vec3(nt.x, nb.x, norm_wr.x),
+		vec3(nt.y, nb.y, norm_wr.y),
+		vec3(nt.z, nb.z, norm_wr.z)
+	) * (il.view_normal_inv * vec4(nor, 1.0)).xyz);
 	out_output = (direct_light * max(0.0, min(dot(nor, il.sun), dot(norm, il.sun))) * 2.5 + diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * alb;
 	if (texelFetch(cdepth, pos, 0).x == 0.0) {
 		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
