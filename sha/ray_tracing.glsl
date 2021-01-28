@@ -17,6 +17,14 @@ struct Vertex_pnu {
 	vec2 u;
 };
 
+struct Vertex_pntbu {
+	vec3 p;
+	vec3 n;
+	vec3 t;
+	vec3 b;
+	vec2 u;
+};
+
 struct Vertex_pn {
 	vec3 p;
 	vec3 n;
@@ -51,7 +59,11 @@ layout(scalar, set = 1, binding = 4) readonly buffer Models_pn_i16_i {
 	uint16_t indices[];
 } models_pn_i16_i[model_pool_size];
 
-layout(scalar, set = 1, binding = 5) readonly buffer Materials_albedo {
+layout(scalar, set = 1, binding = 5) readonly buffer Models_pntbu {
+	Vertex_pntbu vertices[];
+} models_pntbu[model_pool_size];
+
+layout(scalar, set = 1, binding = 6) readonly buffer Materials_albedo {
 	Material_albedo materials[];
 } materials_albedo;
 
@@ -80,4 +92,20 @@ Vertex_pn vertex_read_pn_i16(uint model, uint primitive, vec2 bary)
 	return Vertex_pn(
 		v0.p * b0 + v1.p * b1 + v2.p * b2,
 		v0.n * b0 + v1.n * b1 + v2.n * b2);
+}
+
+Vertex_pntbu vertex_read_pntbu(uint model, uint primitive, vec2 bary)
+{
+	Vertex_pntbu v0 = models_pntbu[model].vertices[primitive * 3];
+	Vertex_pntbu v1 = models_pntbu[model].vertices[primitive * 3 + 1];
+	Vertex_pntbu v2 = models_pntbu[model].vertices[primitive * 3 + 2];
+	float b0 = 1.0 - bary.x - bary.y;
+	float b1 = bary.x;
+	float b2 = bary.y;
+	return Vertex_pntbu(
+		v0.p * b0 + v1.p * b1 + v2.p * b2,
+		v0.n * b0 + v1.n * b1 + v2.n * b2,
+		v0.t * b0 + v1.t * b1 + v2.t * b2,
+		v0.b * b0 + v1.b * b1 + v2.b * b2,
+		v0.u * b0 + v1.u * b1 + v2.u * b2);
 }

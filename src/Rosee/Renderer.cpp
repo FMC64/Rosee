@@ -1897,7 +1897,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, m_frame_count * (
 			(needsAccStructure() ?
 				1 +	// instances
-				modelPoolSize * 3 +	// models
+				modelPoolSize * 4 +	// models
 				1 :	// materials
 				0) +
 			(m_illum_technique == IllumTechnique::Rtdp ?
@@ -2437,6 +2437,116 @@ Pipeline Renderer::createPipeline3D_pnu(const char *stagesPath, uint32_t pushCon
 	return res;
 }
 
+Pipeline Renderer::createPipeline3D_pntbu(const char *stagesPath, uint32_t pushConstantRange)
+{
+	Pipeline res;
+
+	VkGraphicsPipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	auto vert = loadShaderModule(VK_SHADER_STAGE_VERTEX_BIT, stagesPath);
+	auto frag = loadShaderModule(VK_SHADER_STAGE_FRAGMENT_BIT, stagesPath);
+	res.pushShaderModule(vert);
+	res.pushShaderModule(frag);
+	struct FragSpec {
+		int32_t sampler_count;
+	} frag_spec_data{s0_sampler_count};
+	VkSpecializationMapEntry frag_spec_entries[] {
+		{0, offsetof(FragSpec, sampler_count), sizeof(FragSpec::sampler_count)}
+	};
+	VkSpecializationInfo frag_spec;
+	frag_spec.mapEntryCount = array_size(frag_spec_entries);
+	frag_spec.pMapEntries = frag_spec_entries;
+	frag_spec.dataSize = sizeof(FragSpec);
+	frag_spec.pData = &frag_spec_data;
+	VkPipelineShaderStageCreateInfo stages[] {
+		initPipelineStage(VK_SHADER_STAGE_VERTEX_BIT, vert),
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_FRAGMENT_BIT, frag, "main", &frag_spec}
+	};
+	ci.stageCount = array_size(stages);
+	ci.pStages = stages;
+
+	VkPipelineVertexInputStateCreateInfo vertex_input{};
+	vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	VkVertexInputBindingDescription vertex_input_bindings[] {
+		{0, sizeof(Vertex::pntbu), VK_VERTEX_INPUT_RATE_VERTEX}
+	};
+	vertex_input.vertexBindingDescriptionCount = array_size(vertex_input_bindings);
+	vertex_input.pVertexBindingDescriptions = vertex_input_bindings;
+	VkVertexInputAttributeDescription vertex_input_attributes[] {
+		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pntbu, p)},
+		{1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pntbu, n)},
+		{2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pntbu, t)},
+		{3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex::pntbu, b)},
+		{4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex::pntbu, u)}
+	};
+	vertex_input.vertexAttributeDescriptionCount = array_size(vertex_input_attributes);
+	vertex_input.pVertexAttributeDescriptions = vertex_input_attributes;
+	ci.pVertexInputState = &vertex_input;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	ci.pInputAssemblyState = &input_assembly;
+
+	ci.pViewportState = &m_pipeline_viewport_state.ci;
+
+	VkPipelineRasterizationStateCreateInfo rasterization{};
+	rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterization.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterization.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterization.lineWidth = 1.0f;
+	ci.pRasterizationState = &rasterization;
+
+	VkPipelineMultisampleStateCreateInfo multisample{};
+	multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample.rasterizationSamples = m_sample_count;
+	ci.pMultisampleState = &multisample;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil{};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
+	depthStencil.minDepthBounds = 0.0f;
+	depthStencil.maxDepthBounds = 1.0f;
+	ci.pDepthStencilState = &depthStencil;
+
+	VkPipelineColorBlendStateCreateInfo color_blend{};
+	color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState color_blend_attachments[] {
+		color_blend_attachment,
+		color_blend_attachment,
+		color_blend_attachment,
+		color_blend_attachment
+	};
+	color_blend.attachmentCount = array_size(color_blend_attachments);
+	color_blend.pAttachments = color_blend_attachments;
+	ci.pColorBlendState = &color_blend;
+
+	VkPipelineDynamicStateCreateInfo dynamic{};
+	dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	VkDynamicState dynamic_states[] {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+	dynamic.dynamicStateCount = array_size(dynamic_states);
+	dynamic.pDynamicStates = dynamic_states;
+	ci.pDynamicState = &dynamic;
+
+	res.pipelineLayout = VK_NULL_HANDLE;
+	res.pushConstantRange = pushConstantRange;
+	ci.layout = m_pipeline_layout_descriptor_set;
+	ci.renderPass = m_opaque_pass;
+
+	res = device.createGraphicsPipeline(m_pipeline_cache, ci);
+	return res;
+}
+
 Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 {
 	VkBufferCreateInfo bci{};
@@ -2593,6 +2703,128 @@ Model Renderer::loadModel(const char *path, AccelerationStructure *acc)
 				vertex.n = normal.at(i);
 				vertex.u = uv.at(i);
 				vertices.emplace_back(vertex);
+			}
+		}
+	}
+	Model res;
+	res.primitiveCount = vertices.size();
+	size_t buf_size = vertices.size() * sizeof(decltype(vertices)::value_type);
+	res.vertexBuffer = createVertexBuffer(buf_size);
+	res.indexType = VK_INDEX_TYPE_NONE_KHR;
+	{
+		VkBufferCreateInfo bci{};
+		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bci.size = buf_size;
+		bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		VmaAllocationCreateInfo aci{};
+		aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+		aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		void *data;
+		auto s = allocator.createBuffer(bci, aci, &data);
+		std::memcpy(data, vertices.data(), buf_size);
+		allocator.flushAllocation(s, 0, buf_size);
+
+		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		VkBufferCopy region;
+		region.srcOffset = 0;
+		region.dstOffset = 0;
+		region.size = buf_size;
+		m_transfer_cmd.copyBuffer(s, res.vertexBuffer, 1, &region);
+		m_transfer_cmd.end();
+
+		VkSubmitInfo submit{};
+		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submit.commandBufferCount = 1;
+		submit.pCommandBuffers = m_transfer_cmd.ptr();
+		m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
+		m_gqueue.waitIdle();
+
+		if (acc)
+			*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr, 0);
+
+		allocator.destroy(s);
+	}
+	return res;
+}
+
+Model Renderer::loadModelTb(const char *path, AccelerationStructure *acc)
+{
+	std::ifstream file(path);
+	if (!file.good())
+		throw std::runtime_error(path);
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn;
+	std::string err;
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, &file)) {
+		if (err.size() > 0)
+			std::cerr << "ERROR: " << path << ": " << err << std::endl;
+		throw std::runtime_error(path);
+	}
+	//if (warn.size() > 0)
+	//	std::cout << "WARNING: " << path << ": " << warn << std::endl;
+	if (err.size() > 0)
+		std::cerr << "ERROR: " << path << ": " << err << std::endl;
+	std::vector<Vertex::pntbu> vertices;
+	for (auto &shape : shapes) {
+		size_t ndx = 0;
+		for (auto &vert_count : shape.mesh.num_face_vertices) {
+			std::vector<glm::vec3> pos;
+			std::vector<glm::vec3> normal;
+			std::vector<glm::vec2> uv;
+			for (size_t i = 0; i < vert_count; i++) {
+				auto indices = shape.mesh.indices.at(ndx++);
+				if (indices.vertex_index >= 0)
+					pos.emplace_back(attrib.vertices.at(indices.vertex_index * 3), attrib.vertices.at(indices.vertex_index * 3 + 1), attrib.vertices.at(indices.vertex_index * 3 + 2));
+				if (indices.normal_index >= 0)
+					normal.emplace_back(attrib.normals.at(indices.normal_index * 3), attrib.normals.at(indices.normal_index * 3 + 1), attrib.normals.at(indices.normal_index * 3 + 2));
+				if (indices.texcoord_index >= 0)
+					uv.emplace_back(attrib.texcoords.at(indices.texcoord_index * 2), attrib.texcoords.at(indices.texcoord_index * 2 + 1));
+			}
+
+			while (pos.size() < 3)
+				pos.emplace_back(0.0);
+
+			if (normal.size() != 3) {
+				normal.clear();
+				glm::vec3 comp_normal = glm::normalize(glm::cross(pos.at(1) - pos.at(0), pos.at(2) - pos.at(0)));
+				for (size_t i = 0; i < 3; i++)
+					normal.emplace_back(comp_normal);
+			}
+
+			while (uv.size() < 3)
+				uv.emplace_back(0.0);
+
+			for (size_t i = 0; i < pos.size(); i++) {
+				decltype(vertices)::value_type vertex;
+				vertex.p = pos.at(i);
+				vertex.n = normal.at(i);
+				vertex.u = uv.at(i);
+				vertices.emplace_back(vertex);
+			}
+		}
+	}
+	{
+		size_t t_c = vertices.size() / 3;
+		for (size_t i = 0; i < t_c; i++) {
+			auto &v0 = vertices[i * 3];
+			auto &v1 = vertices[i * 3 + 1];
+			auto &v2 = vertices[i * 3 + 2];
+
+			auto dpos1 = v1.p - v0.p;
+			auto dpos2 = v2.p - v0.p;
+
+			auto duv1 = v1.u - v0.u;
+			auto duv2 = v2.u - v0.u;
+
+			float r = duv1.x * duv2.y - duv1.y * duv2.x;
+			auto t = (dpos1 * duv2.y - dpos2 * duv1.y) / r;
+			auto b = (dpos2 * duv1.x - dpos1 * duv2.x) / r;
+
+			for (size_t j = 0; j < 3; j++) {
+				vertices[i * 3 + j].t = t;
+				vertices[i * 3 + j].b = b;
 			}
 		}
 	}
@@ -2959,6 +3191,28 @@ void Renderer::bindModel_pn_i16(uint32_t binding, VkBuffer vertexBuffer, VkBuffe
 	vkUpdateDescriptorSets(device, m_frame_count * 2, writes, 0, nullptr);
 }
 
+void Renderer::bindModel_pntbu(uint32_t binding, VkBuffer vertexBuffer)
+{
+	VkDescriptorBufferInfo bis[m_frame_count];
+	VkWriteDescriptorSet writes[m_frame_count];
+	for (size_t i = 0; i < m_frame_count; i++) {
+		VkWriteDescriptorSet w{};
+		w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		w.dstSet = m_frames[i].m_illum_rt.m_res_set;
+		w.dstBinding = 5;
+		w.dstArrayElement = binding;
+		w.descriptorCount = 1;
+		w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		auto &bi = bis[i];
+		bi.buffer = vertexBuffer;
+		bi.offset = 0;
+		bi.range = VK_WHOLE_SIZE;
+		w.pBufferInfo = &bi;
+		writes[i] = w;
+	}
+	vkUpdateDescriptorSets(device, m_frame_count, writes, 0, nullptr);
+}
+
 Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_frame_count(frameCount),
 	m_validate(validate),
@@ -3034,8 +3288,9 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 
 	if (needsAccStructure()) {
 		VkDescriptorBufferInfo bis[m_frame_count * modelPoolSize];
-		uint32_t write_count = m_frame_count * 3;
-		VkWriteDescriptorSet writes[m_frame_count * 3];
+		uint32_t model_buf_count = 4;
+		uint32_t write_count = m_frame_count * model_buf_count;
+		VkWriteDescriptorSet writes[m_frame_count * model_buf_count];
 		for (size_t i = 0; i < m_frame_count; i++) {
 			size_t off = i * modelPoolSize;
 			VkBuffer buf = m_screen_vertex_buffer;
@@ -3053,11 +3308,13 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 				w.descriptorCount = modelPoolSize;
 				w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 				w.pBufferInfo = &bis[off];
-				writes[i * 3] = w;
+				writes[i * model_buf_count] = w;
 				w.dstBinding = 3;
-				writes[i * 3 + 1] = w;
+				writes[i * model_buf_count + 1] = w;
 				w.dstBinding = 4;
-				writes[i * 3 + 2] = w;
+				writes[i * model_buf_count + 2] = w;
+				w.dstBinding = 5;
+				writes[i * model_buf_count + 3] = w;
 			}
 		}
 		vkUpdateDescriptorSets(device, write_count, writes, 0, nullptr);
@@ -3380,7 +3637,7 @@ void Renderer::bindFrameDescriptors(void)
 		if (needsAccStructure()) {
 			WriteBufDesc bufs[IllumTechnique::Data::RayTracing::bufWritesPerFrame] {
 				{cur_frame.m_illum_rt.m_res_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, cur_frame.m_illum_rt.m_custom_instance_buffer},
-				{cur_frame.m_illum_rt.m_res_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, cur_frame.m_illum_rt.m_materials_albedo_buffer}
+				{cur_frame.m_illum_rt.m_res_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, cur_frame.m_illum_rt.m_materials_albedo_buffer}
 			};
 
 			for (size_t i = 0; i < array_size(bufs); i++)
@@ -4084,12 +4341,13 @@ Renderer::IllumTechnique::Data::RayTracing::Shared Renderer::createIllumRayTraci
 
 	Handle rgen[1];
 	Handle rmiss[1];
-	Handle rhit[2];
+	Handle rhit[3];
 #define CPY(l, r) std::memcpy(&l, &r, sizeof(l))
 	CPY(rgen[0], handles[0]);
 	CPY(rmiss[0], handles[1]);
 	CPY(rhit[0], handles[2]);	// opaque
 	CPY(rhit[1], handles[3]);	// opaque_uvgen
+	CPY(rhit[2], handles[4]);	// opaque_tb
 #undef CPY
 
 	VmaAllocationCreateInfo aci{
@@ -4166,7 +4424,8 @@ VkDescriptorSetLayout Renderer::IllumTechnique::Data::RayTracing::Shared::create
 		{2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, modelPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},	// models_pnu
 		{3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, modelPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},	// models_pn_i16_v
 		{4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, modelPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},	// models_pn_i16_i
-		{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr}	// materials_albedo
+		{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, modelPoolSize, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},	// models_pntbu
+		{6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr}	// materials_albedo
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -4249,6 +4508,8 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 	res.pushShaderModule(opaque);
 	auto opaque_uvgen = r.loadShaderModule(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, "sha/opaque_uvgen");
 	res.pushShaderModule(opaque_uvgen);
+	auto opaque_tb = r.loadShaderModule(VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "sha/opaque_tb");
+	res.pushShaderModule(opaque_tb);
 	VkPipelineShaderStageCreateInfo stages[] {
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
 			VK_SHADER_STAGE_RAYGEN_BIT_KHR, ray_tracing, "main", rgen_spec},	// 0
@@ -4257,7 +4518,9 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
 			VK_SHADER_STAGE_ANY_HIT_BIT_KHR, opaque, "main", &spec},	// 2
 		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
-			VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque_uvgen, "main", &spec}	// 3
+			VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, opaque_uvgen, "main", &spec},	// 3
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_ANY_HIT_BIT_KHR, opaque_tb, "main", &spec}	// 4
 	};
 	ci.stageCount = array_size(stages);
 	ci.pStages = stages;
@@ -4292,6 +4555,14 @@ Pipeline Renderer::IllumTechnique::Data::RayTracing::Shared::createPipeline(Rend
 			.generalShader = VK_SHADER_UNUSED_KHR,
 			.closestHitShader = 3,
 			.anyHitShader = VK_SHADER_UNUSED_KHR,
+			.intersectionShader = VK_SHADER_UNUSED_KHR
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+			.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,	// opaque_tb
+			.generalShader = VK_SHADER_UNUSED_KHR,
+			.closestHitShader = VK_SHADER_UNUSED_KHR,
+			.anyHitShader = 4,
 			.intersectionShader = VK_SHADER_UNUSED_KHR
 		}
 	};

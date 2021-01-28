@@ -1,0 +1,22 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+
+#include "ray_tracing.glsl"
+
+layout(location = 0) rayPayloadInEXT RayPayload rp;
+
+hitAttributeEXT vec2 baryCoord;
+
+void main(void)
+{
+	Instance ins = instances.instances[gl_InstanceCustomIndexEXT];
+	Vertex_pntbu v = vertex_read_pntbu(ins.model, gl_PrimitiveID, baryCoord);
+	Material_albedo m = materials_albedo.materials[ins.material];
+	vec4 alb = texture(samplers[m.albedo], vec2(v.u.x, -v.u.y));
+	if (alb.w < 0.01)
+		ignoreIntersectionEXT;
+	rp.hit = true;
+	rp.pos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+	rp.albedo = alb.xyz;
+	rp.normal = normalize(ins.mv_normal * v.n);
+}

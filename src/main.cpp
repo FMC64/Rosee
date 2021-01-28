@@ -299,6 +299,12 @@ public:
 		pipeline_opaque->pushDynamic<MVP>();
 		pipeline_opaque->pushDynamic<MV_normal>();
 
+		auto pipeline_opaque_tb = pipeline_pool.allocate();
+		std::memset(pipeline_opaque_tb, 0, sizeof(Pipeline));
+		*pipeline_opaque_tb = m_r.createPipeline3D_pntbu("sha/opaque_tb", sizeof(int32_t));
+		pipeline_opaque_tb->pushDynamic<MVP>();
+		pipeline_opaque_tb->pushDynamic<MV_normal>();
+
 		auto sampler_norm_l = m_r.device.createSampler(VkSamplerCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 			.magFilter = VK_FILTER_LINEAR,
@@ -344,9 +350,15 @@ public:
 			auto view1 = image_view_pool.allocate();
 			*view1 = m_r.createImageView(*img1, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
+			auto img2 = image_pool.allocate();
+			*img2 = m_r.loadImage("res/mod/normal.png", true);
+			auto view2 = image_view_pool.allocate();
+			*view2 = m_r.createImageView(*img2, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+
 			VkDescriptorImageInfo image_infos[image_count] {
 				{sampler_norm_l, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-				{sampler_norm_n, *view1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
+				{sampler_norm_n, *view1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+				{sampler_norm_l, *view2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
 			};
 			m_r.bindCombinedImageSamplers(0, array_size(image_infos), image_infos);
 		}
@@ -355,19 +367,19 @@ public:
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
 			auto &r = b.get<OpaqueRender>()[n];
-			r.pipeline = pipeline_opaque;
+			r.pipeline = pipeline_opaque_tb;
 			r.material = material_albedo;
 			uint32_t model_ndx = model_pool.currentIndex();
 			r.model = model_pool.allocate();
 			AccelerationStructure *acc = m_r.needsAccStructure() ? acc_pool.allocate() : nullptr;
-			*r.model = m_r.loadModel("res/mod/vokselia_spawn.obj", acc);
+			*r.model = m_r.loadModelTb("res/mod/vokselia_spawn.obj", acc);
 			if (m_r.needsAccStructure()) {
 				auto &rt = b.get<RT_instance>()[n];
 				rt.mask = 1;
-				rt.instanceShaderBindingTableRecordOffset = 0;
+				rt.instanceShaderBindingTableRecordOffset = 2;
 				rt.accelerationStructureReference = acc->reference;
 				rt.model = model_ndx;
-				m_r.bindModel_pnu(model_ndx, r.model->vertexBuffer);
+				m_r.bindModel_pntbu(model_ndx, r.model->vertexBuffer);
 				rt.material = 1;
 			}
 		}

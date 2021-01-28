@@ -69,6 +69,15 @@ struct pnu
 	//glm::vec2 _pad2;
 };
 
+struct pntbu
+{
+	glm::vec3 p;
+	glm::vec3 n;
+	glm::vec3 t;
+	glm::vec3 b;
+	glm::vec2 u;
+};
+
 }
 
 struct Material_albedo {
@@ -196,7 +205,7 @@ private:
 	Vk::CommandBuffer m_ctransfer_cmd;
 
 public:
-	static inline constexpr uint32_t s0_sampler_count = 2;
+	static inline constexpr uint32_t s0_sampler_count = 3;
 	static inline constexpr uint32_t modelPoolSize = 512;
 	static inline constexpr uint32_t materialPoolSize = 2;
 
@@ -276,7 +285,7 @@ public:
 			};
 
 			struct RayTracing {
-				static inline constexpr uint32_t groupCount = 4;
+				static inline constexpr uint32_t groupCount = 5;
 				static inline constexpr uint32_t bufWritesPerFrame = 2;
 				static inline constexpr uint32_t customInstancePoolSize = 16000000;
 
@@ -642,6 +651,7 @@ public:
 	//Pipeline createPipeline(const char *stagesPath, uint32_t pushConstantRange);
 	Pipeline createPipeline3D_pn(const char *stagesPath, uint32_t pushConstantRange);
 	Pipeline createPipeline3D_pnu(const char *stagesPath, uint32_t pushConstantRange);
+	Pipeline createPipeline3D_pntbu(const char *stagesPath, uint32_t pushConstantRange);
 
 private:
 	Pool<Pipeline> m_pipeline_pool;
@@ -653,6 +663,7 @@ public:
 	void loadBuffer(VkBuffer buffer, size_t size, const void *data);
 	void loadBufferCompute(VkBuffer buffer, size_t size, const void *data);
 	Model loadModel(const char *path, AccelerationStructure *acc);
+	Model loadModelTb(const char *path, AccelerationStructure *acc);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips);
 
 	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
@@ -668,6 +679,7 @@ public:
 	void bindMaterials_albedo(uint32_t materialCount, Material_albedo *pMaterials);
 	void bindModel_pnu(uint32_t binding, VkBuffer vertexBuffer);
 	void bindModel_pn_i16(uint32_t binding, VkBuffer vertexBuffer, VkBuffer indexBuffer);
+	void bindModel_pntbu(uint32_t binding, VkBuffer vertexBuffer);
 
 private:
 	bool m_keys_prev[GLFW_KEY_LAST];
