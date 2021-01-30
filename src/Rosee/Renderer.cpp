@@ -2917,13 +2917,42 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 	//	std::cout << "WARNING: " << path << ": " << warn << std::endl;
 	if (err.size() > 0)
 		std::cerr << "ERROR: " << path << ": " << err << std::endl;
-	std::vector<Vertex::pntbu> vertices;
+	std::vector<Vertex::pnu> vertices;
+	int vert_mat = -69;
+	size_t mat_off = m_material_pool.currentIndex();
+	{
+		Material_albedo mats[materials.size()];
+		for (size_t i = 0; i < materials.size(); i++) {
+			auto &m = materials[i];
+			auto mat = m_material_pool.allocate();
+			auto p = std::string(path) + m.diffuse_texname;
+			size_t andx = 0;
+			if (m.diffuse_texname.size() > 0)
+				andx = allocateImage(p.c_str(), VK_FORMAT_R8G8B8A8_SRGB, true, true);
+			else {
+				std::cout << "WARN: MISSING DIFFUSE FOR MAT: " << m.name << std::endl;
+			}
+			reinterpret_cast<Material_albedo&>(*mat).albedo = andx;
+			mats[i].albedo = andx;
+		}
+		bindMaterials_albedo(mat_off, materials.size(), mats);
+	}
 	//std::cout << "Materials: " << materials.size() << std::endl;
 	//std::cout << "Shapes: " << shapes.size() << std::endl;
 
 	auto flush_verts = [&](){
 		if (vertices.size() == 0)
 			return;
+
+		auto [b, n] = map.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
+		b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
+		auto &r = b.get<OpaqueRender>()[n];
+		r.pipeline = pipeline_opaque;
+		auto mat_ndx = mat_off + static_cast<size_t>(vert_mat);
+		r.material = &m_material_pool.data[mat_ndx];
+		uint32_t model_ndx = m_model_pool.currentIndex();
+		r.model = m_model_pool.allocate();
+		AccelerationStructure *acc = needsAccStructure() ? m_acc_pool.allocate() : nullptr;
 
 		/*size_t t_c = vertices.size() / 3;
 		for (size_t i = 0; i < t_c; i++) {
@@ -2945,8 +2974,9 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 				vertices[i * 3 + j].t = t;
 				vertices[i * 3 + j].b = b;
 			}
-		}
-		Model res;
+		}*/
+
+		Model &res = *r.model;
 		res.primitiveCount = vertices.size();
 		size_t buf_size = vertices.size() * sizeof(decltype(vertices)::value_type);
 		res.vertexBuffer = createVertexBuffer(buf_size);
@@ -2983,7 +3013,20 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 				*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr, 0);
 
 			allocator.destroy(s);
-		}*/
+		}
+
+		if (needsAccStructure()) {
+			auto &rt = b.get<RT_instance>()[n];
+			rt.mask = 1;
+			rt.instanceShaderBindingTableRecordOffset = 0;
+			rt.accelerationStructureReference = acc->reference;
+			rt.model = model_ndx;
+			bindModel_pnu(model_ndx, r.model->vertexBuffer);
+			rt.material = mat_ndx;
+		}
+
+		vert_mat = -69;
+		vertices.clear();
 	};
 
 	for (auto &shape : shapes) {
@@ -3002,6 +3045,7 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 		int mi = -69;
 		for (size_t i = 0; i < shape.mesh.num_face_vertices.size(); i++) {
 			auto m = shape.mesh.material_ids[i];
+			vert_mat = m;
 			if (m != mi) {
 				flush_verts();
 				mi = m;
@@ -3042,8 +3086,8 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 				vertices.emplace_back(vertex);
 			}
 		}
-		flush_verts();
 	}
+	flush_verts();
 }
 
 Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkFormat format)
@@ -3052,8 +3096,7 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkForma
 	auto data = stbi_load(path, &x, &y, &chan, 4);
 	if (data == nullptr)
 		throw std::runtime_error(path);
-	if (chan != 4)
-		throw std::runtime_error(path);
+	chan = 4;
 
 	VkImageCreateInfo ici{};
 	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -3302,7 +3345,7 @@ void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageIn
 
 void Renderer::bindMaterials_albedo(uint32_t firstMaterial, uint32_t materialCount, Material_albedo *pMaterials)
 {
-	std::memcpy(m_materials_albedo + firstMaterial, pMaterials, materialCount * sizeof(Material_albedo));
+	std::memcpy(&m_materials_albedo[firstMaterial], pMaterials, materialCount * sizeof(Material_albedo));
 	for (uint32_t i = 0; i < m_frame_count; i++)
 		loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialCount * sizeof(Material_albedo), pMaterials, firstMaterial * sizeof(Material_albedo));
 }
