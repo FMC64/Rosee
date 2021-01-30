@@ -7,5 +7,5 @@ layout(location = 0) out vec4 out_wsi;
 
 void main(void)
 {
-	out_wsi = vec4(texelFetch(outp, ivec2(gl_FragCoord.xy), 0).xyz, 1.0);
+	out_wsi = vec4(texelFetch(outp, ivec2(gl_FragCoord.xy), 0).xyz, 1.0) * 8.0;
 }

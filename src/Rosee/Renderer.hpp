@@ -205,9 +205,9 @@ private:
 	Vk::CommandBuffer m_ctransfer_cmd;
 
 public:
-	static inline constexpr uint32_t s0_sampler_count = 3;
+	static inline constexpr uint32_t s0_sampler_count = 256;
 	static inline constexpr uint32_t modelPoolSize = 512;
-	static inline constexpr uint32_t materialPoolSize = 2;
+	static inline constexpr uint32_t materialPoolSize = 256;
 
 private:
 	static inline constexpr uint32_t const_sets_per_frame = 4;
@@ -655,15 +655,33 @@ public:
 
 private:
 	Pool<Pipeline> m_pipeline_pool;
+public:
 	Pool<Model> m_model_pool;
+	Pool<AccelerationStructure> m_acc_pool;
+private:
+	Pool<Material> m_material_pool;
+	bool image_pool_not_bound = true;
+	Pool<Vk::ImageAllocation> m_image_pool;
+	Pool<VkImageView> m_image_view_pool;
 
 public:
+	Pipeline *pipeline_opaque_uvgen;
+	Pipeline *pipeline_opaque;
+	Pipeline *pipeline_opaque_tb;
+
+	Vk::Sampler sampler_norm_l;
+	Vk::Sampler sampler_norm_n;
+
+	uint32_t allocateImage(const char *path, VkFormat format, bool genMips, bool linearSampler);
+	uint32_t allocateMaterial(void);
+
 	Vk::BufferAllocation createVertexBuffer(size_t size);
 	Vk::BufferAllocation createIndexBuffer(size_t size);
 	void loadBuffer(VkBuffer buffer, size_t size, const void *data);
-	void loadBufferCompute(VkBuffer buffer, size_t size, const void *data);
+	void loadBufferCompute(VkBuffer buffer, size_t size, const void *data, size_t offset = 0);
 	Model loadModel(const char *path, AccelerationStructure *acc);
 	Model loadModelTb(const char *path, AccelerationStructure *acc);
+	void instanciateModel(Map &map, const char *path, const char *filename);
 	Vk::ImageAllocation loadImage(const char *path, bool gen_mips, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
 
 	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
@@ -676,7 +694,7 @@ private:
 	Material_albedo m_materials_albedo[materialPoolSize];
 
 public:
-	void bindMaterials_albedo(uint32_t materialCount, Material_albedo *pMaterials);
+	void bindMaterials_albedo(uint32_t firstMaterial, uint32_t materialCount, Material_albedo *pMaterials);
 	void bindModel_pnu(uint32_t binding, VkBuffer vertexBuffer);
 	void bindModel_pn_i16(uint32_t binding, VkBuffer vertexBuffer, VkBuffer indexBuffer);
 	void bindModel_pntbu(uint32_t binding, VkBuffer vertexBuffer);
