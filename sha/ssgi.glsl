@@ -1,22 +1,3 @@
-// origin is start of the ray, camera space
-// dir is the direction of the ray, camera space
-void rt_project_ray(vec3 origin, vec3 dir, out vec3 ss_p0, out vec3 ss_p1)
-{
-	if (dir.z == 0.0) {
-		ss_p0 = rt_project_point(origin);
-		ss_p1 = rt_project_point(origin + dir * 16000.0);	// max screen size is 16k because of that 'trick'
-		return;
-	}
-	float len;
-	if (dir.z > 0.0)
-		len = (il.cam_near - origin.z) / dir.z;
-	else
-		len = (il.cam_far - origin.z) / dir.z;
-	vec3 end = origin + dir * len;
-	ss_p0 = rt_project_point(origin);
-	ss_p1 = rt_project_point(end);
-}
-
 const float rt_inf = 1.0 / 0.0;
 
 float rt_inter_rect(vec2 tl, vec2 br, vec2 p, vec2 d)
