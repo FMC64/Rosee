@@ -276,7 +276,7 @@ public:
 	void run(void)
 	{
 		auto grass = m_r.allocateImage("res/img/grass.png", VK_FORMAT_R8G8B8A8_SRGB, true, true);
-		auto vokselia_spawn_albedo = m_r.allocateImage("res/img/stone_wall_016/albedo.jpg", VK_FORMAT_R8G8B8A8_SRGB, false, false);
+		auto vokselia_spawn_albedo = m_r.allocateImage("res/img/stone_wall_016/albedo.jpg", VK_FORMAT_R8G8B8A8_SRGB, true, true);
 		/*auto normal = */m_r.allocateImage("res/img/stone_wall_016/normal.jpg", VK_FORMAT_R8G8B8A8_UNORM, true, true);
 		/*auto normal = */m_r.allocateImage("res/img/stone_wall_016/height.png", VK_FORMAT_R8G8B8A8_UNORM, true, true);
 		/*auto normal = */m_r.allocateImage("res/img/stone_wall_016/ao.jpg", VK_FORMAT_R8G8B8A8_UNORM, true, true);

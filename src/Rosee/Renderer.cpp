@@ -718,7 +718,8 @@ Vk::DescriptorSetLayout Renderer::createDescriptorSetLayout0(void)
 	VkDescriptorSetLayoutCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	VkDescriptorSetLayoutBinding bindings[] {
-		{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, s0_sampler_count, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
+		{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, s0_sampler_count, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
 	};
 	ci.bindingCount = array_size(bindings);
 	ci.pBindings = bindings;
@@ -1871,7 +1872,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 	ci.maxSets = m_frame_count * sets_per_frame;
 	VkDescriptorPoolSize pool_sizes[] {
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count},	// illum
+		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count * 2},	// illum
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_sampler_count +	// s0
 			m_illum_technique_props.descriptorCombinedImageSamplerCount +			// illumination
@@ -3329,7 +3330,7 @@ void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageIn
 		VkWriteDescriptorSet w{};
 		w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		w.dstSet = m_frames[i].m_descriptor_set_0;
-		w.dstBinding = 0;
+		w.dstBinding = 1;
 		w.dstArrayElement = firstSampler;
 		w.descriptorCount = imageInfoCount;
 		w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -3337,6 +3338,7 @@ void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageIn
 		writes[i * writes_per_frame] = w;
 		if (needsAccStructure()) {
 			w.dstSet = m_frames[i].m_illum_rt.m_res_set;
+			w.dstBinding = 0;
 			writes[i * writes_per_frame + 1] = w;
 		}
 	}
@@ -3675,6 +3677,7 @@ void Renderer::bindFrameDescriptors(void)
 			0);	// illum
 	uint32_t img_writes_offset = 0;
 	static constexpr uint32_t const_buf_writes_per_frame =
+		1 +	// s0: buffer
 		1;	// illum: buffer
 	uint32_t buf_writes_per_frame = const_buf_writes_per_frame +
 		(needsAccStructure() ?
@@ -3897,6 +3900,7 @@ void Renderer::bindFrameDescriptors(void)
 
 		{
 			WriteBufDesc  bufs[const_buf_writes_per_frame] {
+				{cur_frame.m_descriptor_set_0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, cur_frame.m_illumination_buffer},
 				{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, cur_frame.m_illumination_buffer}
 			};
 

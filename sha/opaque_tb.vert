@@ -20,6 +20,7 @@ layout(location = 0) out vec3 out_n;
 layout(location = 1) out vec3 out_t;
 layout(location = 2) out vec3 out_b;
 layout(location = 3) out vec2 out_u;
+layout(location = 4) out flat int out_i;
 
 void main(void)
 {
@@ -28,4 +29,5 @@ void main(void)
 	out_t = d.f[gl_InstanceIndex].mv_normal * in_t;
 	out_b = d.f[gl_InstanceIndex].mv_normal * in_b;
 	out_u = in_u;
+	out_i = gl_InstanceIndex;
 }
