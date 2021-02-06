@@ -308,6 +308,8 @@ void main(void)
 			for (int j = 0; j < 3; j++)
 				diffuse_b[j] = texelFetch(last_diffuse, ivec3(aoff, j), 0).xyz;
 			acc_diffuse = texelFetch(last_diffuse_acc, aoff, 0).x - 1;
+			direct_light = texelFetch(last_direct_light, aoff, 0).x;
+			acc_direct_light = texelFetch(last_direct_light_acc, aoff, 0).x - 1;
 		}
 	}
 
