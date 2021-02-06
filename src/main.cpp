@@ -275,104 +275,61 @@ class Game
 public:
 	void run(void)
 	{
-		auto pipeline_pool = PipelinePool(64);
-		auto material_pool = MaterialPool(Renderer::materialPoolSize);
-		auto model_pool = ModelPool(Renderer::modelPoolSize);
-		auto acc_pool = AccelerationStructurePool(Renderer::modelPoolSize);
-		static constexpr size_t image_count = Renderer::s0_sampler_count;
-		auto image_pool = Pool<Vk::ImageAllocation>(image_count);
-		auto image_view_pool = Pool<Vk::ImageView>(image_count);
-
-		//auto model_world = model_pool.allocate();
-		//*model_world = world.createChunk(m_r, ivec2(0));
-
-		auto pipeline_opaque_uvgen = pipeline_pool.allocate();
-		std::memset(pipeline_opaque_uvgen, 0, sizeof(Pipeline));
-		*pipeline_opaque_uvgen = m_r.createPipeline3D_pn("sha/opaque_uvgen", sizeof(int32_t));
-		pipeline_opaque_uvgen->pushDynamic<MVP>();
-		pipeline_opaque_uvgen->pushDynamic<MV_normal>();
-		pipeline_opaque_uvgen->pushDynamic<MW_local>();
-
-		auto pipeline_opaque = pipeline_pool.allocate();
-		std::memset(pipeline_opaque, 0, sizeof(Pipeline));
-		*pipeline_opaque = m_r.createPipeline3D_pnu("sha/opaque", sizeof(int32_t));
-		pipeline_opaque->pushDynamic<MVP>();
-		pipeline_opaque->pushDynamic<MV_normal>();
-
-		auto pipeline_opaque_tb = pipeline_pool.allocate();
-		std::memset(pipeline_opaque_tb, 0, sizeof(Pipeline));
-		*pipeline_opaque_tb = m_r.createPipeline3D_pntbu("sha/opaque_tb", sizeof(int32_t));
-		pipeline_opaque_tb->pushDynamic<MVP>();
-		pipeline_opaque_tb->pushDynamic<MV_normal>();
-
-		auto sampler_norm_l = m_r.device.createSampler(VkSamplerCreateInfo{
-			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-			.magFilter = VK_FILTER_LINEAR,
-			.minFilter = VK_FILTER_LINEAR,
-			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.anisotropyEnable = true,
-			.maxAnisotropy = 16.0f,
-			.maxLod = VK_LOD_CLAMP_NONE
-		});
-		auto sampler_norm_n = m_r.device.createSampler(VkSamplerCreateInfo{
-			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-			.magFilter = VK_FILTER_NEAREST,
-			.minFilter = VK_FILTER_NEAREST,
-			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT
-		});
+		auto grass = m_r.allocateImage("res/img/grass.png", VK_FORMAT_R8G8B8A8_SRGB, true, true);
+		auto vokselia_spawn_albedo = m_r.allocateImage("res/mod/vokselia_spawn_albedo.png", VK_FORMAT_R8G8B8A8_SRGB, false, false);
+		/*auto normal = */m_r.allocateImage("res/mod/normal2.png", VK_FORMAT_R8G8B8A8_UNORM, true, true);
 
 		Material_albedo mat_alb[] {
-			{0},
-			{1}
+			{grass},
+			{vokselia_spawn_albedo}
 		};
-
-		auto material_grass = material_pool.allocate();
-		*reinterpret_cast<int32_t*>(material_grass) = mat_alb[0].albedo;
-		auto material_albedo = material_pool.allocate();
-		*reinterpret_cast<int32_t*>(material_albedo) = mat_alb[1].albedo;
-
-		if (m_r.needsAccStructure())
-			m_r.bindMaterials_albedo(array_size(mat_alb), mat_alb);
-
+		Material mat[2];
+		reinterpret_cast<Material_albedo&>(mat[0]).albedo = grass;
+		reinterpret_cast<Material_albedo&>(mat[1]).albedo = vokselia_spawn_albedo;
+		size_t first_mat = ~0ULL;
 		{
-			auto img0 = image_pool.allocate();
-			*img0 = m_r.loadImage("res/img/grass.png", true);
-			auto view0 = image_view_pool.allocate();
-			*view0 = m_r.createImageView(*img0, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-			auto img1 = image_pool.allocate();
-			*img1 = m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false);
-			auto view1 = image_view_pool.allocate();
-			*view1 = m_r.createImageView(*img1, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-
-			auto img2 = image_pool.allocate();
-			*img2 = m_r.loadImage("res/mod/normal2.png", true, VK_FORMAT_R8G8B8A8_UNORM);
-			auto view2 = image_view_pool.allocate();
-			*view2 = m_r.createImageView(*img2, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
-
-			VkDescriptorImageInfo image_infos[image_count] {
-				{sampler_norm_l, *view0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-				{sampler_norm_n, *view1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-				{sampler_norm_l, *view2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
-			};
-			m_r.bindCombinedImageSamplers(0, array_size(image_infos), image_infos);
+			for (size_t i = 0; i < array_size(mat_alb); i++) {
+				auto m = m_r.allocateMaterial();
+				if (first_mat == ~0ULL)
+					first_mat = m;
+			}
 		}
 
-		{
+		if (m_r.needsAccStructure())
+			m_r.bindMaterials_albedo(first_mat, array_size(mat_alb), mat_alb);
+
+		/*{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
-			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
+			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
+			auto &r = b.get<OpaqueRender>()[n];
+			r.pipeline = m_r.pipeline_opaque;
+			r.material = &mat[1];
+			uint32_t model_ndx = m_r.m_model_pool.currentIndex();
+			r.model = m_r.m_model_pool.allocate();
+			AccelerationStructure *acc = m_r.needsAccStructure() ? m_r.m_acc_pool.allocate() : nullptr;
+			*r.model = m_r.loadModel("res/mod/sponza.obj", acc);
+			if (m_r.needsAccStructure()) {
+				auto &rt = b.get<RT_instance>()[n];
+				rt.mask = 1;
+				rt.instanceShaderBindingTableRecordOffset = 0;
+				rt.accelerationStructureReference = acc->reference;
+				rt.model = model_ndx;
+				m_r.bindModel_pnu(model_ndx, r.model->vertexBuffer);
+				rt.material = 1;
+			}
+		}*/
+
+		m_r.instanciateModel(m_m, "res/mod/sponza/", "sponza.obj");
+		/*{
+			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
+			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
 			auto &r = b.get<OpaqueRender>()[n];
 			r.pipeline = pipeline_opaque_tb;
 			r.material = material_albedo;
 			uint32_t model_ndx = model_pool.currentIndex();
 			r.model = model_pool.allocate();
 			AccelerationStructure *acc = m_r.needsAccStructure() ? acc_pool.allocate() : nullptr;
-			*r.model = m_r.loadModelTb("res/mod/vokselia_spawn.obj", acc);
+			*r.model = m_r.loadModelFull("res/mod/sponza/", "sponza.obj", acc);
 			if (m_r.needsAccStructure()) {
 				auto &rt = b.get<RT_instance>()[n];
 				rt.mask = 1;
@@ -382,7 +339,7 @@ public:
 				m_r.bindModel_pntbu(model_ndx, r.model->vertexBuffer);
 				rt.material = 1;
 			}
-		}
+		}*/
 		//gen_chunks(pipeline_opaque_uvgen, material_grass, model_pool, acc_pool);
 
 		auto bef = std::chrono::high_resolution_clock::now();
@@ -550,13 +507,6 @@ public:
 		}
 
 		m_r.waitIdle();
-		m_r.device.destroy(sampler_norm_n);
-		m_r.device.destroy(sampler_norm_l);
-		pipeline_pool.destroy(m_r.device);
-		acc_pool.destroyUsing(m_r);
-		model_pool.destroy(m_r.allocator);
-		image_view_pool.destroyUsing(m_r.device);
-		image_pool.destroyUsing(m_r.allocator);
 	}
 
 	Game(bool validate, bool useRenderDoc) :

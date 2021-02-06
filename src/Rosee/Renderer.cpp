@@ -2547,6 +2547,34 @@ Pipeline Renderer::createPipeline3D_pntbu(const char *stagesPath, uint32_t pushC
 	return res;
 }
 
+uint32_t Renderer::allocateImage(const char *path, VkFormat format, bool genMips, bool linearSampler)
+{
+	auto ndx = m_image_pool.currentIndex();
+	auto img = m_image_pool.allocate();
+	*img = loadImage(path, genMips, format);
+	auto view = m_image_view_pool.allocate();
+	*view = createImageView(*img, VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT);
+	VkDescriptorImageInfo image_info {
+		linearSampler ? sampler_norm_l : sampler_norm_n, *view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	};
+	if (image_pool_not_bound) {
+		VkDescriptorImageInfo image_infos[s0_sampler_count];
+		for (uint32_t i = 0; i < s0_sampler_count; i++)
+			image_infos[i] = image_info;
+		bindCombinedImageSamplers(0, s0_sampler_count, image_infos);
+		image_pool_not_bound = false;
+	} else
+		bindCombinedImageSamplers(ndx, 1, &image_info);
+	return ndx;
+}
+
+uint32_t Renderer::allocateMaterial(void)
+{
+	auto res = m_material_pool.currentIndex();
+	m_material_pool.allocate();
+	return res;
+}
+
 Vk::BufferAllocation Renderer::createVertexBuffer(size_t size)
 {
 	VkBufferCreateInfo bci{};
@@ -2615,7 +2643,7 @@ void Renderer::loadBuffer(VkBuffer buffer, size_t size, const void *data)
 	allocator.destroy(s);
 }
 
-void Renderer::loadBufferCompute(VkBuffer buffer, size_t size, const void *data)
+void Renderer::loadBufferCompute(VkBuffer buffer, size_t size, const void *data, size_t offset)
 {
 	VkBufferCreateInfo bci{};
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -2632,7 +2660,7 @@ void Renderer::loadBufferCompute(VkBuffer buffer, size_t size, const void *data)
 	m_ctransfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VkBufferCopy region;
 	region.srcOffset = 0;
-	region.dstOffset = 0;
+	region.dstOffset = offset;
 	region.size = size;
 	m_ctransfer_cmd.copyBuffer(s, buffer, 1, &region);
 	m_ctransfer_cmd.end();
@@ -2869,14 +2897,206 @@ Model Renderer::loadModelTb(const char *path, AccelerationStructure *acc)
 	return res;
 }
 
+void Renderer::instanciateModel(Map &map, const char *path, const char *filename)
+{
+	std::ifstream file(std::string(path) + filename);
+	if (!file.good())
+		throw std::runtime_error(path);
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn;
+	std::string err;
+	tinyobj::MaterialFileReader mat(path);
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, &file, &mat)) {
+		if (err.size() > 0)
+			std::cerr << "ERROR: " << path << ": " << err << std::endl;
+		throw std::runtime_error(path);
+	}
+	//if (warn.size() > 0)
+	//	std::cout << "WARNING: " << path << ": " << warn << std::endl;
+	if (err.size() > 0)
+		std::cerr << "ERROR: " << path << ": " << err << std::endl;
+	std::vector<Vertex::pnu> vertices;
+	int vert_mat = -69;
+	size_t mat_off = m_material_pool.currentIndex();
+	{
+		Material_albedo mats[materials.size()];
+		for (size_t i = 0; i < materials.size(); i++) {
+			auto &m = materials[i];
+			auto mat = m_material_pool.allocate();
+			auto p = std::string(path) + m.diffuse_texname;
+			size_t andx = 0;
+			if (m.diffuse_texname.size() > 0)
+				andx = allocateImage(p.c_str(), VK_FORMAT_R8G8B8A8_SRGB, true, true);
+			else {
+				std::cout << "WARN: MISSING DIFFUSE FOR MAT: " << m.name << std::endl;
+			}
+			reinterpret_cast<Material_albedo&>(*mat).albedo = andx;
+			mats[i].albedo = andx;
+		}
+		bindMaterials_albedo(mat_off, materials.size(), mats);
+	}
+	//std::cout << "Materials: " << materials.size() << std::endl;
+	//std::cout << "Shapes: " << shapes.size() << std::endl;
+
+	auto flush_verts = [&](){
+		if (vertices.size() == 0)
+			return;
+
+		auto [b, n] = map.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
+		b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
+		auto &r = b.get<OpaqueRender>()[n];
+		r.pipeline = pipeline_opaque;
+		auto mat_ndx = mat_off + static_cast<size_t>(vert_mat);
+		r.material = &m_material_pool.data[mat_ndx];
+		uint32_t model_ndx = m_model_pool.currentIndex();
+		r.model = m_model_pool.allocate();
+		AccelerationStructure *acc = needsAccStructure() ? m_acc_pool.allocate() : nullptr;
+
+		/*size_t t_c = vertices.size() / 3;
+		for (size_t i = 0; i < t_c; i++) {
+			auto &v0 = vertices[i * 3];
+			auto &v1 = vertices[i * 3 + 1];
+			auto &v2 = vertices[i * 3 + 2];
+
+			auto dpos1 = v1.p - v0.p;
+			auto dpos2 = v2.p - v0.p;
+
+			auto duv1 = v1.u - v0.u;
+			auto duv2 = v2.u - v0.u;
+
+			float r = duv1.x * duv2.y - duv1.y * duv2.x;
+			auto t = (dpos1 * duv2.y - dpos2 * duv1.y) / r;
+			auto b = (dpos2 * duv1.x - dpos1 * duv2.x) / r;
+
+			for (size_t j = 0; j < 3; j++) {
+				vertices[i * 3 + j].t = t;
+				vertices[i * 3 + j].b = b;
+			}
+		}*/
+
+		Model &res = *r.model;
+		res.primitiveCount = vertices.size();
+		size_t buf_size = vertices.size() * sizeof(decltype(vertices)::value_type);
+		res.vertexBuffer = createVertexBuffer(buf_size);
+		res.indexType = VK_INDEX_TYPE_NONE_KHR;
+		{
+			VkBufferCreateInfo bci{};
+			bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bci.size = buf_size;
+			bci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			VmaAllocationCreateInfo aci{};
+			aci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+			aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+			void *data;
+			auto s = allocator.createBuffer(bci, aci, &data);
+			std::memcpy(data, vertices.data(), buf_size);
+			allocator.flushAllocation(s, 0, buf_size);
+
+			m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+			VkBufferCopy region;
+			region.srcOffset = 0;
+			region.dstOffset = 0;
+			region.size = buf_size;
+			m_transfer_cmd.copyBuffer(s, res.vertexBuffer, 1, &region);
+			m_transfer_cmd.end();
+
+			VkSubmitInfo submit{};
+			submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submit.commandBufferCount = 1;
+			submit.pCommandBuffers = m_transfer_cmd.ptr();
+			m_gqueue.submit(1, &submit, VK_NULL_HANDLE);
+			m_gqueue.waitIdle();
+
+			if (acc)
+				*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr, 0);
+
+			allocator.destroy(s);
+		}
+
+		if (needsAccStructure()) {
+			auto &rt = b.get<RT_instance>()[n];
+			rt.mask = 1;
+			rt.instanceShaderBindingTableRecordOffset = 0;
+			rt.accelerationStructureReference = acc->reference;
+			rt.model = model_ndx;
+			bindModel_pnu(model_ndx, r.model->vertexBuffer);
+			rt.material = mat_ndx;
+		}
+
+		vert_mat = -69;
+		vertices.clear();
+	};
+
+	for (auto &shape : shapes) {
+		size_t ndx = 0;
+		/*std::cout << "s " << ndx << ": " << "vs: " << shape.mesh.num_face_vertices.size() << ", ms: " << shape.mesh.material_ids.size() << std::endl;
+		{
+			int mi = -10;
+			for (auto &m : shape.mesh.material_ids)
+				if (m != mi) {
+					auto &ma = materials[m];
+					std::cout << "Mat " << m << ": diffuse: " << ma.diffuse_texname << std::endl;
+					mi = m;
+				}
+		}*/
+
+		int mi = -69;
+		for (size_t i = 0; i < shape.mesh.num_face_vertices.size(); i++) {
+			auto m = shape.mesh.material_ids[i];
+			vert_mat = m;
+			if (m != mi) {
+				flush_verts();
+				mi = m;
+			}
+
+			auto &vert_count = shape.mesh.num_face_vertices[i];
+			std::vector<glm::vec3> pos;
+			std::vector<glm::vec3> normal;
+			std::vector<glm::vec2> uv;
+			for (size_t i = 0; i < vert_count; i++) {
+				auto indices = shape.mesh.indices.at(ndx++);
+				if (indices.vertex_index >= 0)
+					pos.emplace_back(attrib.vertices.at(indices.vertex_index * 3), attrib.vertices.at(indices.vertex_index * 3 + 1), attrib.vertices.at(indices.vertex_index * 3 + 2));
+				if (indices.normal_index >= 0)
+					normal.emplace_back(attrib.normals.at(indices.normal_index * 3), attrib.normals.at(indices.normal_index * 3 + 1), attrib.normals.at(indices.normal_index * 3 + 2));
+				if (indices.texcoord_index >= 0)
+					uv.emplace_back(attrib.texcoords.at(indices.texcoord_index * 2), attrib.texcoords.at(indices.texcoord_index * 2 + 1));
+			}
+
+			while (pos.size() < 3)
+				pos.emplace_back(0.0);
+
+			if (normal.size() != 3) {
+				normal.clear();
+				glm::vec3 comp_normal = glm::normalize(glm::cross(pos.at(1) - pos.at(0), pos.at(2) - pos.at(0)));
+				for (size_t i = 0; i < 3; i++)
+					normal.emplace_back(comp_normal);
+			}
+
+			while (uv.size() < 3)
+				uv.emplace_back(0.0);
+
+			for (size_t i = 0; i < pos.size(); i++) {
+				decltype(vertices)::value_type vertex;
+				vertex.p = pos.at(i);
+				vertex.n = normal.at(i);
+				vertex.u = uv.at(i);
+				vertices.emplace_back(vertex);
+			}
+		}
+	}
+	flush_verts();
+}
+
 Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkFormat format)
 {
 	int x, y, chan;
 	auto data = stbi_load(path, &x, &y, &chan, 4);
 	if (data == nullptr)
 		throw std::runtime_error(path);
-	if (chan != 4)
-		throw std::runtime_error(path);
+	chan = 4;
 
 	VkImageCreateInfo ici{};
 	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -3123,11 +3343,11 @@ void Renderer::bindCombinedImageSamplers(uint32_t firstSampler, uint32_t imageIn
 	vkUpdateDescriptorSets(device, m_frame_count * writes_per_frame, writes, 0, nullptr);
 }
 
-void Renderer::bindMaterials_albedo(uint32_t materialCount, Material_albedo *pMaterials)
+void Renderer::bindMaterials_albedo(uint32_t firstMaterial, uint32_t materialCount, Material_albedo *pMaterials)
 {
-	std::memcpy(m_materials_albedo, pMaterials, materialCount * sizeof(Material_albedo));
+	std::memcpy(&m_materials_albedo[firstMaterial], pMaterials, materialCount * sizeof(Material_albedo));
 	for (uint32_t i = 0; i < m_frame_count; i++)
-		loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialCount * sizeof(Material_albedo), pMaterials);
+		loadBufferCompute(m_frames[i].m_illum_rt.m_materials_albedo_buffer, materialCount * sizeof(Material_albedo), pMaterials, firstMaterial * sizeof(Material_albedo));
 }
 
 void Renderer::bindModel_pnu(uint32_t binding, VkBuffer vertexBuffer)
@@ -3279,10 +3499,54 @@ Renderer::Renderer(uint32_t frameCount, bool validate, bool useRenderDoc) :
 	m_descriptor_pool_mip(createDescriptorPoolMip()),
 
 	m_frames(createFrames()),
-	m_pipeline_pool(4),
-	m_model_pool(4),
+	m_pipeline_pool(256),
+	m_model_pool(modelPoolSize),
+	m_acc_pool(modelPoolSize),
+	m_material_pool(materialPoolSize),
+	m_image_pool(s0_sampler_count),
+	m_image_view_pool(s0_sampler_count),
+	pipeline_opaque_uvgen(m_pipeline_pool.allocate()),
+	pipeline_opaque(m_pipeline_pool.allocate()),
+	pipeline_opaque_tb(m_pipeline_pool.allocate()),
+	sampler_norm_l(device.createSampler(VkSamplerCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = VK_FILTER_LINEAR,
+		.minFilter = VK_FILTER_LINEAR,
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.anisotropyEnable = true,
+		.maxAnisotropy = 16.0f,
+		.maxLod = VK_LOD_CLAMP_NONE
+	})),
+	sampler_norm_n(device.createSampler(VkSamplerCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = VK_FILTER_NEAREST,
+		.minFilter = VK_FILTER_NEAREST,
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT
+	})),
 	m_rnd(std::time(nullptr))
 {
+	std::memset(pipeline_opaque_uvgen, 0, sizeof(Pipeline));
+	*pipeline_opaque_uvgen = createPipeline3D_pn("sha/opaque_uvgen", sizeof(int32_t));
+	pipeline_opaque_uvgen->pushDynamic<MVP>();
+	pipeline_opaque_uvgen->pushDynamic<MV_normal>();
+	pipeline_opaque_uvgen->pushDynamic<MW_local>();
+
+	std::memset(pipeline_opaque, 0, sizeof(Pipeline));
+	*pipeline_opaque = createPipeline3D_pnu("sha/opaque", sizeof(int32_t));
+	pipeline_opaque->pushDynamic<MVP>();
+	pipeline_opaque->pushDynamic<MV_normal>();
+
+	std::memset(pipeline_opaque_tb, 0, sizeof(Pipeline));
+	*pipeline_opaque_tb = createPipeline3D_pntbu("sha/opaque_tb", sizeof(int32_t));
+	pipeline_opaque_tb->pushDynamic<MVP>();
+	pipeline_opaque_tb->pushDynamic<MV_normal>();
+
 	std::memset(m_keys, 0, sizeof(m_keys));
 	std::memset(m_keys_prev, 0, sizeof(m_keys_prev));
 
@@ -3326,6 +3590,12 @@ Renderer::~Renderer(void)
 {
 	m_gqueue.waitIdle();
 
+	device.destroy(sampler_norm_n);
+	device.destroy(sampler_norm_l);
+
+	m_image_view_pool.destroyUsing(device);
+	m_image_pool.destroyUsing(allocator);
+	m_acc_pool.destroyUsing(*this);
 	m_model_pool.destroy(allocator);
 	m_pipeline_pool.destroy(device);
 
