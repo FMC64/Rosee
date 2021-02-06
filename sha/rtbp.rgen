@@ -289,7 +289,7 @@ void main(void)
 	} else {
 		float min_len = 50000.0;
 		int min_k = 0, min_i = 0;
-		for (int k = 1; k <= 2; k++) {
+		for (int k = 1; k <= 1; k++) {
 			for (int i = 0; i < 4; i++) {
 				ivec2 aoff = ilast_view_pos + ivec2(off[i]) * k;
 				float l = length((il.view_last_to_cur_normal * vec4(texelFetch(last_normal_geom, aoff, 0).xyz, 1.0)).xyz - norm);
