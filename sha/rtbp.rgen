@@ -293,7 +293,8 @@ void main(void)
 			for (int i = 0; i < 4; i++) {
 				ivec2 aoff = pos + ivec2(off[i]) * k;
 				float l = length((il.view_last_to_cur_normal * vec4(texelFetch(last_normal_geom, aoff, 0).xyz, 1.0)).xyz - norm);
-				if (l < min_len) {
+				vec3 last_pos = (il.view_last_to_cur * vec4(rt_pos_view(vec2(aoff) + .5, texelFetch(last_cdepth, aoff, 0).x), 1.0)).xyz;
+				if (l < min_len && length(last_pos - view) < 0.2) {
 					min_k = k;
 					min_i = i;
 					min_len = l;
