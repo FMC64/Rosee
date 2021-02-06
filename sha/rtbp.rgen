@@ -36,7 +36,7 @@ layout(location = 0) rayPayloadEXT RayPayload rp;
 
 float tmin_calc(float z)
 {
-	return 0.00001 + min((z * 0.1) / il.cam_near, 1.0);
+	return 0.0;//min((z * 0.0000001) / il.cam_near, 1.0);
 }
 
 vec3 last_pos_view(vec2 pos)
@@ -304,11 +304,13 @@ void main(void)
 	{
 		float div = center_divergence(last_view_pos);
 		if (div > 0.01) {
-			float basea = min(acc_diffuse, 64.0);
-			bool wga = acc_diffuse >= basea;
-			acc_diffuse *= mix(1.0 - div, 1.0, 0.9);
-			if (wga)
-				acc_diffuse = max(acc_diffuse, basea);
+			if (true) {
+				float basea = min(acc_diffuse, 64.0);
+				bool wga = acc_diffuse >= basea;
+				acc_diffuse *= mix(1.0 - div, 1.0, 0.9);
+				if (wga)
+					acc_diffuse = max(acc_diffuse, basea);
+			}
 			float baseb = min(acc_direct_light, 16.0);
 			bool wgb = acc_direct_light >= baseb;
 			acc_direct_light *= mix(1.0 - div, 1.0, 0.9);
