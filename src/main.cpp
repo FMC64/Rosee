@@ -276,8 +276,10 @@ public:
 	void run(void)
 	{
 		auto grass = m_r.allocateImage("res/img/grass.png", VK_FORMAT_R8G8B8A8_SRGB, true, true);
-		auto vokselia_spawn_albedo = m_r.allocateImage("res/mod/vokselia_spawn_albedo.png", VK_FORMAT_R8G8B8A8_SRGB, false, false);
-		/*auto normal = */m_r.allocateImage("res/mod/normal2.png", VK_FORMAT_R8G8B8A8_UNORM, true, true);
+		auto vokselia_spawn_albedo = m_r.allocateImage("res/img/stone_wall_016/albedo.jpg", VK_FORMAT_R8G8B8A8_SRGB, false, false);
+		/*auto normal = */m_r.allocateImage("res/img/stone_wall_016/normal.jpg", VK_FORMAT_R8G8B8A8_UNORM, true, true);
+		/*auto normal = */m_r.allocateImage("res/img/stone_wall_016/height.png", VK_FORMAT_R8G8B8A8_UNORM, true, true);
+		/*auto normal = */m_r.allocateImage("res/img/stone_wall_016/ao.jpg", VK_FORMAT_R8G8B8A8_UNORM, true, true);
 
 		Material_albedo mat_alb[] {
 			{grass},
@@ -298,28 +300,28 @@ public:
 		if (m_r.needsAccStructure())
 			m_r.bindMaterials_albedo(first_mat, array_size(mat_alb), mat_alb);
 
-		/*{
+		{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
-			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
+			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
 			auto &r = b.get<OpaqueRender>()[n];
-			r.pipeline = m_r.pipeline_opaque;
+			r.pipeline = m_r.pipeline_opaque_tb;
 			r.material = &mat[1];
 			uint32_t model_ndx = m_r.m_model_pool.currentIndex();
 			r.model = m_r.m_model_pool.allocate();
 			AccelerationStructure *acc = m_r.needsAccStructure() ? m_r.m_acc_pool.allocate() : nullptr;
-			*r.model = m_r.loadModel("res/mod/sponza.obj", acc);
+			*r.model = m_r.loadModelTb("res/mod/vokselia_spawn.obj", acc);
 			if (m_r.needsAccStructure()) {
 				auto &rt = b.get<RT_instance>()[n];
 				rt.mask = 1;
-				rt.instanceShaderBindingTableRecordOffset = 0;
+				rt.instanceShaderBindingTableRecordOffset = 2;
 				rt.accelerationStructureReference = acc->reference;
 				rt.model = model_ndx;
-				m_r.bindModel_pnu(model_ndx, r.model->vertexBuffer);
+				m_r.bindModel_pntbu(model_ndx, r.model->vertexBuffer);
 				rt.material = 1;
 			}
-		}*/
+		}
 
-		m_r.instanciateModel(m_m, "res/mod/sponza/", "sponza.obj");
+		//m_r.instanciateModel(m_m, "res/mod/sponza/", "sponza.obj");
 		/*{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
