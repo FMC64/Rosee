@@ -193,7 +193,7 @@ void main(void)
 		imageStore(s_diffuse_cur, ivec3(pos, i), vec4(diffuse_b[i], 0.0));
 	imageStore(s_direct_light_cur, pos, vec4(direct_light, vec3(0.0)));
 
-	subgroupMemoryBarrierImage();
+	//subgroupMemoryBarrierImage();
 
 	vec4 last_view = il.view_cur_to_last * vec4(view, 1.0);
 	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
@@ -208,6 +208,11 @@ void main(void)
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 
 	vec3 out_output = vec3(0.0);
+	vec3 diffuse_b_last[3] = {
+		vec3(0.0),
+		vec3(0.0),
+		vec3(0.0)
+	};
 
 	{
 		uint d_ndx = 0;
@@ -222,8 +227,8 @@ void main(void)
 			vec3(0.0)
 		};
 		vec3 cval = diffuse_b[d_ndx];
-		vec3 nval = texelFetch(normal_geom, pos, 0).xyz;
-		vec3 pval = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
+		vec3 nval = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
+		vec3 pval = rt_pos_view(last_view_pos, texelFetch(last_cdepth, ilast_view_pos, 0).x);
 
 		float last_acc = 0.0;
 		if (repr_success)
@@ -235,36 +240,42 @@ void main(void)
 			qual = 3;
 		if (last_acc == 0.0)
 			qual = 6;*/
-		int max_it = 1 << qual;
+		int max_it = qual * qual;
 		for(int i = 0; i < max_it; i++) {
-			vec2 fuv = clamp(fpos + (vec2(i % qual, i / qual) - float(qual) * 0.5) * 2.5, vec2(0.0), il.size - 1.0);
+			vec2 fuv = clamp(last_view_pos + (vec2(i % qual, i / qual) - float(qual / 2)), vec2(0.0), il.size - 1.0);
 			ivec2 uv = ivec2(fuv);
 			vec3 t;
-			float dist2;
+			float dist2, dist22;
 
 			/*t = cval - ctmp;
 			dist2 = dot(t, t);
 			float c_w = min(1.0 / (dist2 + 0.01), 1.0);*/
 
-			vec3 ntmp = texelFetch(normal_geom, uv, 0).xyz;
+			vec3 ntmp = texelFetch(last_normal_geom, uv, 0).xyz;
 			t = nval - ntmp;
-			dist2 = max(dot(t, t), 0.0);
-			float dist22 = dist2 + 1.0;
-			float n_w = min(1.0 / (dist22 * dist22), 1.0);
+			float n_w = 1.0;
+			if (dot(t, t) > 0.1)
+				n_w = 0;
 
-			/*vec3 ptmp = rt_pos_view(fuv, texelFetch(cdepth, uv, 0).x);
+			vec3 ptmp = rt_pos_view(fuv, texelFetch(last_cdepth, uv, 0).x);
 			t = pval - ptmp;
-			dist2 = dot(t, t);
-			dist22 = dist2 * dist2;
-			float p_w = min(1.0 / (dist22 * dist22 + 0.0001), 1.0);*/
+			float p_w = 1.0;
+			if (dot(t, t) > 0.1)
+				p_w = 0;
 
-			float weight = n_w;// * p_w;//c_w * n_w * p_w;
-			for (uint i = 0; i < 3; i++)
-				sum[i] += imageLoad(s_diffuse_cur, ivec3(uv, i)).xyz * weight;// * kernel[i];
+			float weight = n_w * p_w;//c_w * n_w * p_w;
+
+			//if (length(last_view_pos - fpos) < 0.01)
+			if (true)
+				for (uint i = 0; i < 3; i++)
+					sum[i] += texelFetch(last_diffuse, ivec3(uv, i), 0).xyz * weight;// * kernel[i];
+			else
+				for (uint i = 0; i < 3; i++)
+					sum[i] += textureLod(last_diffuse, vec3(uv * vec2(il.size_inv.x), i), 0).xyz * weight;// * kernel[i];
 			cum_w += weight;// * kernel[i];
 		}
 		for (uint i = 0; i < 3; i++)
-			diffuse_b[i] = sum[i] / cum_w;
+			diffuse_b_last[i] = sum[i] / cum_w;
 	}
 
 	float acc_diffuse = 1.0;
@@ -276,7 +287,7 @@ void main(void)
 				if (last_acc > 0.0) {
 					acc_diffuse = last_acc + 1.0;
 					for (uint i = 0; i < 3; i++)
-						diffuse_b[i] = (textureLod(last_diffuse, vec3(last_view_pos * vec2(il.size_inv.x), i), 0.0).xyz * last_acc + diffuse_b[i]) / acc_diffuse;
+						diffuse_b[i] = (diffuse_b_last[i] * last_acc + diffuse_b[i]) / acc_diffuse;
 				}
 			}
 			{
@@ -327,7 +338,7 @@ void main(void)
 		acc_direct_light = 0.0;
 	}
 
-	//out_output = nor;
+	//out_output = diffuse_b_last[0];
 
 	for (uint i = 0; i < 3; i++)
 		imageStore(s_diffuse, ivec3(pos, i), vec4(diffuse_b[i], 0.0));

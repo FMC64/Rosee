@@ -78,7 +78,7 @@ void main(void)
 
 	uv = ParallaxMapping(uv, view_norm);
 
-	vec4 te = texture(samplers[p.albedo], uv);
+	vec4 te = texture(samplers[p.albedo], vec2(in_u.x, -in_u.y));
 	if (te.w < 0.01)
 		discard;
 	out_depth = gl_FragCoord.z;
