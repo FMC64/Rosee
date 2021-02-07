@@ -38,14 +38,14 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
 	// get initial values
 	vec2  currentTexCoords     = texCoords;
-	float currentDepthMapValue = texture(samplers[p.albedo + 2], currentTexCoords).r;
+	float currentDepthMapValue = texture(samplers[p.albedo + 1], currentTexCoords).w;
 
 	while (currentLayerDepth < currentDepthMapValue)
 	{
 		// shift texture coordinates along direction of P
 		currentTexCoords -= deltaTexCoords;
 		// get depthmap value at current texture coordinates
-		currentDepthMapValue = texture(samplers[p.albedo + 2], currentTexCoords).r;
+		currentDepthMapValue = texture(samplers[p.albedo + 1], currentTexCoords).w;
 		// get depth of next layer
 		currentLayerDepth += layerDepth;
 	}
@@ -55,7 +55,7 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
 	// get depth after and before collision for linear interpolation
 	float afterDepth  = currentDepthMapValue - currentLayerDepth;
-	float beforeDepth = texture(samplers[p.albedo + 2], prevTexCoords).r - currentLayerDepth + layerDepth;
+	float beforeDepth = texture(samplers[p.albedo + 1], prevTexCoords).w - currentLayerDepth + layerDepth;
 
 	// interpolation of texture coordinates
 	float weight = afterDepth / (afterDepth - beforeDepth);
@@ -86,6 +86,6 @@ void main(void)
 	vec3 nmap = texture(samplers[p.albedo + 1], uv).xyz * 2.0 - 1.0;
 	nmap.z *= 0.6;
 	nmap = normalize(nmap);
-	out_normal = vec4(t * nmap.x + b * nmap.y + n * nmap.z, texture(samplers[p.albedo + 3], uv).x);
+	out_normal = vec4(t * nmap.x + b * nmap.y + n * nmap.z, 1.0);
 	out_normal_geom = n;
 }

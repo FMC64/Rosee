@@ -275,12 +275,12 @@ class Game
 public:
 	void run(void)
 	{
-		auto grass = m_r.allocateImage("res/img/grass.png", VK_FORMAT_R8G8B8A8_SRGB, true, true);
-		auto vokselia_spawn_albedo = m_r.allocateImage("res/mod/vokselia_spawn_albedo.png", VK_FORMAT_R8G8B8A8_SRGB, false, false);
-		//auto vokselia_spawn_albedo = m_r.allocateImage("res/img/sand_001/albedo.png", VK_FORMAT_R8G8B8A8_SRGB, true, true);
-		/*auto normal = */m_r.allocateImage("res/img/sand_001/normal.png", VK_FORMAT_R8G8B8A8_UNORM, true, true);
-		/*auto normal = */m_r.allocateImage("res/img/sand_001/height.png", VK_FORMAT_R8G8B8A8_UNORM, true, true);
-		/*auto normal = */m_r.allocateImage("res/img/sand_001/ao.png", VK_FORMAT_R8G8B8A8_UNORM, true, true);
+		auto grass = m_r.allocateImage(m_r.loadImage("res/img/grass.png"));
+		auto vokselia_spawn_albedo = m_r.allocateImage(m_r.loadImage("res/mod/vokselia_spawn_albedo.png", false), false);
+		//auto vokselia_spawn_albedo = m_r.allocateImage(m_r.loadImage("res/img/sand_001/albedo.png"));
+		/*auto normal = */m_r.allocateImage(m_r.loadImage("res/img/sand_001/normal.png", true, VK_FORMAT_R8G8B8A8_UNORM), true, VK_FORMAT_R8G8B8A8_UNORM);
+		/*auto normal = */m_r.allocateImage(m_r.loadImage("res/img/sand_001/height.png", true, VK_FORMAT_R8G8B8A8_UNORM), true, VK_FORMAT_R8G8B8A8_UNORM);
+		/*auto normal = */m_r.allocateImage(m_r.loadImage("res/img/sand_001/ao.png", true, VK_FORMAT_R8G8B8A8_UNORM), true, VK_FORMAT_R8G8B8A8_UNORM);
 
 		Material_albedo mat_alb[] {
 			{grass},

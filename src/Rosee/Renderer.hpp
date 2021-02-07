@@ -672,7 +672,7 @@ public:
 	Vk::Sampler sampler_norm_l;
 	Vk::Sampler sampler_norm_n;
 
-	uint32_t allocateImage(const char *path, VkFormat format, bool genMips, bool linearSampler);
+	uint32_t allocateImage(Vk::ImageAllocation image, bool linearSampler = true, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
 	uint32_t allocateMaterial(void);
 
 	Vk::BufferAllocation createVertexBuffer(size_t size);
@@ -682,7 +682,9 @@ public:
 	Model loadModel(const char *path, AccelerationStructure *acc);
 	Model loadModelTb(const char *path, AccelerationStructure *acc);
 	void instanciateModel(Map &map, const char *path, const char *filename);
-	Vk::ImageAllocation loadImage(const char *path, bool gen_mips, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+	Vk::ImageAllocation loadImage(const char *path, bool gen_mips = true, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+	Vk::ImageAllocation loadHeightGenNormal(const char *path, bool gen_mips = true); // VK_FORMAT_R8G8B8A8_UNORM
+	Vk::ImageAllocation loadImage(size_t w, size_t h, void *data, bool gen_mips = true, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);	// assumes 32bpp
 
 	AccelerationStructure createBottomAccelerationStructure(uint32_t vertexCount, size_t vertexStride, VkBuffer vertices,
 		VkIndexType indexType, uint32_t indexCount, VkBuffer indices, VkGeometryFlagsKHR flags);

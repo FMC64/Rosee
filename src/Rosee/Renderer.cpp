@@ -2548,11 +2548,11 @@ Pipeline Renderer::createPipeline3D_pntbu(const char *stagesPath, uint32_t pushC
 	return res;
 }
 
-uint32_t Renderer::allocateImage(const char *path, VkFormat format, bool genMips, bool linearSampler)
+uint32_t Renderer::allocateImage(Vk::ImageAllocation image, bool linearSampler, VkFormat format)
 {
 	auto ndx = m_image_pool.currentIndex();
 	auto img = m_image_pool.allocate();
-	*img = loadImage(path, genMips, format);
+	*img = image;
 	auto view = m_image_view_pool.allocate();
 	*view = createImageView(*img, VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT);
 	VkDescriptorImageInfo image_info {
@@ -2921,6 +2921,8 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 	auto& shapes = reader.GetShapes();
 	auto& materials = reader.GetMaterials();
 
+	bool materials_height[materials.size()];
+
 	size_t mat_off = m_material_pool.currentIndex();
 	{
 		Material_albedo mats[materials.size()];
@@ -2929,11 +2931,24 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 			auto mat = m_material_pool.allocate();
 			auto p = std::string(path) + m.diffuse_texname;
 			size_t andx = 0;
+			materials_height[i] = false;
 			if (m.diffuse_texname.size() > 0) {
-				andx = allocateImage(p.c_str(), VK_FORMAT_R8G8B8A8_SRGB, true, true);
+				andx = allocateImage(loadImage(p.c_str()));
 				//std::cout << "#: " << i << ", DIFFUSE FOR MAT: " << p << std::endl;
 			} else {
 				std::cout << "# " << i << ", WARN: MISSING DIFFUSE FOR MAT: " << m.name << std::endl;
+			}
+
+			if (m.displacement_texname.size() > 0) {
+				auto p = std::string(path) + m.displacement_texname;
+				allocateImage(loadHeightGenNormal(p.c_str()), true, VK_FORMAT_R8G8B8A8_UNORM);
+				materials_height[i] = true;
+				std::cout << "height (disp) found" << std::endl;
+			} else if (m.bump_texname.size() > 0) {
+				auto p = std::string(path) + m.bump_texname;
+				allocateImage(loadHeightGenNormal(p.c_str()), true, VK_FORMAT_R8G8B8A8_UNORM);
+				materials_height[i] = true;
+				std::cout << "height (bump) found" << std::endl;
 			}
 			//if (i == 16)
 			//	andx = 0;
@@ -3110,12 +3125,78 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkForma
 	if (data == nullptr)
 		throw std::runtime_error(path);
 	chan = 4;
+	auto res = loadImage(x, y, data, gen_mips, format);
+	stbi_image_free(data);
+	return res;
+}
+
+Vk::ImageAllocation Renderer::loadHeightGenNormal(const char *path, bool gen_mips)
+{
+	int x, y, chan;
+	auto data = stbi_load(path, &x, &y, &chan, 4);
+	if (data == nullptr)
+		throw std::runtime_error(path);
+	chan = 4;
+
+	{
+		static const auto uf_u8 = [](uint8_t v){
+			return static_cast<float>(v) / 255.0f;
+		};
+		static const auto u8_sf = [](float v){
+			return static_cast<uint8_t>(std::round((v + 1.0f) * .5f * 255.0f));
+		};
+		/*static const auto nf_i32 = [](const uint8_t *v){
+			auto x = sf_u8(v[0]);
+			auto y = sf_u8(v[1]);
+			auto z = sf_u8(v[2]);
+			return glm::vec3(x, y, z);
+		};*/
+		int32_t s_x = x;
+		int32_t s_y = y;
+
+		auto g_o = [s_x, s_y](int32_t x, int32_t y){
+			if (x < 0)
+				x = s_x - 1;
+			if (y < 0)
+				y = s_y - 1;
+			if (x >= s_x)
+				x = 0;
+			if (y >= s_y)
+				y = 0;
+			return (y * s_y + x) * 4;
+		};
+		for (int32_t i = 0; i < s_y; i++)
+			for (int32_t j = 0; j < s_x; j++)
+				data[g_o(j, i)] = data[g_o(j, i)] + 1;
+		for (int32_t i = 0; i < s_y; i++)
+			for (int32_t j = 0; j < s_x; j++) {
+				//float s11 = uf_u8(data[g_o(j, i) + 3]);
+				float s01 = uf_u8(data[g_o(j - 1, i) + 3]);
+				float s21 = uf_u8(data[g_o(j + 1, i) + 3]);
+				float s10 = uf_u8(data[g_o(j, i - 1) + 3]);
+				float s12 = uf_u8(data[g_o(j, i + 1) + 3]);
+				auto va = glm::normalize(glm::vec3(2.0f, 0.0f, s21 - s01));
+				auto vb = glm::normalize(glm::vec3(0.0f, 2.0f, s12 - s10));
+				auto n = glm::cross(va, vb);
+				data[g_o(j, i)] = u8_sf(n.x);
+				data[g_o(j, i) + 1] = u8_sf(n.y);
+				data[g_o(j, i) + 2] = u8_sf(n.z);
+			}
+	}
+	auto res = loadImage(x, y, data, gen_mips, VK_FORMAT_R8G8B8A8_UNORM);
+	stbi_image_free(data);
+	return res;
+}
+
+Vk::ImageAllocation Renderer::loadImage(size_t w, size_t h, void *data, bool gen_mips, VkFormat format)
+{
+	size_t chan = 4;
 
 	VkImageCreateInfo ici{};
 	ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	ici.imageType = VK_IMAGE_TYPE_2D;
 	ici.format = format;
-	auto extent = VkExtent3D{static_cast<uint32_t>(x), static_cast<uint32_t>(y), 1};
+	auto extent = VkExtent3D{static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1};
 	ici.extent = extent;
 	ici.mipLevels = gen_mips ? extentMipLevels(VkExtent2D{extent.width, extent.height}) : 1;
 	ici.arrayLayers = 1;
@@ -3127,7 +3208,7 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkForma
 	auto res = allocator.createImage(ici, aci);
 
 	{
-		size_t buf_size = x * y * chan;
+		size_t buf_size = w * h * chan;
 		VkBufferCreateInfo bci{};
 		bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bci.size = buf_size;
@@ -3138,7 +3219,6 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkForma
 		void *bdata;
 		auto s = allocator.createBuffer(bci, aci, &bdata);
 		std::memcpy(bdata, data, buf_size);
-		stbi_image_free(data);
 		allocator.flushAllocation(s, 0, buf_size);
 
 		m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
