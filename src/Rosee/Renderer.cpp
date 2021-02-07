@@ -2900,26 +2900,27 @@ Model Renderer::loadModelTb(const char *path, AccelerationStructure *acc)
 
 void Renderer::instanciateModel(Map &map, const char *path, const char *filename)
 {
-	std::ifstream file(std::string(path) + filename);
-	if (!file.good())
-		throw std::runtime_error(path);
-	tinyobj::attrib_t attrib;
-	std::vector<tinyobj::shape_t> shapes;
-	std::vector<tinyobj::material_t> materials;
-	std::string warn;
-	std::string err;
-	tinyobj::MaterialFileReader mat(path);
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, &file, &mat)) {
-		if (err.size() > 0)
-			std::cerr << "ERROR: " << path << ": " << err << std::endl;
-		throw std::runtime_error(path);
+	std::string inputfile = std::string(path) + filename;
+	tinyobj::ObjReaderConfig reader_config;
+	reader_config.mtl_search_path = path; // Path to material files
+
+	tinyobj::ObjReader reader;
+
+	if (!reader.ParseFromFile(inputfile, reader_config)) {
+		if (!reader.Error().empty()) {
+			std::cerr << "TinyObjReader: " << reader.Error();
+		}
+		exit(1);
 	}
-	//if (warn.size() > 0)
-	//	std::cout << "WARNING: " << path << ": " << warn << std::endl;
-	if (err.size() > 0)
-		std::cerr << "ERROR: " << path << ": " << err << std::endl;
-	std::vector<Vertex::pnu> vertices;
-	int vert_mat = -69;
+
+	if (!reader.Warning().empty()) {
+		std::cout << "TinyObjReader: " << reader.Warning();
+	}
+
+	auto& attrib = reader.GetAttrib();
+	auto& shapes = reader.GetShapes();
+	auto& materials = reader.GetMaterials();
+
 	size_t mat_off = m_material_pool.currentIndex();
 	{
 		Material_albedo mats[materials.size()];
@@ -2928,22 +2929,33 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 			auto mat = m_material_pool.allocate();
 			auto p = std::string(path) + m.diffuse_texname;
 			size_t andx = 0;
-			if (m.diffuse_texname.size() > 0)
+			if (m.diffuse_texname.size() > 0) {
 				andx = allocateImage(p.c_str(), VK_FORMAT_R8G8B8A8_SRGB, true, true);
-			else {
-				std::cout << "WARN: MISSING DIFFUSE FOR MAT: " << m.name << std::endl;
+				//std::cout << "#: " << i << ", DIFFUSE FOR MAT: " << p << std::endl;
+			} else {
+				std::cout << "# " << i << ", WARN: MISSING DIFFUSE FOR MAT: " << m.name << std::endl;
 			}
+			//if (i == 16)
+			//	andx = 0;
 			reinterpret_cast<Material_albedo&>(*mat).albedo = andx;
 			mats[i].albedo = andx;
 		}
+		/*for (size_t i = 0; i < materials.size(); i++) {
+			std::cout << "#: " << i << ", " << reinterpret_cast<Material_albedo&>(m_material_pool.data[mat_off + i]).albedo << std::endl;
+		}*/
 		bindMaterials_albedo(mat_off, materials.size(), mats);
 	}
 	//std::cout << "Materials: " << materials.size() << std::endl;
 	//std::cout << "Shapes: " << shapes.size() << std::endl;
 
+	std::vector<Vertex::pnu> vertices;
+	int vert_mat = -69;
+
 	auto flush_verts = [&](){
 		if (vertices.size() == 0)
 			return;
+
+		//std::cout << "vert mat: " << vert_mat << std::endl;
 
 		auto [b, n] = map.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 		b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
@@ -3043,14 +3055,14 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 				}
 		}*/
 
-		int mi = -69;
+		if (shape.mesh.material_ids.size() > 0)
+			vert_mat = shape.mesh.material_ids[0];
 		for (size_t i = 0; i < shape.mesh.num_face_vertices.size(); i++) {
-			auto m = shape.mesh.material_ids[i];
-			vert_mat = m;
-			if (m != mi) {
+			/*auto m = shape.mesh.material_ids[i];
+			if (m != vert_mat) {
 				flush_verts();
-				mi = m;
-			}
+				vert_mat = m;
+			}*/
 
 			auto &vert_count = shape.mesh.num_face_vertices[i];
 			std::vector<glm::vec3> pos;
@@ -3087,8 +3099,8 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 				vertices.emplace_back(vertex);
 			}
 		}
+		flush_verts();
 	}
-	flush_verts();
 }
 
 Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkFormat format)

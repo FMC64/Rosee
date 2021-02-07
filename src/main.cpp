@@ -301,7 +301,7 @@ public:
 		if (m_r.needsAccStructure())
 			m_r.bindMaterials_albedo(first_mat, array_size(mat_alb), mat_alb);
 
-		{
+		/*{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(100.0));
 			auto &r = b.get<OpaqueRender>()[n];
@@ -320,9 +320,9 @@ public:
 				m_r.bindModel_pntbu(model_ndx, r.model->vertexBuffer);
 				rt.material = 1;
 			}
-		}
+		}*/
 
-		//m_r.instanciateModel(m_m, "res/mod/sponza/", "sponza.obj");
+		m_r.instanciateModel(m_m, "res/mod/sponza/", "sponza.obj");
 		/*{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
