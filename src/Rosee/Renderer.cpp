@@ -2943,12 +2943,12 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 				auto p = std::string(path) + m.displacement_texname;
 				allocateImage(loadHeightGenNormal(p.c_str()), true, VK_FORMAT_R8G8B8A8_UNORM);
 				materials_height[i] = true;
-				std::cout << "height (disp) found" << std::endl;
+				//std::cout << "height (disp) found" << std::endl;
 			} else if (m.bump_texname.size() > 0) {
 				auto p = std::string(path) + m.bump_texname;
 				allocateImage(loadHeightGenNormal(p.c_str()), true, VK_FORMAT_R8G8B8A8_UNORM);
 				materials_height[i] = true;
-				std::cout << "height (bump) found" << std::endl;
+				//std::cout << "height (bump) found" << std::endl;
 			}
 			//if (i == 16)
 			//	andx = 0;
@@ -2972,41 +2972,56 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 
 		//std::cout << "vert mat: " << vert_mat << std::endl;
 
+		bool has_h = materials_height[vert_mat];
+		//has_h = false;
+
 		auto [b, n] = map.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 		b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
 		auto &r = b.get<OpaqueRender>()[n];
-		r.pipeline = pipeline_opaque;
+		r.pipeline = has_h ? pipeline_opaque_tb : pipeline_opaque;
 		auto mat_ndx = mat_off + static_cast<size_t>(vert_mat);
 		r.material = &m_material_pool.data[mat_ndx];
 		uint32_t model_ndx = m_model_pool.currentIndex();
 		r.model = m_model_pool.allocate();
 		AccelerationStructure *acc = needsAccStructure() ? m_acc_pool.allocate() : nullptr;
 
-		/*size_t t_c = vertices.size() / 3;
-		for (size_t i = 0; i < t_c; i++) {
-			auto &v0 = vertices[i * 3];
-			auto &v1 = vertices[i * 3 + 1];
-			auto &v2 = vertices[i * 3 + 2];
+		std::vector<Vertex::pntbu> vertices_tb;
 
-			auto dpos1 = v1.p - v0.p;
-			auto dpos2 = v2.p - v0.p;
+		if (has_h) {
+			vertices_tb.resize(vertices.size());
+			size_t t_c = vertices.size() / 3;
+			for (size_t i = 0; i < t_c; i++) {
+				auto &v0 = vertices[i * 3];
+				auto &v1 = vertices[i * 3 + 1];
+				auto &v2 = vertices[i * 3 + 2];
 
-			auto duv1 = v1.u - v0.u;
-			auto duv2 = v2.u - v0.u;
+				auto dpos1 = v1.p - v0.p;
+				auto dpos2 = v2.p - v0.p;
 
-			float r = duv1.x * duv2.y - duv1.y * duv2.x;
-			auto t = (dpos1 * duv2.y - dpos2 * duv1.y) / r;
-			auto b = (dpos2 * duv1.x - dpos1 * duv2.x) / r;
+				auto duv1 = v1.u - v0.u;
+				auto duv2 = v2.u - v0.u;
 
-			for (size_t j = 0; j < 3; j++) {
-				vertices[i * 3 + j].t = t;
-				vertices[i * 3 + j].b = b;
+				float r = duv1.x * duv2.y - duv1.y * duv2.x;
+				auto t = (dpos1 * duv2.y - dpos2 * duv1.y) / r;
+				auto b = (dpos2 * duv1.x - dpos1 * duv2.x) / r;
+
+				for (size_t j = 0; j < 3; j++) {
+					auto &v = vertices[i * 3 + j];
+					auto &vt = vertices_tb[i * 3 + j];
+					vt.p = v.p;
+					vt.n = v.n;
+					vt.t = t;
+					vt.b = b;
+					vt.u = v.u;
+				}
 			}
-		}*/
+		}
 
 		Model &res = *r.model;
 		res.primitiveCount = vertices.size();
-		size_t buf_size = vertices.size() * sizeof(decltype(vertices)::value_type);
+		size_t vert_stride = has_h ? sizeof(decltype(vertices_tb)::value_type) : sizeof(decltype(vertices)::value_type);
+		const void *vert_data = has_h ? static_cast<const void*>(vertices_tb.data()) : static_cast<const void*>(vertices.data());
+		size_t buf_size = vertices.size() * vert_stride;
 		res.vertexBuffer = createVertexBuffer(buf_size);
 		res.indexType = VK_INDEX_TYPE_NONE_KHR;
 		{
@@ -3019,7 +3034,7 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 			aci.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 			void *data;
 			auto s = allocator.createBuffer(bci, aci, &data);
-			std::memcpy(data, vertices.data(), buf_size);
+			std::memcpy(data, vert_data, buf_size);
 			allocator.flushAllocation(s, 0, buf_size);
 
 			m_transfer_cmd.beginPrimary(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -3038,7 +3053,7 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 			m_gqueue.waitIdle();
 
 			if (acc)
-				*acc = createBottomAccelerationStructure(vertices.size(), sizeof(decltype(vertices)::value_type), res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr, 0);
+				*acc = createBottomAccelerationStructure(vertices.size(), vert_stride, res.vertexBuffer, VK_INDEX_TYPE_NONE_KHR, 0, nullptr, 0);
 
 			allocator.destroy(s);
 		}
@@ -3046,10 +3061,13 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 		if (needsAccStructure()) {
 			auto &rt = b.get<RT_instance>()[n];
 			rt.mask = 1;
-			rt.instanceShaderBindingTableRecordOffset = 0;
+			rt.instanceShaderBindingTableRecordOffset = has_h ? 2 : 0;
 			rt.accelerationStructureReference = acc->reference;
 			rt.model = model_ndx;
-			bindModel_pnu(model_ndx, r.model->vertexBuffer);
+			if (has_h)
+				bindModel_pntbu(model_ndx, r.model->vertexBuffer);
+			else
+				bindModel_pnu(model_ndx, r.model->vertexBuffer);
 			rt.material = mat_ndx;
 		}
 
@@ -3073,11 +3091,11 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 		if (shape.mesh.material_ids.size() > 0)
 			vert_mat = shape.mesh.material_ids[0];
 		for (size_t i = 0; i < shape.mesh.num_face_vertices.size(); i++) {
-			/*auto m = shape.mesh.material_ids[i];
+			auto m = shape.mesh.material_ids[i];
 			if (m != vert_mat) {
 				flush_verts();
 				vert_mat = m;
-			}*/
+			}
 
 			auto &vert_count = shape.mesh.num_face_vertices[i];
 			std::vector<glm::vec3> pos;
@@ -3133,17 +3151,24 @@ Vk::ImageAllocation Renderer::loadImage(const char *path, bool gen_mips, VkForma
 Vk::ImageAllocation Renderer::loadHeightGenNormal(const char *path, bool gen_mips)
 {
 	int x, y, chan;
-	auto data = stbi_load(path, &x, &y, &chan, 4);
+	auto data = stbi_load(path, &x, &y, &chan, 0);
 	if (data == nullptr)
 		throw std::runtime_error(path);
-	chan = 4;
+
+	int32_t s_x = x;
+	int32_t s_y = y;
+
+	auto buf = std::malloc(s_x * s_y * 4);
+	auto b = reinterpret_cast<uint8_t*>(buf);
+
+	//std::cout << "chan: " << chan << std::endl;
 
 	{
 		static const auto uf_u8 = [](uint8_t v){
 			return static_cast<float>(v) / 255.0f;
 		};
-		static const auto u8_sf = [](float v){
-			return static_cast<uint8_t>(std::round((v + 1.0f) * .5f * 255.0f));
+		static const auto u8_sf = [](float v) -> uint8_t {
+			return std::clamp(static_cast<int32_t>(std::round((v + 1.0f) * .5f * 255.0f)), static_cast<int32_t>(0), static_cast<int32_t>(255));
 		};
 		/*static const auto nf_i32 = [](const uint8_t *v){
 			auto x = sf_u8(v[0]);
@@ -3151,10 +3176,8 @@ Vk::ImageAllocation Renderer::loadHeightGenNormal(const char *path, bool gen_mip
 			auto z = sf_u8(v[2]);
 			return glm::vec3(x, y, z);
 		};*/
-		int32_t s_x = x;
-		int32_t s_y = y;
 
-		auto g_o = [s_x, s_y](int32_t x, int32_t y){
+		auto g_o_r = [s_x, s_y](int32_t x, int32_t y){
 			if (x < 0)
 				x = s_x - 1;
 			if (y < 0)
@@ -3163,27 +3186,36 @@ Vk::ImageAllocation Renderer::loadHeightGenNormal(const char *path, bool gen_mip
 				x = 0;
 			if (y >= s_y)
 				y = 0;
-			return (y * s_y + x) * 4;
+			return y * s_x + x;
+		};
+		auto g_o = [&g_o_r](int32_t x, int32_t y){
+			return g_o_r(x, y) * 4;
 		};
 		for (int32_t i = 0; i < s_y; i++)
 			for (int32_t j = 0; j < s_x; j++)
-				data[g_o(j, i)] = data[g_o(j, i)] + 1;
+				b[g_o(j, i) + 3] = data[g_o_r(j, i) * chan];
 		for (int32_t i = 0; i < s_y; i++)
 			for (int32_t j = 0; j < s_x; j++) {
 				//float s11 = uf_u8(data[g_o(j, i) + 3]);
-				float s01 = uf_u8(data[g_o(j - 1, i) + 3]);
-				float s21 = uf_u8(data[g_o(j + 1, i) + 3]);
-				float s10 = uf_u8(data[g_o(j, i - 1) + 3]);
-				float s12 = uf_u8(data[g_o(j, i + 1) + 3]);
+				float s01 = uf_u8(b[g_o(j - 1, i) + 3]);
+				float s21 = uf_u8(b[g_o(j + 1, i) + 3]);
+				float s10 = uf_u8(b[g_o(j, i - 1) + 3]);
+				float s12 = uf_u8(b[g_o(j, i + 1) + 3]);
 				auto va = glm::normalize(glm::vec3(2.0f, 0.0f, s21 - s01));
 				auto vb = glm::normalize(glm::vec3(0.0f, 2.0f, s12 - s10));
 				auto n = glm::cross(va, vb);
-				data[g_o(j, i)] = u8_sf(n.x);
-				data[g_o(j, i) + 1] = u8_sf(n.y);
-				data[g_o(j, i) + 2] = u8_sf(n.z);
+				b[g_o(j, i)] = u8_sf(n.x);
+				b[g_o(j, i) + 1] = u8_sf(n.y);
+				b[g_o(j, i) + 2] = u8_sf(n.z);
+
+				/*b[g_o(j, i)] = u8_sf(0.0f);
+				b[g_o(j, i) + 1] = u8_sf(0.0f);
+				b[g_o(j, i) + 2] = u8_sf(1.0f);
+				b[g_o(j, i) + 3] = u8_sf(1.0f);*/
 			}
 	}
-	auto res = loadImage(x, y, data, gen_mips, VK_FORMAT_R8G8B8A8_UNORM);
+	auto res = loadImage(x, y, buf, gen_mips, VK_FORMAT_R8G8B8A8_UNORM);
+	free(buf);
 	stbi_image_free(data);
 	return res;
 }

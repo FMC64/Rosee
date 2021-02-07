@@ -17,7 +17,7 @@ layout(location = 1) out vec4 out_albedo;
 layout(location = 2) out vec4 out_normal;
 layout(location = 3) out vec3 out_normal_geom;
 
-const float height_scale = 0.15;
+const float height_scale = 0.05;
 
 #include "rt.glsl"
 
@@ -66,7 +66,7 @@ vec2 ParallaxMapping(vec2 texCoords, vec3 viewDir)
 
 void main(void)
 {
-	vec2 uv = vec2(in_u.x, -in_u.y) * 32.0;
+	vec2 uv = vec2(in_u.x, -in_u.y);
 
 	vec3 n = normalize(in_n);
 	vec3 t = normalize(in_t);
@@ -78,13 +78,13 @@ void main(void)
 
 	uv = ParallaxMapping(uv, view_norm);
 
-	vec4 te = texture(samplers[p.albedo], vec2(in_u.x, -in_u.y));
+	vec4 te = texture(samplers[p.albedo], uv);
 	if (te.w < 0.01)
 		discard;
 	out_depth = gl_FragCoord.z;
 	out_albedo = vec4(te.xyz, 1.0);
 	vec3 nmap = texture(samplers[p.albedo + 1], uv).xyz * 2.0 - 1.0;
-	nmap.z *= 0.6;
+	//nmap.z *= 0.6;
 	nmap = normalize(nmap);
 	out_normal = vec4(t * nmap.x + b * nmap.y + n * nmap.z, 1.0);
 	out_normal_geom = n;
