@@ -322,7 +322,7 @@ public:
 			}
 		}*/
 
-		m_r.instanciateModel(m_m, "res/mod/sponza/", "sponza.obj");
+		m_r.instanciateModel(m_m, "res/mod/Sponza-master/", "sponza.obj");
 		/*{
 			auto [b, n] = m_m.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
 			b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));

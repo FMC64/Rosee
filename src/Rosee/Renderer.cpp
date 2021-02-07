@@ -2976,7 +2976,7 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 		//has_h = false;
 
 		auto [b, n] = map.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
-		b.get<Transform>()[n] = glm::scale(glm::dvec3(1.0));
+		b.get<Transform>()[n] = glm::scale(glm::dvec3(0.01));
 		auto &r = b.get<OpaqueRender>()[n];
 		r.pipeline = has_h ? pipeline_opaque_tb : pipeline_opaque;
 		auto mat_ndx = mat_off + static_cast<size_t>(vert_mat);

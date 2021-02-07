@@ -13,7 +13,7 @@ void main(void)
 	Vertex_pntbu v = vertex_read_pntbu(ins.model, gl_PrimitiveID, baryCoord);
 	Material_albedo m = materials_albedo.materials[ins.material];
 	vec2 uv = vec2(v.u.x, -v.u.y);
-	vec4 alb = texture(samplers[m.albedo], vec2(v.u.x, -v.u.y));
+	vec4 alb = texture(samplers[m.albedo], uv);
 	if (alb.w < 0.01)
 		ignoreIntersectionEXT;
 	rp.hit = true;

@@ -36,7 +36,7 @@ layout(location = 0) rayPayloadEXT RayPayload rp;
 
 float tmin_calc(float z)
 {
-	return 0.0;//min((z * 0.0000001) / il.cam_near, 1.0);
+	return 0.001 + min((z * 0.001) / il.cam_near, 1.0);
 }
 
 vec3 last_pos_view(vec2 pos)
@@ -110,7 +110,7 @@ void main(void)
 
 	if (!nmocc(fpos, view, sun)) {
 		traceRayEXT(acc,
-			gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+			0,	// rayFlags
 			0xFF,	// cullMask
 			0,	// sbtRecordOffset
 			0,	// sbtRecordStride
@@ -134,7 +134,7 @@ void main(void)
 		const uint bounces = 2;
 		for (uint j = 0; j < bounces; j++) {
 			traceRayEXT(acc,
-				gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+				0,	// rayFlags
 				0xFF,	// cullMask
 				0,	// sbtRecordOffset
 				0,	// sbtRecordStride
@@ -163,7 +163,7 @@ void main(void)
 				vec3 sun_dir = sun;
 
 				traceRayEXT(acc,
-					gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
+					0,	// rayFlags
 					0xFF,	// cullMask
 					0,	// sbtRecordOffset
 					0,	// sbtRecordStride
