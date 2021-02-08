@@ -411,7 +411,7 @@ public:
 			};
 
 			struct Rtbp {
-				static inline constexpr uint32_t storageImageCount = 7;
+				static inline constexpr uint32_t storageImageCount = 5;
 
 				static inline constexpr uint32_t descriptorCombinedImageSamplerCount = 12;
 				static inline constexpr uint32_t barrsPerFrame = 5;
@@ -426,14 +426,10 @@ public:
 				};
 
 				struct Fbs {
-					Vk::ImageAllocation m_diffuse_cur;
-					Vk::ImageView m_diffuse_cur_view;
 					Vk::ImageAllocation m_diffuse;
 					Vk::ImageView m_diffuse_view;
 					Vk::ImageAllocation m_diffuse_acc;
 					Vk::ImageView m_diffuse_acc_view;
-					Vk::ImageAllocation m_direct_light_cur;
-					Vk::ImageView m_direct_light_cur_view;
 					Vk::ImageAllocation m_direct_light;
 					Vk::ImageView m_direct_light_view;
 					Vk::ImageAllocation m_direct_light_acc;
