@@ -229,13 +229,6 @@ void main(void)
 		}
 	}
 
-	const ivec2 base_off[4] = {
-		ivec2(-1, 0),
-		ivec2(1, 0),
-		ivec2(0, -1),
-		ivec2(0, 1)
-	};
-
 	/*ivec2 sub_min = subgroupMin(pos);
 	ivec2 sub_max = subgroupMax(pos);*/
 
