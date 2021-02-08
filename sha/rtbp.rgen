@@ -314,7 +314,37 @@ void main(void)
 				diffuse_b[i] = texelFetch(last_diffuse, ivec3(max_pos, i), 0).xyz;
 			acc_diffuse = max_it;
 		} else {
-			
+			const vec2 off[4] = {
+				vec2(-1, 0),
+				vec2(1, 0),
+				vec2(0, -1),
+				vec2(0, 1)
+			};
+
+			float min_len = 50000.0;
+			int min_k = 0, min_i = 0;
+			for (int k = 1; k <= 1; k++) {
+				for (int i = 0; i < 4; i++) {
+					ivec2 aoff = ilast_view_pos + ivec2(off[i]) * k;
+					float l = length((il.view_last_to_cur_normal * vec4(texelFetch(last_normal_geom, aoff, 0).xyz, 1.0)).xyz - norm);
+					vec3 last_pos = (il.view_last_to_cur * vec4(rt_pos_view(vec2(aoff) + .5, texelFetch(last_cdepth, aoff, 0).x), 1.0)).xyz;
+					float l_p = length(last_pos - view);
+					if (l < 0.2 && l_p < min_len) {
+						min_k = k;
+						min_i = i;
+						min_len = l_p;
+					}
+				}
+			}
+			//min_len = 50000.0;;
+			if (min_len < 0.2 && pos.x > 3 && pos.x < int(il.size.x - 4) && pos.y > 3 && pos.y < int(il.size.y - 4)) {
+				ivec2 aoff = ilast_view_pos + ivec2(off[min_i]) * min_k;
+				for (int j = 0; j < 3; j++)
+					diffuse_b[j] = texelFetch(last_diffuse, ivec3(aoff, j), 0).xyz;
+				acc_diffuse = texelFetch(last_diffuse_acc, aoff, 0).x - 1;
+				direct_light = texelFetch(last_direct_light, aoff, 0).x;
+				acc_direct_light = texelFetch(last_direct_light_acc, aoff, 0).x - 1;
+			}
 		}
 	}
 
