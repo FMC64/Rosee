@@ -1541,28 +1541,28 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	}
 	if (m_illum_technique == IllumTechnique::Rtbp) {
 		VkDescriptorSetLayoutBinding bindings[] {
-			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
+			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
 
-			{2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse
-			{3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse_acc
-			{4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light
-			{5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light_acc
-			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_output
+			{2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse
+			{3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse_acc
+			{4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light
+			{5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light_acc
+			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_output
 
-			{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
-			{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
-			{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
-			{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal_geom
-			{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_cdepth
-			{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
-			{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
-			{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal_geom
+			{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
+			{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
+			{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
+			{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal_geom
+			{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_cdepth
+			{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
+			{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
+			{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal_geom
 
-			{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse
-			{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse_acc
-			{17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_direct_light
-			{18, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// last_direct_light_acc
+			{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse
+			{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse_acc
+			{17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_direct_light
+			{18, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// last_direct_light_acc
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -4794,18 +4794,50 @@ Renderer::IllumTechnique::Data::Rtdp::Shared Renderer::createIllumRtdp(void)
 	return res;
 }
 
+Pipeline Renderer::IllumTechnique::Data::Rtbp::Shared::createPipeline(Renderer &r)
+{
+	/*struct Spec {
+	} spec_data{
+	};
+	VkSpecializationMapEntry spec_entries[] {
+	};
+	VkSpecializationInfo spec;
+	spec.mapEntryCount = array_size(spec_entries);
+	spec.pMapEntries = spec_entries;
+	spec.dataSize = sizeof(Spec);
+	spec.pData = &spec_data;*/
+
+	Pipeline res;
+	VkComputePipelineCreateInfo ci{};
+	ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	auto shader = r.loadShaderModule(VK_SHADER_STAGE_COMPUTE_BIT, "sha/rtbp");
+	res.pushShaderModule(shader);
+	VkPipelineShaderStageCreateInfo stage {
+		VkPipelineShaderStageCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+			VK_SHADER_STAGE_COMPUTE_BIT, shader, "main", nullptr},
+	};
+	ci.stage = stage;
+	ci.layout = r.m_illum_rt.m_pipeline.pipelineLayout;
+	res.pipelineLayout = VK_NULL_HANDLE;
+	VkPipeline pip;
+	vkAssert(vkCreateComputePipelines(r.device, r.m_pipeline_cache, 1, &ci, nullptr, &pip));
+	res = pip;
+	return res;
+}
+
 Renderer::IllumTechnique::Data::Rtbp::Shared Renderer::createIllumRtbp(void)
 {
 	IllumTechnique::Data::Rtbp::Shared res;
 
 	if (m_illum_technique != IllumTechnique::Rtbp)
 		return res;
+	res.m_pipeline = res.createPipeline(*this);
 	return res;
 }
 
 void Renderer::IllumTechnique::Data::Rtbp::Shared::destroy(Renderer &r)
 {
-	static_cast<void>(r);
+	m_pipeline.destroy(r.device);
 }
 
 VkDescriptorSetLayout Renderer::IllumTechnique::Data::RayTracing::Shared::createResSetLayout(Renderer &r)
@@ -6140,9 +6172,9 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
 						Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_graphics, m_r.m_queue_family_compute, m_output,
 						{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
-					m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+					m_cmd_grender_pass.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::ComputeShaderBit, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
-					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::RayTracingShaderBitKhr, 0,
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::BottomOfPipeBit, Vk::PipelineStage::ComputeShaderBit, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
 				}
 				{
@@ -6188,6 +6220,20 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					m_r.m_swapchain_extent.height,
 					1);
 				{
+					VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit };
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::ComputeShaderBit, 0,
+						1, &barrier, 0, nullptr, 0, nullptr);
+				}
+				m_cmd_ctrace_rays.bindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, m_r.m_illum_rtbp.m_pipeline);
+				{
+					VkDescriptorSet sets[] {
+						m_illumination_set,
+					};
+					m_cmd_ctrace_rays.bindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, m_r.m_illum_rt.m_pipeline.pipelineLayout,
+						0, array_size(sets), sets, 0, nullptr);
+				}
+				m_cmd_ctrace_rays.dispatch(m_r.m_swapchain_extent.width, m_r.m_swapchain_extent.height, 1);
+				{
 					VkImage imgs[] {
 						m_illum_rtbp.m_diffuse,
 						m_illum_rtbp.m_diffuse_acc,
@@ -6200,16 +6246,16 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 							Vk::ImageLayout::General, Vk::ImageLayout::ShaderReadOnlyOptimal, m_r.m_queue_family_compute, m_r.m_queue_family_compute, imgs[i],
 							{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
 					}
-					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::BottomOfPipeBit, 0,
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::ComputeShaderBit, Vk::PipelineStage::BottomOfPipeBit, 0,
 						0, nullptr, 0, nullptr, array_size(ibarrier), ibarrier);
 				}
 				{
 					VkImageMemoryBarrier ibarrier { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, Vk::Access::ShaderWriteBit, Vk::Access::ShaderReadBit,
 						Vk::ImageLayout::General, Vk::ImageLayout::ShaderReadOnlyOptimal, m_r.m_queue_family_compute, m_r.m_queue_family_graphics, m_output,
 						{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS } };
-					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+					m_cmd_ctrace_rays.pipelineBarrier(Vk::PipelineStage::ComputeShaderBit, Vk::PipelineStage::FragmentShaderBit, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
-					m_cmd_gwsi.pipelineBarrier(Vk::PipelineStage::RayTracingShaderBitKhr, Vk::PipelineStage::FragmentShaderBit, 0,
+					m_cmd_gwsi.pipelineBarrier(Vk::PipelineStage::ComputeShaderBit, Vk::PipelineStage::FragmentShaderBit, 0,
 						0, nullptr, 0, nullptr, 1, &ibarrier);
 				}
 			}

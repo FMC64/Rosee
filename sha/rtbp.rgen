@@ -281,33 +281,9 @@ void main(void)
 		}
 	}
 
-	vec4 nor_ao = texelFetch(normal, pos, 0);
-	float ao = nor_ao.w;
-	vec3 nor = nor_ao.xyz;
-	vec3 nt, nb;
-	vec3 norm_wr = (il.view_normal_inv * vec4(norm, 1.0)).xyz;
-	normal_gen_tb(norm_wr, nt, nb);
-	vec3 norm_w = basis_w(mat3(
-		vec3(nt.x, nb.x, norm_wr.x),
-		vec3(nt.y, nb.y, norm_wr.y),
-		vec3(nt.z, nb.z, norm_wr.z)
-	) * (il.view_normal_inv * vec4(nor, 1.0)).xyz);
-	out_output = (direct_light * max(0.0, min(dot(nor, il.sun), dot(norm, il.sun))) * 2.5 + (diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * ao) * alb;
-	if (texelFetch(cdepth, pos, 0).x == 0.0) {
-		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-		for (uint i = 0; i < 3; i++)
-			diffuse_b[i] = vec3(0.0);
-		acc_diffuse = 0.0;
-		direct_light = 0.0;
-		acc_direct_light = 0.0;
-	}
-
-	//out_output = diffuse_b_last[0];
-
 	for (uint i = 0; i < 3; i++)
 		imageStore(s_diffuse, ivec3(pos, i), vec4(correct_nan(diffuse_b[i]), 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
 	imageStore(s_direct_light, pos, vec4(direct_light, vec3(0.0)));
 	imageStore(s_direct_light_acc, pos, vec4(acc_direct_light, vec3(0.0)));
-	imageStore(s_output, pos, vec4(out_output, 0.0));
 }

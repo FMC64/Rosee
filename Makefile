@@ -68,7 +68,7 @@ SHA = $(SHAD)/opaque.vert $(SHAD)/opaque.frag $(SHAD)/opaque_uvgen.vert $(SHAD)/
 	$(SHAD)/potato.frag $(SHAD)/potato_ms.frag $(SHAD)/ssgi.frag $(SHAD)/ssgi_ms.frag \
 	$(SHAD)/rtpt.rgen $(SHAD)/opaque.rahit $(SHAD)/opaque_uvgen.rchit $(SHAD)/opaque_tb.rahit $(SHAD)/sky.rmiss \
 	$(SHAD)/rtdp_schedule.comp $(SHAD)/rtdp.rgen $(SHAD)/rtdp.comp $(SHAD)/rtdp_diffuse.comp \
-	$(SHAD)/rtbp.rgen \
+	$(SHAD)/rtbp.rgen $(SHAD)/rtbp.comp \
 	$(SHAD)/wsi.frag
 
 SHA_VERT = $(SHA:.vert=.vert.spv)
