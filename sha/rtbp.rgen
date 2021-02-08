@@ -228,20 +228,24 @@ void main(void)
 			}
 		}
 	} else {
-		const ivec2 base_off[4] = {
+		const ivec2 base_off[8] = {
 			ivec2(-1, 0),
 			ivec2(1, 0),
 			ivec2(0, -1),
-			ivec2(0, 1)
+			ivec2(0, 1),
+			ivec2(-1, -1),
+			ivec2(1, -1),
+			ivec2(-1, 1),
+			ivec2(1, 1)
 		};
 
 		ivec2 max_pos;
 		float max_it = 0.0;
-		const int mul = 5;
+		const int mul = 15;
 		vec3 last_norm = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
-		for (uint i = 0; i < 4; i++) {
+		for (uint i = 0; i < 8; i++) {
 			ivec2 c = ilast_view_pos + base_off[i] * mul;
-			if (length(texelFetch(last_normal_geom, c, 0).xyz - norm) < 0.01/* && length(rt_pos_view(vec2(c) + .5, texelFetch(cdepth, c, 0).x) - view) < 0.5*/) {
+			if (length(texelFetch(last_normal_geom, c, 0).xyz - norm) < 0.1/* && length(rt_pos_view(vec2(c) + .5, texelFetch(cdepth, c, 0).x) - view) < 0.5*/) {
 				float it = texelFetch(last_diffuse_acc, c, 0).x;
 				if (it > max_it) {
 					max_it = it;
