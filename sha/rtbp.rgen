@@ -227,14 +227,35 @@ void main(void)
 				direct_light = (last_direct_light * last_acc + direct_light) / acc_direct_light;
 			}
 		}
-	}
+	} else {
+		const ivec2 base_off[4] = {
+			ivec2(-1, 0),
+			ivec2(1, 0),
+			ivec2(0, -1),
+			ivec2(0, 1)
+		};
 
-	const ivec2 base_off[4] = {
-		ivec2(-1, 0),
-		ivec2(1, 0),
-		ivec2(0, -1),
-		ivec2(0, 1)
-	};
+		ivec2 max_pos;
+		float max_it = 0.0;
+		const int mul = 5;
+		vec3 last_norm = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
+		for (uint i = 0; i < 4; i++) {
+			ivec2 c = ilast_view_pos + base_off[i] * mul;
+			if (length(texelFetch(last_normal_geom, c, 0).xyz - norm) < 0.01/* && length(rt_pos_view(vec2(c) + .5, texelFetch(cdepth, c, 0).x) - view) < 0.5*/) {
+				float it = texelFetch(last_diffuse_acc, c, 0).x;
+				if (it > max_it) {
+					max_it = it;
+					max_pos = c;
+				}
+			}
+		}
+
+		if (max_it > 0.0) {
+			for (uint i = 0; i < 8; i++)
+				diffuse_b[i] = texelFetch(last_diffuse, ivec3(max_pos, i), 0).xyz;
+			acc_diffuse = max_it;
+		}
+	}
 
 	/*ivec2 sub_min = subgroupMin(pos);
 	ivec2 sub_max = subgroupMax(pos);*/
