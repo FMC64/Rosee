@@ -208,6 +208,61 @@ void main(void)
 		vec3(0.0)
 	};
 
+	{
+		const vec2 off[4] = {
+			vec2(-1, 0),
+			vec2(1, 0),
+			vec2(0, -1),
+			vec2(0, 1)
+		};
+
+		{
+			vec3 sum[3] = {
+				vec3(0.0),
+				vec3(0.0),
+				vec3(0.0)
+			};
+			vec3 nval = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
+			vec3 pval = rt_pos_view(last_view_pos, texelFetch(last_cdepth, ilast_view_pos, 0).x);
+
+			float cum_w = 0.0;
+			for (int i = 0; i < 4; i++) {
+				vec2 fuv = clamp(last_view_pos + off[i], vec2(0.0), il.size - 1.0);
+				ivec2 uv = ivec2(fuv);
+				vec3 t;
+				float dist2, dist22;
+
+				/*t = cval - ctmp;
+				dist2 = dot(t, t);
+				float c_w = min(1.0 / (dist2 + 0.01), 1.0);*/
+
+				vec3 ntmp = texelFetch(last_normal_geom, uv, 0).xyz;
+				t = nval - ntmp;
+				float n_w = 1.0;
+				if (dot(t, t) > 0.1)
+					n_w = 0;
+
+				vec3 ptmp = rt_pos_view(fuv, texelFetch(last_cdepth, uv, 0).x);
+				t = pval - ptmp;
+				float p_w = 1.0;
+				if (dot(t, t) > 0.1)
+					p_w = 0;
+
+				float weight = n_w * p_w;//c_w * n_w * p_w;
+
+				if (length(last_view_pos - fpos) < 0.01)
+					for (uint i = 0; i < 3; i++)
+						sum[i] += texelFetch(last_diffuse, ivec3(uv, i), 0).xyz * weight;// * kernel[i];
+				else
+					for (uint i = 0; i < 3; i++)
+						sum[i] += textureLod(last_diffuse, vec3(fuv * vec2(il.size_inv.x), i), 0).xyz * weight;// * kernel[i];
+				cum_w += weight;// * kernel[i];
+			}
+			for (uint i = 0; i < 3; i++)
+				diffuse_b_last[i] = sum[i] / cum_w;
+		}
+	}
+
 	float acc_diffuse = 1.0;
 	float acc_direct_light = 1.0;
 	if (repr_success && length(textureLod(last_normal_geom, last_view_pos, 0.0).xyz - texelFetch(last_normal_geom, ilast_view_pos, 0).xyz) < 0.05) {
@@ -216,7 +271,7 @@ void main(void)
 			if (last_acc > 0.0) {
 				acc_diffuse = last_acc + 1.0;
 				for (uint i = 0; i < 3; i++)
-					diffuse_b[i] = (textureLod(last_diffuse, vec3(last_view_pos * vec2(il.size_inv.x), i), 0).xyz * last_acc + diffuse_b[i]) / acc_diffuse;
+					diffuse_b[i] = (diffuse_b_last[i] * last_acc + diffuse_b[i]) / acc_diffuse;
 			}
 		}
 		{
@@ -258,6 +313,8 @@ void main(void)
 			for (uint i = 0; i < 8; i++)
 				diffuse_b[i] = texelFetch(last_diffuse, ivec3(max_pos, i), 0).xyz;
 			acc_diffuse = max_it;
+		} else {
+			
 		}
 	}
 
