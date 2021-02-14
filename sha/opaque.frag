@@ -17,7 +17,8 @@ layout(location = 3) out vec3 out_normal_geom;
 
 void main(void)
 {
-	vec4 t = texture(samplers[p.albedo], vec2(in_u.x, -in_u.y));
+	//vec4 t = texture(samplers[p.albedo], vec2(in_u.x, -in_u.y));
+	vec4 t = vec4(vec3(0.5), 1.0);
 	if (t.w < 0.01)
 		discard;
 	out_depth = gl_FragCoord.z;

@@ -10,8 +10,8 @@ layout(set = 0, binding = 1) uniform accelerationStructureEXT acc;
 //#include "rtbp.glsl"
 #include "rt.glsl"
 
-layout(set = 0, binding = 2, rgba16f) uniform image2DArray s_diffuse_cur;
-layout(set = 0, binding = 3, rgba16f) uniform image2DArray s_diffuse;
+layout(set = 0, binding = 2, rgba16f) uniform image2D s_diffuse_cur;
+layout(set = 0, binding = 3, rgba16f) uniform image2D s_diffuse;
 layout(set = 0, binding = 4, r32f) uniform image2D s_diffuse_acc;
 layout(set = 0, binding = 5, rgba16f) uniform image2D s_direct_light_cur;
 layout(set = 0, binding = 6, rgba16f) uniform image2D s_direct_light;
@@ -101,99 +101,22 @@ void main(void)
 	ivec2 pos = ivec2(fpos);
 	vec3 view = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
 	vec3 view_norm = normalize(view);
-	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
+	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 8192;
 
-	vec3 sun = (il.view_normal * vec4(il.rnd_sun[rnd], 1.0)).xyz;
 	vec3 norm = texelFetch(normal_geom, pos, 0).xyz;
 
-	float direct_light = 0.0;
-
-	if (!nmocc(fpos, view, sun)) {
-		traceRayEXT(acc,
-			0,	// rayFlags
-			0xFF,	// cullMask
-			0,	// sbtRecordOffset
-			0,	// sbtRecordStride
-			0,	// missIndex
-			view,	// origin
-			tmin_calc(length(view)),	// Tmin
-			sun,	// direction
-			il.cam_near * 2.0,	// Tmax
-			0);
-		if (!rp.hit)
-			direct_light += 1.0;
-	}
-
-	vec3 diffuse = vec3(0.0);
 	vec3 first_diffuse_dir = normal_view(rnd_diffuse_around(normal_view_inv(norm), rnd));
-	{
-		vec3 ray_albedo = vec3(1.0);
-		vec3 ray_origin = view;
-		vec3 ray_dir = first_diffuse_dir;
-
-		const uint bounces = 2;
-		for (uint j = 0; j < bounces; j++) {
-			traceRayEXT(acc,
-				0,	// rayFlags
-				0xFF,	// cullMask
-				0,	// sbtRecordOffset
-				0,	// sbtRecordStride
-				0,	// missIndex
-				ray_origin,	// origin
-				tmin_calc(length(ray_origin)),	// Tmin
-				ray_dir,	// direction
-				il.cam_near * 2.0,	// Tmax
-				0);
-			if (rp.hit) {
-				bool ok = false;
-				vec3 dif_normal;
-				for (uint k = 0; k < bounces; k++) {
-					ray_albedo *= rp.albedo;
-					ray_origin = rp.pos;
-					dif_normal = rp.normal_geom;
-					ray_dir = normal_view(rnd_diffuse_around(normal_view_inv(dif_normal), (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y)) + hash(int(-1 - (j + k) * 19))) % 256));
-					if (dot(ray_dir, rp.normal_geom) >= 0.0) {
-						ok = true;
-						break;
-					}
-				}
-				if (!ok)
-					break;
-
-				vec3 sun_dir = sun;
-
-				traceRayEXT(acc,
-					0,	// rayFlags
-					0xFF,	// cullMask
-					0,	// sbtRecordOffset
-					0,	// sbtRecordStride
-					0,	// missIndex
-					ray_origin,	// origin
-					tmin_calc(length(ray_origin)),	// Tmin
-					sun_dir,	// direction
-					il.cam_near * 2.0,	// Tmax
-					0);
-				if (!rp.hit)
-					diffuse += ray_albedo * max(0.0, dot(sun_dir, dif_normal)) * 2.5;
-			} else {
-				diffuse += ray_albedo * env_sample_novoid((il.view_normal_inv * vec4(ray_dir, 1.0)).xyz);
-				break;
-			}
-		}
-	}
-
-	diffuse = correct_nan(diffuse);
-	vec3 d_w = basis_w(il.rnd_diffuse[rnd]);
-	vec3 diffuse_b[3] = {
-		diffuse * d_w.x * 3.0,
-		diffuse * d_w.y * 3.0,
-		diffuse * d_w.z * 3.0
-	};
-	for (uint i = 0; i < 3; i++)
-		imageStore(s_diffuse_cur, ivec3(pos, i), vec4(diffuse_b[i], 0.0));
-	imageStore(s_direct_light_cur, pos, vec4(direct_light, vec3(0.0)));
-
-	//subgroupMemoryBarrierImage();
+	traceRayEXT(acc,
+		0,	// rayFlags
+		0xFF,	// cullMask
+		0,	// sbtRecordOffset
+		0,	// sbtRecordStride
+		0,	// missIndex
+		view,	// origin
+		tmin_calc(length(view)),	// Tmin
+		first_diffuse_dir,	// direction
+		il.cam_near * 2.0,	// Tmax
+		0);
 
 	vec4 last_view = il.view_cur_to_last * vec4(view, 1.0);
 	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
@@ -207,157 +130,18 @@ void main(void)
 
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 
-	vec3 out_output = vec3(0.0);
-	vec3 diffuse_b_last[3] = {
-		vec3(0.0),
-		vec3(0.0),
-		vec3(0.0)
-	};
+	float acc_diffuse = 0.0;
+	vec3 diffuse = vec3(rp.hit ? 0.0 : 1.0);
 
-	const vec2 off[4] = {
-		vec2(-1, 0),
-		vec2(1, 0),
-		vec2(0, -1),
-		vec2(0, 1)
-	};
+	vec3 out_output = alb * diffuse;
 
-	{
-		vec3 sum[3] = {
-			vec3(0.0),
-			vec3(0.0),
-			vec3(0.0)
-		};
-		vec3 nval = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
-		vec3 pval = rt_pos_view(last_view_pos, texelFetch(last_cdepth, ilast_view_pos, 0).x);
-
-		float cum_w = 0.0;
-		for (int i = 0; i < 4; i++) {
-			vec2 fuv = clamp(last_view_pos + off[i], vec2(0.0), il.size - 1.0);
-			ivec2 uv = ivec2(fuv);
-			vec3 t;
-			float dist2, dist22;
-
-			/*t = cval - ctmp;
-			dist2 = dot(t, t);
-			float c_w = min(1.0 / (dist2 + 0.01), 1.0);*/
-
-			vec3 ntmp = texelFetch(last_normal_geom, uv, 0).xyz;
-			t = nval - ntmp;
-			float n_w = 1.0;
-			if (dot(t, t) > 0.1)
-				n_w = 0;
-
-			vec3 ptmp = rt_pos_view(fuv, texelFetch(last_cdepth, uv, 0).x);
-			t = pval - ptmp;
-			float p_w = 1.0;
-			if (dot(t, t) > 0.1)
-				p_w = 0;
-
-			float weight = n_w * p_w;//c_w * n_w * p_w;
-
-			if (length(last_view_pos - fpos) < 0.01)
-				for (uint i = 0; i < 3; i++)
-					sum[i] += texelFetch(last_diffuse, ivec3(uv, i), 0).xyz * weight;// * kernel[i];
-			else
-				for (uint i = 0; i < 3; i++)
-					sum[i] += textureLod(last_diffuse, vec3(fuv * vec2(il.size_inv.x), i), 0).xyz * weight;// * kernel[i];
-			cum_w += weight;// * kernel[i];
-		}
-		for (uint i = 0; i < 3; i++)
-			diffuse_b_last[i] = sum[i] / cum_w;
-	}
-
-	float acc_diffuse = 1.0;
-	float acc_direct_light = 1.0;
-	if (repr_success && length(textureLod(last_normal_geom, last_view_pos, 0.0).xyz - texelFetch(last_normal_geom, ilast_view_pos, 0).xyz) < 0.05) {
-		{
-			float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0.0).x;
-			if (last_acc > 0.0) {
-				acc_diffuse = last_acc + 1.0;
-				for (uint i = 0; i < 3; i++)
-					diffuse_b[i] = (diffuse_b_last[i] * last_acc + diffuse_b[i]) / acc_diffuse;
-			}
-		}
-		{
-			float last_acc = textureLod(last_direct_light_acc, last_view_pos, 0.0).x;
-			if (last_acc > 0.0) {
-				float last_direct_light = textureLod(last_direct_light, last_view_pos, 0.0).x;
-				acc_direct_light = last_acc + 1.0;
-				direct_light = (last_direct_light * last_acc + direct_light) / acc_direct_light;
-			}
-		}
-	} else {
-		float min_len = 50000.0;
-		int min_k = 0, min_i = 0;
-		for (int k = 1; k <= 1; k++) {
-			for (int i = 0; i < 4; i++) {
-				ivec2 aoff = ilast_view_pos + ivec2(off[i]) * k;
-				float l = length((il.view_last_to_cur_normal * vec4(texelFetch(last_normal_geom, aoff, 0).xyz, 1.0)).xyz - norm);
-				vec3 last_pos = (il.view_last_to_cur * vec4(rt_pos_view(vec2(aoff) + .5, texelFetch(last_cdepth, aoff, 0).x), 1.0)).xyz;
-				float l_p = length(last_pos - view);
-				if (l < 0.2 && l_p < min_len) {
-					min_k = k;
-					min_i = i;
-					min_len = l_p;
-				}
-			}
-		}
-		//min_len = 50000.0;;
-		if (min_len < 0.2 && pos.x > 3 && pos.x < int(il.size.x - 4) && pos.y > 3 && pos.y < int(il.size.y - 4)) {
-			ivec2 aoff = ilast_view_pos + ivec2(off[min_i]) * min_k;
-			for (int j = 0; j < 3; j++)
-				diffuse_b[j] = texelFetch(last_diffuse, ivec3(aoff, j), 0).xyz;
-			acc_diffuse = texelFetch(last_diffuse_acc, aoff, 0).x - 1;
-			direct_light = texelFetch(last_direct_light, aoff, 0).x;
-			acc_direct_light = texelFetch(last_direct_light_acc, aoff, 0).x - 1;
-		}
-	}
-
-	{
-		float div = center_divergence(last_view_pos);
-		if (div > 0.01) {
-			if (true) {
-				float basea = min(acc_diffuse, 128.0);
-				bool wga = acc_diffuse >= basea;
-				acc_diffuse *= mix(1.0 - div, 1.0, 0.9);
-				if (wga)
-					acc_diffuse = max(acc_diffuse, basea);
-			}
-			float baseb = min(acc_direct_light, 16.0);
-			bool wgb = acc_direct_light >= baseb;
-			acc_direct_light *= mix(1.0 - div, 1.0, 0.9);
-			if (wgb)
-				acc_direct_light = max(acc_direct_light, baseb);
-		}
-	}
-
-	vec4 nor_ao = texelFetch(normal, pos, 0);
-	float ao = nor_ao.w;
-	vec3 nor = nor_ao.xyz;
-	vec3 nt, nb;
-	vec3 norm_wr = (il.view_normal_inv * vec4(norm, 1.0)).xyz;
-	normal_gen_tb(norm_wr, nt, nb);
-	vec3 norm_w = basis_w(mat3(
-		vec3(nt.x, nb.x, norm_wr.x),
-		vec3(nt.y, nb.y, norm_wr.y),
-		vec3(nt.z, nb.z, norm_wr.z)
-	) * (il.view_normal_inv * vec4(nor, 1.0)).xyz);
-	out_output = (direct_light * max(0.0, min(dot(nor, il.sun), dot(norm, il.sun))) * 2.5 + (diffuse_b[0] * norm_w.x + diffuse_b[1] * norm_w.y + diffuse_b[2] * norm_w.z) * ao) * alb;
 	if (texelFetch(cdepth, pos, 0).x == 0.0) {
-		out_output = env_sample_novoid((il.view_normal_inv * vec4(view_norm, 1.0)).xyz);
-		for (uint i = 0; i < 3; i++)
-			diffuse_b[i] = vec3(0.0);
-		acc_diffuse = 0.0;
-		direct_light = 0.0;
-		acc_direct_light = 0.0;
+		out_output = vec3(1.0);
 	}
 
-	//out_output = diffuse_b_last[0];
-
-	for (uint i = 0; i < 3; i++)
-		imageStore(s_diffuse, ivec3(pos, i), vec4(correct_nan(diffuse_b[i]), 0.0));
+	//imageStore(s_diffuse, ivec3(pos, i), vec4(correct_nan(diffuse_b[i]), 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
-	imageStore(s_direct_light, pos, vec4(direct_light, vec3(0.0)));
-	imageStore(s_direct_light_acc, pos, vec4(acc_direct_light, vec3(0.0)));
+	//imageStore(s_direct_light, pos, vec4(direct_light, vec3(0.0)));
+	//imageStore(s_direct_light_acc, pos, vec4(acc_direct_light, vec3(0.0)));
 	imageStore(s_output, pos, vec4(out_output, 0.0));
 }

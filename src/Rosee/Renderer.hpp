@@ -389,8 +389,8 @@ public:
 					Pipeline m_diffuse_pipeline;
 					Pipeline createDiffusePipeline(Renderer &r);
 
-					glm::vec3 m_rnd_sun[256];
-					glm::vec3 m_rnd_diffuse[256];
+					glm::vec3 m_rnd_sun[8192];
+					glm::vec3 m_rnd_diffuse[8192];
 
 					void destroy(Renderer &r);
 				};
@@ -601,8 +601,8 @@ private:
 			glm::mat4 view_cur_to_last;
 			glm::mat4 view_last_to_cur;
 			glm::mat4 view_last_to_cur_normal;
-			glm::vec4 rnd_sun[256];
-			glm::vec4 rnd_diffuse[256];
+			glm::vec4 rnd_sun[8192];
+			glm::vec4 rnd_diffuse[8192];
 			glm::vec3 sun;
 			float _pad;
 			glm::vec2 size;

@@ -12,7 +12,8 @@ void main(void)
 	Instance ins = instances.instances[gl_InstanceCustomIndexEXT];
 	Vertex_pnu v = vertex_read_pnu(ins.model, gl_PrimitiveID, baryCoord);
 	Material_albedo m = materials_albedo.materials[ins.material];
-	vec4 alb = texture(samplers[m.albedo], vec2(v.u.x, -v.u.y));
+	//vec4 alb = texture(samplers[m.albedo], vec2(v.u.x, -v.u.y));
+	vec4 alb = vec4(vec3(0.5), 1.0);
 	if (alb.w < 0.01)
 		ignoreIntersectionEXT;
 	rp.hit = true;

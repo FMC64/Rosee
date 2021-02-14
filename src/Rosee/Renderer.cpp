@@ -718,7 +718,7 @@ Vk::DescriptorSetLayout Renderer::createDescriptorSetLayout0(void)
 	VkDescriptorSetLayoutCreateInfo ci{};
 	ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	VkDescriptorSetLayoutBinding bindings[] {
-		{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+		{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 		{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, s0_sampler_count, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
 	};
 	ci.bindingCount = array_size(bindings);
@@ -1430,7 +1430,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 
 	if (m_illum_technique == IllumTechnique::Potato) {
 		VkDescriptorSetLayoutBinding bindings[] {
-			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+			{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth
 			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
 			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// normal
@@ -1442,7 +1442,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	if (m_illum_technique == IllumTechnique::Sspt) {
 		if (m_sample_count == VK_SAMPLE_COUNT_1_BIT) {
 			VkDescriptorSetLayoutBinding bindings[] {
-				{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+				{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 				{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth
 				{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
 				{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// normal
@@ -1462,7 +1462,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 			return device.createDescriptorSetLayout(ci);
 		} else {
 			VkDescriptorSetLayoutBinding bindings[] {
-				{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+				{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
 				{1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// depth
 				{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// albedo
 				{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},	// normal
@@ -1487,7 +1487,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	}
 	if (m_illum_technique == IllumTechnique::Rtpt) {
 		VkDescriptorSetLayoutBinding bindings[] {
-			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
+			{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
 			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
 			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
@@ -1522,7 +1522,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	}
 	if (m_illum_technique == IllumTechnique::Rtdp) {
 		VkDescriptorSetLayoutBinding bindings[] {
-			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
+			{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
 			{2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
 			{3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
@@ -1541,7 +1541,7 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 	}
 	if (m_illum_technique == IllumTechnique::Rtbp) {
 		VkDescriptorSetLayoutBinding bindings[] {
-			{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
+			{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
 
 			{2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse_cur
@@ -1872,7 +1872,6 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 	ci.maxSets = m_frame_count * sets_per_frame;
 	VkDescriptorPoolSize pool_sizes[] {
 		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, m_frame_count},
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_frame_count * 2},	// illum
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_frame_count * (
 			s0_sampler_count +	// s0
 			m_illum_technique_props.descriptorCombinedImageSamplerCount +			// illumination
@@ -1895,7 +1894,7 @@ Vk::DescriptorPool Renderer::createDescriptorPool(void)
 				1 :	// illum
 				0)
 		)},
-		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, m_frame_count * (
+		{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, m_frame_count * (2 + 	// illum
 			(needsAccStructure() ?
 				1 +	// instances
 				modelPoolSize * 4 +	// models
@@ -2976,7 +2975,7 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 		//has_h = false;
 
 		auto [b, n] = map.addBrush<Id, Transform, MVP, MV_normal, OpaqueRender, RT_instance>(1);
-		b.get<Transform>()[n] = glm::scale(glm::dvec3(0.01));
+		b.get<Transform>()[n] = glm::scale(glm::dvec3(1));
 		auto &r = b.get<OpaqueRender>()[n];
 		r.pipeline = has_h ? pipeline_opaque_tb : pipeline_opaque;
 		auto mat_ndx = mat_off + static_cast<size_t>(vert_mat);
@@ -3126,8 +3125,10 @@ void Renderer::instanciateModel(Map &map, const char *path, const char *filename
 
 			for (size_t i = 0; i < pos.size(); i++) {
 				decltype(vertices)::value_type vertex;
-				vertex.p = pos.at(i);
+				vertex.p = pos.at(pos.size() - i - 1);
+				vertex.p.z = -vertex.p.z;
 				vertex.n = normal.at(i);
+				vertex.n.z = -vertex.n.z;
 				vertex.u = uv.at(i);
 				vertices.emplace_back(vertex);
 			}
@@ -4024,8 +4025,8 @@ void Renderer::bindFrameDescriptors(void)
 
 		{
 			WriteBufDesc  bufs[const_buf_writes_per_frame] {
-				{cur_frame.m_descriptor_set_0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, cur_frame.m_illumination_buffer},
-				{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, cur_frame.m_illumination_buffer}
+				{cur_frame.m_descriptor_set_0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, cur_frame.m_illumination_buffer},
+				{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, cur_frame.m_illumination_buffer}
 			};
 
 			for (size_t i = 0; i < array_size(bufs); i++)
@@ -4791,7 +4792,7 @@ Renderer::IllumTechnique::Data::Rtdp::Shared Renderer::createIllumRtdp(void)
 	res.m_pipeline = res.createPipeline(*this);
 	res.m_diffuse_pipeline = res.createDiffusePipeline(*this);
 
-	for (size_t i = 0; i < 256; i++) {
+	for (size_t i = 0; i < 8192; i++) {
 		reinterpret_cast<glm::vec3&>(res.m_rnd_sun[i]) = genDiffuseVector(*this, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
 		reinterpret_cast<glm::vec3&>(res.m_rnd_diffuse[i]) = genDiffuseVector(*this, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
 	}
@@ -5451,7 +5452,7 @@ Vk::BufferAllocation Renderer::Frame::createIlluminationBuffer(void)
 	VkBufferCreateInfo bci{};
 	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bci.size = sizeof(Illumination);
-	bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	VmaAllocationCreateInfo aci{};
 	aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	return m_r.allocator.createBuffer(bci, aci);
@@ -5658,7 +5659,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 			std::memcpy(illum.rnd_sun, m_r.m_illum_rtdp.m_rnd_sun, sizeof(m_r.m_illum_rtdp.m_rnd_sun));
 			std::memcpy(illum.rnd_diffuse, m_r.m_illum_rtdp.m_rnd_diffuse, sizeof(m_r.m_illum_rtdp.m_rnd_diffuse));
 		} else
-			for (size_t i = 0; i < 256; i++) {
+			for (size_t i = 0; i < 8192; i++) {
 				reinterpret_cast<glm::vec3&>(illum.rnd_sun[i]) = genDiffuseVector(m_r, glm::normalize(glm::vec3(1.3, 3.0, 1.0)), 2000.0);
 				reinterpret_cast<glm::vec3&>(illum.rnd_diffuse[i]) = genDiffuseVector(m_r, glm::vec3(0.0f, 0.0f, 1.0f), 1.0);
 			}

@@ -31,7 +31,7 @@ void main(void)
 	ivec2 offs[8];
 	uint off_count = oct_fill_mirror(probe_pos_loc, offs);
 
-	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 256;
+	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 8192;
 
 	for (uint i = 0; i < probe_layer_count; i++) {
 		Probe probe = probes_pos.probes[probe_offset(probe_pos, i)];
