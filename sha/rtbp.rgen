@@ -144,7 +144,7 @@ void main(void)
 			mul = 8;
 			w_f = 4.0;
 		}
-		mul *= (1 + (hash(int(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y) + hash(int(last_acc))) % 3));
+		mul *= (1 + (hash(hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) + hash(int(last_acc))) % 3);
 		if (ndif >= 0.05)
 			w_f = 0.0;
 

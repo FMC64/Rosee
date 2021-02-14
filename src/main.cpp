@@ -478,6 +478,13 @@ public:
 					last_view = view;
 				auto vp = proj * view;
 
+				m_m.query<Transform>([&](Brush &b){
+					//std::cout << b.size() << " ents" << std::endl;
+					auto tr = b.get<Transform>();
+					if (b.size() >= 2)
+						tr[1] = glm::translate(glm::vec3(0.0, 0.0, std::cos(t * 0.5) * 25.0));
+				});
+
 				m_m.query<MVP>([&](Brush &b){
 					auto size = b.size();
 					auto mvp = b.get<MVP>();
