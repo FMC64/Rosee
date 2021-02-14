@@ -105,13 +105,13 @@ void main(void)
 
 	vec3 first_diffuse_dir = normal_view(rnd_diffuse_around(normal_view_inv(norm), rnd));
 	traceRayEXT(acc,
-		0,	// rayFlags
+		gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
 		0xFF,	// cullMask
 		0,	// sbtRecordOffset
 		0,	// sbtRecordStride
 		0,	// missIndex
 		view,	// origin
-		tmin_calc(length(view)),	// Tmin
+		0.0,	// Tmin
 		first_diffuse_dir,	// direction
 		il.cam_near * 2.0,	// Tmax
 		0);
@@ -131,11 +131,43 @@ void main(void)
 	float acc_diffuse = 1.0;
 	vec3 diffuse = vec3(rp.hit ? 0.0 : 1.0);
 	if (repr_success) {
+
 		float last_acc = texelFetch(last_diffuse_acc, ilast_view_pos, 0).x;
-		if (last_acc > 0.0) {
-			vec3 last_diffuse = textureLod(last_diffuse, last_view_pos, 0).xyz;
+		int mul = 1;
+		if (last_acc < 10)
+			mul = 4 * (1 + (rnd + int(last_acc)) % 3);
+		if (last_acc < 5)
+			mul = 8 * (1 + (rnd + int(last_acc)) % 3);
+
+		const ivec2 off[4] = {
+			ivec2(-1, 0),
+			ivec2(1, 0),
+			ivec2(0, -1),
+			ivec2(0, 1)
+		};
+
+		vec3 base_norm = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
+		float w = 1.0;
+		const float w_f = .5;
+		for (uint i = 0; i < 4; i++) {
+			ivec2 p = ilast_view_pos + off[i] * mul;
+			if (length(texelFetch(last_normal_geom, p, 0).xyz - base_norm) < 0.05) {
+				diffuse += texelFetch(last_diffuse, p, 0).xyz * w_f;
+				w += w_f;
+			}
+		}
+		diffuse /= w;
+
+		if (last_acc > 0.0 && length((il.view_last_to_cur_normal * vec4(texelFetch(last_normal_geom, ilast_view_pos, 0).xyz, 1.0)).xyz - norm) < 0.05) {
+			vec3 last_diffuse_v;
+			if (length(textureLod(last_normal_geom, last_view_pos, 0.0).xyz - texelFetch(last_normal_geom, ilast_view_pos, 0).xyz) < 0.05) {
+				last_diffuse_v = textureLod(last_diffuse, last_view_pos, 0).xyz;
+				float last_acc = textureLod(last_diffuse_acc, ilast_view_pos, 0).x;
+			} else {
+				last_diffuse_v = texelFetch(last_diffuse, ilast_view_pos, 0).xyz;
+			}
 			acc_diffuse = last_acc + 1.0;
-			diffuse = (last_diffuse * last_acc + diffuse) / acc_diffuse;
+			diffuse = (last_diffuse_v * last_acc + diffuse) / acc_diffuse;
 		}
 	}
 
@@ -145,6 +177,7 @@ void main(void)
 		out_output = vec3(1.0);
 	}
 
+	acc_diffuse = min(acc_diffuse, 32.0);
 	imageStore(s_diffuse, pos, vec4(diffuse, 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
 	//imageStore(s_direct_light, pos, vec4(direct_light, vec3(0.0)));
