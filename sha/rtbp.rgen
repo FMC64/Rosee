@@ -99,7 +99,7 @@ void main(void)
 	ivec2 pos = ivec2(fpos);
 	vec3 view = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
 	vec3 view_norm = normalize(view);
-	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 8192;
+	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 2048;
 
 	vec3 norm = texelFetch(normal_geom, pos, 0).xyz;
 

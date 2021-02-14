@@ -9,8 +9,8 @@ layout(set = 0, binding = 0) readonly buffer Illum {
 	mat4 view_cur_to_last;
 	mat4 view_last_to_cur;
 	mat4 view_last_to_cur_normal;
-	vec3 rnd_sun[8192];
-	vec3 rnd_diffuse[8192];
+	vec3 rnd_sun[2048];
+	vec3 rnd_diffuse[2048];
 	vec3 sun;
 	vec2 size;
 	vec2 size_inv;

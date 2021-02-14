@@ -124,7 +124,7 @@ void main(void)
 		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
 		length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz) < repr_dist_tres;
 
-	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 8192;
+	int rnd = (hash(int(gl_FragCoord.x)) + hash(int(gl_FragCoord.y))) % 2048;
 	vec3 alb = texelFetch(albedo_resolved, pos, 0).xyz;
 	int last_step = texelFetch(last_step, ilast_view_pos, 0).x;
 	uvec4 last_acc_path_pos = texelFetch(last_acc_path_pos, ilast_view_pos, 0).xyzw;
