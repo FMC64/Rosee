@@ -1544,27 +1544,25 @@ Vk::DescriptorSetLayout Renderer::createIlluminationSetLayout(void)
 			{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, nullptr},
 			{1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// acc
 
-			{2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse_cur
-			{3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse
-			{4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse_acc
-			{5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light_cur
-			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light
-			{7, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light_acc
-			{8, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_output
+			{2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse
+			{3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_diffuse_acc
+			{4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light
+			{5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_direct_light_acc
+			{6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// out_output
 
-			{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
-			{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
-			{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
-			{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal_geom
-			{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_cdepth
-			{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
-			{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
-			{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal_geom
+			{7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// cdepth
+			{8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// albedo
+			{9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal
+			{10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// normal_geom
+			{11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_cdepth
+			{12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_albedo
+			{13, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal
+			{14, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_normal_geom
 
-			{17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse
-			{18, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse_acc
-			{19, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_direct_light
-			{20, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// last_direct_light_acc
+			{15, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse
+			{16, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_diffuse_acc
+			{17, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},	// last_direct_light
+			{18, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}	// last_direct_light_acc
 		};
 		ci.bindingCount = array_size(bindings);
 		ci.pBindings = bindings;
@@ -3967,31 +3965,29 @@ void Renderer::bindFrameDescriptors(void)
 		if (m_illum_technique == IllumTechnique::Rtbp) {
 			{
 				WriteImgDesc descs[IllumTechnique::Data::Rtbp::storageImageCount] {
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_diffuse_cur_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 5, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_direct_light_cur_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 7, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_direct_light_acc_view, Vk::ImageLayout::General},
-					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 8, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 5, VK_NULL_HANDLE, cur_frame.m_illum_rtbp.m_direct_light_acc_view, Vk::ImageLayout::General},
+					{cur_frame.m_illumination_set, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, VK_NULL_HANDLE, cur_frame.m_output_view, Vk::ImageLayout::General}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
 			}
 			{
 				WriteImgDesc descs[IllumTechnique::Data::Rtbp::descriptorCombinedImageSamplerCount] {
-					{cur_frame.m_illumination_set, cis, 9, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, cis, 10, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, cis, 11, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{cur_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_normal_geom_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 13, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 14, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_normal_geom_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 17, m_sampler_fb_mip, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 18, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 19, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
-					{next_frame.m_illumination_set, cis, 20, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
+					{cur_frame.m_illumination_set, cis, 7, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 8, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 9, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{cur_frame.m_illumination_set, cis, 10, m_sampler_fb, cur_frame.m_normal_geom_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 11, m_sampler_fb, cur_frame.m_cdepth_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 12, m_sampler_fb, cur_frame.m_albedo_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 13, m_sampler_fb_lin, cur_frame.m_normal_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 14, m_sampler_fb_lin, cur_frame.m_normal_geom_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 15, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 16, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_diffuse_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 17, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_view, Vk::ImageLayout::ShaderReadOnlyOptimal},
+					{next_frame.m_illumination_set, cis, 18, m_sampler_fb_lin, cur_frame.m_illum_rtbp.m_direct_light_acc_view, Vk::ImageLayout::ShaderReadOnlyOptimal}
 				};
 				for (size_t i = 0; i < array_size(descs); i++)
 					write_img_descs[write_img_descs_offset++] = descs[i];
@@ -5341,21 +5337,17 @@ Renderer::IllumTechnique::Data::Rtbp::Fbs Renderer::Frame::createIllumRtbpFbs(vo
 			m_r.m_swapchain_extent.width,
 			1};
 		ici.mipLevels = 1;
-		ici.arrayLayers = 3;
+		ici.arrayLayers = 1;
 		ici.samples = VK_SAMPLE_COUNT_1_BIT;
 		ici.tiling = VK_IMAGE_TILING_OPTIMAL;
 		ici.usage = Vk::ImageUsage::StorageBit | Vk::ImageUsage::SampledBit | Vk::ImageUsage::TransferDst;
 		VmaAllocationCreateInfo aci{};
 		aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		res.m_diffuse_cur = m_r.allocator.createImage(ici, aci);
-		res.m_diffuse_cur_view = m_r.createImageView(res.m_diffuse_cur, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ici.format, Vk::ImageAspect::ColorBit);
 		res.m_diffuse = m_r.allocator.createImage(ici, aci);
-		res.m_diffuse_view = m_r.createImageView(res.m_diffuse, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ici.format, Vk::ImageAspect::ColorBit);
+		res.m_diffuse_view = m_r.createImageView(res.m_diffuse, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
 
 		ici.arrayLayers = 1;
 		ici.format = VK_FORMAT_R16_SFLOAT;
-		res.m_direct_light_cur = m_r.allocator.createImage(ici, aci);
-		res.m_direct_light_cur_view = m_r.createImageView(res.m_direct_light_cur, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
 		res.m_direct_light = m_r.allocator.createImage(ici, aci);
 		res.m_direct_light_view = m_r.createImageView(res.m_direct_light, VK_IMAGE_VIEW_TYPE_2D, ici.format, Vk::ImageAspect::ColorBit);
 
@@ -5374,14 +5366,10 @@ void Renderer::IllumTechnique::Data::Rtbp::Fbs::destroy(Renderer &r)
 	r.allocator.destroy(m_direct_light_acc);
 	r.device.destroy(m_direct_light_view);
 	r.allocator.destroy(m_direct_light);
-	r.device.destroy(m_direct_light_cur_view);
-	r.allocator.destroy(m_direct_light_cur);
 	r.device.destroy(m_diffuse_acc_view);
 	r.allocator.destroy(m_diffuse_acc);
 	r.device.destroy(m_diffuse_view);
 	r.allocator.destroy(m_diffuse);
-	r.device.destroy(m_diffuse_cur_view);
-	r.allocator.destroy(m_diffuse_cur);
 }
 
 Vk::Framebuffer Renderer::Frame::createOpaqueFb(void)
@@ -6162,22 +6150,12 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 					VkImageMemoryBarrier ibarrier[] {
 						{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
 							Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_compute, m_r.m_queue_family_compute,
-							m_illum_rtbp.m_diffuse_cur,
-							{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS }
-						},
-						{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
-							Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_compute, m_r.m_queue_family_compute,
 							m_illum_rtbp.m_diffuse,
 							{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS }
 						},
 						{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
 							Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_compute, m_r.m_queue_family_compute,
 							m_illum_rtbp.m_diffuse_acc,
-							{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS }
-						},
-						{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
-							Vk::ImageLayout::Undefined, Vk::ImageLayout::General, m_r.m_queue_family_compute, m_r.m_queue_family_compute,
-							m_illum_rtbp.m_direct_light_cur,
 							{ VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS }
 						},
 						{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr, 0, Vk::Access::ShaderWriteBit,
