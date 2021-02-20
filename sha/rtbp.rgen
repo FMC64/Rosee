@@ -117,7 +117,7 @@ bool isValidTap(float tapDepth, float centerDepth, vec3 tapNormal, vec3 centerNo
 	return true;
 }
 
-float lowPassFilter(vec2 pos, ivec2 filterDirection, const bool doTemporalFilter)
+float lowPassFilter(vec2 pos, ivec2 filterDirection, float filter_scale, const bool doTemporalFilter)
 {
 	float ao = 0.0;
 	float weight = 0.0;
@@ -129,7 +129,7 @@ float lowPassFilter(vec2 pos, ivec2 filterDirection, const bool doTemporalFilter
 	//float2 offsetScale = filterInfo.texelSize * filterDirection;
 
 	for (int i = -2; i <= 2; ++i) {
-		vec2 p = pos + vec2(i * filterDirection);
+		vec2 p = pos + vec2(i * filterDirection) * filter_scale;
 
 		float tapAO = textureLod(last_diffuse, p, 0).x;
 		float tapDepth = textureLod(last_cdepth, p, 0).x;
@@ -182,6 +182,33 @@ void main(void)
 	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
 		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
 		repr_dist < repr_dist_tres;
+	float filter_scale = 1.0;
+	{
+		vec3 base_normal = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
+		if (length(textureLod(last_normal_geom, last_view_pos, 0.0).xyz - base_normal) >= 0.05) {
+			repr_success = false;
+			/*const ivec2 offsets[8] = {
+				ivec2(-1, 0),
+				ivec2(1, 0),
+				ivec2(0, -1),
+				ivec2(0, 1),
+
+				ivec2(-1, -1),
+				ivec2(1, -1),
+				ivec2(-1, 1),
+				ivec2(-1, -1)
+			};
+			for (uint i = 0; i < 8; i++) {
+				vec2 cur = last_view_pos + vec2(offsets[i]);
+				if (length(textureLod(last_normal_geom, cur, 0.0).xyz - base_normal) < 0.01) {
+					last_view_pos = cur;
+					ilast_view_pos = ivec2(cur);
+					break;
+				}
+			}*/
+			filter_scale = 0.0;
+		}
+	}
 
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 
@@ -189,12 +216,19 @@ void main(void)
 	vec3 diffuse = vec3(rp.hit ? 0.0 : 1.0);
 	vec3 used_diffuse = diffuse;
 	if (repr_success) {
+		const float limit = 64.0;
 		float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0).x;
-		float fdiffuse = lowPassFilter(last_view_pos, uint(last_acc) % 2 == 0 ? ivec2(1, 0) : ivec2(0, 1), false);
+		if (last_acc < limit * .5)
+			filter_scale *= 4.0;
+		else
+			filter_scale *= 2.0;
+		float fdiffuse = lowPassFilter(last_view_pos, uint(last_acc) % 2 == 0 ? ivec2(1, 0) : ivec2(0, 1), filter_scale, false);
 		used_diffuse = vec3(fdiffuse);
-		//diffuse = (used_diffuse * last_acc + diffuse) / acc_diffuse;
-		diffuse = mix(used_diffuse, diffuse, 0.01);
 		acc_diffuse = last_acc + 1.0;
+		diffuse = (used_diffuse * last_acc + diffuse) / acc_diffuse;
+		if (acc_diffuse >= limit)
+			acc_diffuse = limit - 2.0;
+		//diffuse = mix(used_diffuse, diffuse, 0.01);
 
 		/*float last_acc = texelFetch(last_diffuse_acc, ilast_view_pos, 0).x;
 		vec3 last_diffuse_v = textureLod(last_diffuse, last_view_pos, 0).xyz;
