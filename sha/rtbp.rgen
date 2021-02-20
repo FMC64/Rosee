@@ -120,7 +120,7 @@ bool isValidTap(float tapDepth, float centerDepth, vec3 tapNormal, vec3 centerNo
 float lowPassFilter(vec2 pos, ivec2 filterDirection, float filter_scale, const bool doTemporalFilter)
 {
 	float ao = 0.0;
-	float weight = 0.0;
+	float weight = 1.0;
 
 	float centerDepth = textureLod(last_cdepth, pos, 0).x;
 	vec3 centerNormal = textureLod(last_normal, pos, 0).xyz;
@@ -130,6 +130,10 @@ float lowPassFilter(vec2 pos, ivec2 filterDirection, float filter_scale, const b
 
 	for (int i = -2; i <= 2; ++i) {
 		vec2 p = pos + vec2(i * filterDirection) * filter_scale;
+		if (p.x >= (il.size.x - 1.0))
+			p.x = il.size.x - 1.0;
+		if (p.y >= (il.size.y - 1.0))
+			p.y = il.size.y - 1.0;
 
 		float tapAO = textureLod(last_diffuse, p, 0).x;
 		float tapDepth = textureLod(last_cdepth, p, 0).x;
@@ -141,8 +145,8 @@ float lowPassFilter(vec2 pos, ivec2 filterDirection, float filter_scale, const b
 			ao += (doTemporalFilter
 				? tapAO * 0.25
 				: tapAO) * tapWeight;
-			weight += tapWeight;
-		}
+		}else
+			weight -= tapWeight;
 	}
 
 	ao /= weight;
