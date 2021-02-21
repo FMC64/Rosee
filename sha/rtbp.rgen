@@ -217,8 +217,8 @@ void main(void)
 	vec3 alb = texelFetch(albedo, pos, 0).xyz;
 
 	float acc_diffuse = 1.0;
-	vec3 diffuse = vec3(rp.hit ? 0.0 : 1.0);
-	vec3 used_diffuse = diffuse;
+	vec2 diffuse = vec2(rp.hit ? 0.0 : 1.0);
+	vec2 used_diffuse = diffuse;
 	if (repr_success) {
 		const float limit = 128.0;
 		float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0).x;
@@ -228,22 +228,41 @@ void main(void)
 			filter_scale *= 2.0;
 		else
 			filter_scale = 2.0;
+		/*if (last_acc > 8.0) {
+			float d = textureLod(last_diffuse, last_view_pos, 0).x;
+			if (d < 0.01)
+				filter_scale = 0.5;
+		}*/
+		float has_diffuse = textureLod(last_diffuse, last_view_pos, 0).y;
+		vec2 last_acc2 = vec2(last_acc);
+		if (last_acc > 16.0) {
+			if (length(fract(last_view_pos) - .5) > 0.01) {
+				last_acc2.y = 4.0;
+				/*vec4 g = textureGather(last_diffuse, last_view_pos, 1);
+				if (uint(last_acc) % 2 == 0)
+					has_diffuse = min(g.x, min(g.y, min(g.z, g.w)));
+				else
+					has_diffuse = max(g.x, max(g.y, max(g.z, g.w)));*/
+			}
+			if (has_diffuse == 0)
+				filter_scale = 0.01;
+		}
 		float fdiffuse = lowPassFilter(last_view_pos, uint(last_acc) % 2 == 0 ? ivec2(1, 0) : ivec2(0, 1), filter_scale, false);
-		used_diffuse = vec3(fdiffuse);
+		used_diffuse = vec2(fdiffuse);
 		acc_diffuse = last_acc + 1.0;
-		diffuse = (used_diffuse * last_acc + diffuse) / acc_diffuse;
+		diffuse = (vec2(fdiffuse, has_diffuse) * last_acc2 + diffuse) / vec2(acc_diffuse, last_acc2.y + 1.0);
 		if (acc_diffuse >= limit)
 			acc_diffuse = limit - 2.0;
 	}
 
-	vec3 out_output = alb * used_diffuse;
+	vec3 out_output = alb * used_diffuse.x;
 
 	if (texelFetch(cdepth, pos, 0).x == 0.0) {
 		out_output = vec3(1.0);
 	}
 
 	//acc_diffuse = min(acc_diffuse, 24.0);
-	imageStore(s_diffuse, pos, vec4(diffuse, 0.0));
+	imageStore(s_diffuse, pos, vec4(diffuse, 0.0, 0.0));
 	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
 	//imageStore(s_direct_light, pos, vec4(direct_light, vec3(0.0)));
 	//imageStore(s_direct_light_acc, pos, vec4(acc_direct_light, vec3(0.0)));
