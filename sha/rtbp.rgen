@@ -235,7 +235,22 @@ void main(void)
 		}*/
 		float has_diffuse = textureLod(last_diffuse, last_view_pos, 0).y;
 		vec2 last_acc2 = vec2(last_acc);
-		if (last_acc > 16.0) {
+
+		{
+			float s = 8;
+			float v1 = 1.0 - abs(textureLod(last_diffuse, last_view_pos + vec2(-s, -s), 0).y - textureLod(last_diffuse, last_view_pos + vec2(s, s), 0).y);
+			float v2 = 1.0 - abs(textureLod(last_diffuse, last_view_pos + vec2(s, -s), 0).y - textureLod(last_diffuse, last_view_pos + vec2(-s, s), 0).y);
+			float s2 = pow(min(v1, v2), 2.0);
+			if (s2 < 0.80 || has_diffuse == 0.0)
+				filter_scale = 0.1;
+			//else
+			//	s2 =
+			//s2 = pow(s2, 16.0);
+			//s2 = pow(s2, 4.0);
+			//filter_scale *= s2;
+		}
+
+		/*if (last_acc > 16.0) {
 			if (length(fract(last_view_pos) - .5) > 0.01) {
 				last_acc2.y = 4.0;
 				/*vec4 g = textureGather(last_diffuse, last_view_pos, 1);
@@ -243,10 +258,10 @@ void main(void)
 					has_diffuse = min(g.x, min(g.y, min(g.z, g.w)));
 				else
 					has_diffuse = max(g.x, max(g.y, max(g.z, g.w)));*/
-			}
-			if (has_diffuse == 0)
-				filter_scale = 0.01;
-		}
+			//}
+			//if (has_diffuse == 0)
+			//	filter_scale = 0.01;
+		//}
 		float fdiffuse = lowPassFilter(last_view_pos, uint(last_acc) % 2 == 0 ? ivec2(1, 0) : ivec2(0, 1), filter_scale, false);
 		used_diffuse = vec2(fdiffuse);
 		acc_diffuse = last_acc + 1.0;
