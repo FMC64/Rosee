@@ -162,6 +162,11 @@ vec2 correct_var(vec3 bnorm, vec2 pos, vec2 off)
 		return pos;
 }
 
+bool c2d_inside(ivec2 p)
+{
+	return p.x >= 0 && p.y >= 0 && p.x < int(il.size.x) && p.y < int(il.size.y);
+}
+
 void main(void)
 {
 	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
@@ -203,7 +208,7 @@ void main(void)
 				ivec2(-1, 0),
 				ivec2(1, 0),
 				ivec2(0, -1),
-				ivec2(1, 1),
+				ivec2(0, 1),
 
 				ivec2(-1, -1),
 				ivec2(1, -1),
@@ -227,8 +232,8 @@ void main(void)
 	float acc_diffuse = 1.0;
 	vec2 diffuse = vec2(rp.hit ? 0.0 : 1.0);
 	vec2 used_diffuse = diffuse;
+	const float limit = 256.0;
 	if (repr_success) {
-		const float limit = 256.0;
 		float last_acc = textureLod(last_diffuse_acc, last_view_pos, 0).x;
 		if (last_acc < limit * .5)
 			filter_scale *= 4.0;
@@ -286,6 +291,34 @@ void main(void)
 		diffuse = (vec2(fdiffuse, has_diffuse) * last_acc + diffuse) / acc_diffuse;
 		if (acc_diffuse >= limit)
 			acc_diffuse = limit - 2.0;
+	} else {
+		/*const ivec2 offsets[8] = {
+			ivec2(-1, 0),
+			ivec2(1, 0),
+			ivec2(0, -1),
+			ivec2(0, 1),
+
+			ivec2(-1, -1),
+			ivec2(1, -1),
+			ivec2(-1, 1),
+			ivec2(1, 1)
+		};
+
+		for (uint i = 0; i < 8; i++) {
+			ivec2 p = ilast_view_pos + offsets[i] * 2;
+			vec3 n = texelFetch(last_normal, p, 0).xyz;
+			n = (il.view_last_to_cur_normal * vec4(n, 1.0)).xyz;
+			vec3 lp = rt_pos_view(vec2(p) + .5, texelFetch(last_cdepth, p, 0).x);
+			lp = (il.view_last_to_cur * vec4(lp, 1.0)).xyz;
+			float a = texelFetch(last_diffuse_acc, p, 0).x;
+			vec2 d = texelFetch(last_diffuse, p, 0).xy;
+			if (length(n - norm) < 0.01 && abs(dot(normalize(lp - view), norm)) < 0.01 && c2d_inside(p) && c2d_inside(ilast_view_pos) && a > limit * 0.9) {
+				diffuse = d;
+				used_diffuse = diffuse;
+				acc_diffuse = a;
+				break;
+			}
+		}*/
 	}
 
 	vec3 out_output = alb * used_diffuse.x;
