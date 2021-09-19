@@ -60,13 +60,13 @@ struct vec_tri {
 	tri ts[vec_tri_max];
 };
 
+#define vec_tri_push(vec, to_push) (vec).ts[(vec).count++ & 0xFF] = (to_push)
+
 // why is that broken??
 /*void vec_tri_push(out vec_tri vec, in tri to_push)
 {
-	vec.ts[vec.count++ & 0xFF] = to_push;
+	vec_tri_push_mac(vec, to_push);
 }*/
-
-#define vec_tri_push(vec, to_push) (vec).ts[(vec).count++ & 0xFF] = (to_push)
 
 void occ_ind(in tri src, in tri occ, vec3 p, out vec_tri res)
 {
