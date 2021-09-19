@@ -53,29 +53,58 @@ struct tri {
 	vec3 ps[3];
 };
 
-const uint vec_tri_max = 256;
+const uint vec_tri_max = 128;
 
 struct vec_tri {
 	uint count;
 	tri ts[vec_tri_max];
 };
 
-void occlude(out vec_tri src, tri occ, vec3 p)
+// why is that broken??
+/*void vec_tri_push(out vec_tri vec, in tri to_push)
 {
+	vec.ts[vec.count++ & 0xFF] = to_push;
+}*/
+
+#define vec_tri_push(vec, to_push) (vec).ts[(vec).count++ & 0xFF] = (to_push)
+
+void occ_ind(in tri src, in tri occ, vec3 p, out vec_tri res)
+{
+	res.count = 0;
+	vec_tri ukn;	// triangles that might be in res and might also be occluded
+	ukn.count = 0;
+	vec_tri_push(res, src);
+}
+
+void occlude(in vec_tri src, in tri occ, vec3 p, out vec_tri res)
+{
+	res.count = 0;
+	vec_tri ind;
+	for (uint i = 0; i < src.count; i++) {
+		occ_ind(src.ts[i], occ, p, ind);
+		for (uint j = 0; j < ind.count; j++)
+			vec_tri_push(res, ind.ts[j]);
+	}
 }
 
 float illum(vec3 p)
 {
-	vec_tri srcs;
+	vec_tri srcs_nocc;
 	{
 		tri tl;
 		for (int i = 0; i < 3; i++) {
 			tl.ps[i] = tri_src[i] - p;
 			tl.ps[i].y += il.t;
 		}
-		srcs.count = 1;
-		srcs.ts[0] = tl;
+		srcs_nocc.count = 1;
+		srcs_nocc.ts[0] = tl;
 	}
+	vec_tri srcs;
+	occlude(srcs_nocc, tri(vec3[3](
+		tri_src[0],
+		tri_src[1],
+		tri_src[2]
+	)), p, srcs);
 	float sum = -pi;
 	for (uint ti = 0; ti < srcs.count; ti++) {
 		tri t = srcs.ts[ti];
