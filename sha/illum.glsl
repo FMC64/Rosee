@@ -24,4 +24,5 @@ layout(set = 0, binding = 0) readonly buffer Illum {
 	float cam_far;
 	float cam_a;
 	float cam_b;
+	float t;
 } il;

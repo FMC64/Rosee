@@ -613,6 +613,7 @@ private:
 			float cam_far;
 			float cam_a;
 			float cam_b;
+			float t = 0.0;
 		};
 
 	public:
@@ -626,7 +627,7 @@ private:
 			Vk::BufferAllocation dynBuffer);
 
 		void reset(void);
-		void render(Map &map, const Camera &camera);
+		void render(Map &map, const Camera &camera, double t);
 		void destroy(bool with_ext_res = false);
 
 	private:
@@ -721,7 +722,7 @@ public:
 	void setCursorMode(bool show);
 
 	void resetFrame(void);
-	void render(Map &map, const Camera &camera);
+	void render(Map &map, const Camera &camera, double t);
 
 	double zrand(void);
 };

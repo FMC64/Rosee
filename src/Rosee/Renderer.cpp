@@ -4470,9 +4470,9 @@ void Renderer::resetFrame(void)
 	m_frames[m_current_frame].reset();
 }
 
-void Renderer::render(Map &map, const Camera &camera)
+void Renderer::render(Map &map, const Camera &camera, double t)
 {
-	m_frames[m_current_frame].render(map, camera);
+	m_frames[m_current_frame].render(map, camera, t);
 	m_current_frame = (m_current_frame + 1) % m_frame_count;
 }
 
@@ -5566,7 +5566,7 @@ void Renderer::Frame::reset(void)
 	}
 }
 
-void Renderer::Frame::render(Map &map, const Camera &camera)
+void Renderer::Frame::render(Map &map, const Camera &camera, double t)
 {
 	auto &sex = m_r.m_swapchain_extent;
 	auto &sex_mip = m_r.m_swapchain_extent_mip;
@@ -5664,6 +5664,7 @@ void Renderer::Frame::render(Map &map, const Camera &camera)
 		illum.cam_far = camera.far;
 		illum.cam_a = camera.far / (camera.far - camera.near);
 		illum.cam_b = -(camera.far * camera.near) / (camera.far - camera.near);
+		illum.t = t;
 
 		if (m_r.m_illum_technique == IllumTechnique::Potato || m_r.m_illum_technique == IllumTechnique::Sspt) {
 			{

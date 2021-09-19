@@ -32,65 +32,41 @@ layout(set = 0, binding = 18) uniform sampler2D last_direct_light_acc;
 
 layout(location = 0) rayPayloadEXT RayPayload rp;
 
-float tmin_calc(float z)
-{
-	return 0.001 + min((z * 0.001) / il.cam_near, 1.0);
-}
+const vec3 b = vec3(10, 5, 0);
+const float w = 20.0;
+const float h = 10.0;
 
-vec3 last_pos_view(vec2 pos)
-{
-	return rt_pos_view(pos, texelFetch(last_cdepth, ivec2(pos), 0).x);
-}
-
-float center_divergence(vec2 pos)
-{
-	vec2 p = abs(fract(pos) - .5);
-	return p.x + p.y;
-}
-
-const vec3 basis[3] = {
-	vec3((2.0 * sqrt(2.0)) / 3.0, 0.0, 1.0 / 3.0),
-	vec3(-sqrt(2.0) / 3.0, sqrt(6.0) / 3.0, 1.0 / 3.0),
-	vec3(-sqrt(2.0) / 3.0, -sqrt(6.0) / 3.0, 1.0 / 3.0)
+const vec3 tri[3] = {
+	b,
+	b + vec3(w, 0.0, 0.0),
+	b + vec3(0.0, 0.0, h)
 };
 
-vec3 basis_w(vec3 normal)
+const float pi = 3.1415926535897932384626433832795;
+
+float acos_fast(float s)
 {
-	vec3 res = vec3(
-		max(0.0, dot(normal, basis[0])),
-		max(0.0, dot(normal, basis[1])),
-		max(0.0, dot(normal, basis[2]))
-	);
-	return res / (res.x + res.y + res.z);
+	return mix(0, pi, 1 - (s + 1) * .5);
 }
 
-vec3 normal_view_inv(vec3 normal)
+float illum(vec3 p)
 {
-	return (il.view_normal_inv * vec4(normal, 1.0)).xyz;
-}
-
-vec3 normal_view(vec3 normal)
-{
-	return (il.view_normal * vec4(normal, 1.0)).xyz;
-}
-
-bool nmocc(vec2 fpos, vec3 p, vec3 d)
-{
-	vec3 p0, p1;
-	rt_project_ray(p, d, p0, p1);
-	vec2 dir = normalize(p1 - p0).xy;
-	if (p.z < .5)
-		dir *= 4.0;
-	else if (p.z < 1.0)
-		dir *= 2.0;
-	vec3 slope = vec3(0.0);
-	bool disc = false;
-	for (uint i = 0; i < 8; i++) {
-		slope += textureLod(normal, fpos + dir * i, 0).xyz;
-		if (dot(slope * (1.0 / float(i)), d) < 0.0)
-			return true;
+	float sum = -pi;
+	vec3 tl[3];
+	for (int i = 0; i < 3; i++) {
+		tl[i] = tri[i] - p;
+		tl[i].y += il.t;
 	}
-	return false;
+	vec3 n[3];
+	for (int i = 0; i < 3; i++)
+		n[i] = cross(tl[i], tl[(i + 1) % 3]);
+	for (int i = 0; i < 3; i++) {
+		vec3 a = n[i];
+		vec3 b = n[(i + 1) % 3];
+		sum += acos(-dot(a, b) / (length(a) * length(b)));
+	}
+	sum /= 2.0 * pi;
+	return sum;
 }
 
 void main(void)
@@ -98,119 +74,10 @@ void main(void)
 	vec2 fpos = gl_LaunchIDEXT.xy + vec2(0.5);
 	ivec2 pos = ivec2(fpos);
 	vec3 view = rt_pos_view(fpos, texelFetch(cdepth, pos, 0).x);
-	vec3 view_norm = normalize(view);
-	int rnd = (hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) % 2048;
 
-	vec3 norm = texelFetch(normal_geom, pos, 0).xyz;
+	vec3 p = (il.view_inv * vec4(view, 1.0)).xyz;
 
-	vec3 first_diffuse_dir = normal_view(rnd_diffuse_around(normal_view_inv(norm), rnd));
-	traceRayEXT(acc,
-		gl_RayFlagsCullBackFacingTrianglesEXT,	// rayFlags
-		0xFF,	// cullMask
-		0,	// sbtRecordOffset
-		0,	// sbtRecordStride
-		0,	// missIndex
-		view,	// origin
-		0.0,	// Tmin
-		first_diffuse_dir,	// direction
-		il.cam_near * 2.0,	// Tmax
-		0);
+	vec3 out_output = vec3(illum(p));
 
-	vec4 last_view = il.view_cur_to_last * vec4(view, 1.0);
-	vec2 last_view_pos = rt_project_point(last_view.xyz).xy;
-	ivec2 ilast_view_pos = ivec2(last_view_pos);
-
-	const float repr_dist_tres = 0.5;
-	float repr_dist = length((il.view_inv * vec4(view, 1.0)).xyz - (il.last_view_inv * vec4(last_pos_view(last_view_pos), 1.0)).xyz);
-	bool repr_success = last_view_pos.x >= 0 && last_view_pos.y >= 0 &&
-		last_view_pos.x <= (il.size.x) && last_view_pos.y <= (il.size.y) &&
-		repr_dist < repr_dist_tres;
-
-	vec3 alb = texelFetch(albedo, pos, 0).xyz;
-
-	float acc_diffuse = 1.0;
-	vec3 diffuse = vec3(rp.hit ? 0.0 : 1.0);
-	vec3 used_diffuse = diffuse;
-	if (repr_success) {
-
-		float last_acc = texelFetch(last_diffuse_acc, ilast_view_pos, 0).x;
-		int mul = 1;
-		float w_f = 0.5;
-		float ndif = length((il.view_last_to_cur_normal * vec4(texelFetch(last_normal_geom, ilast_view_pos, 0).xyz, 1.0)).xyz - norm);
-		if (last_acc < 10) {
-			mul = 4;
-			w_f = 1;
-		} if (last_acc < 5) {
-			mul = 8;
-			w_f = 4.0;
-		}
-		mul *= (1 + (hash(hash(int(gl_LaunchIDEXT.x)) + hash(int(gl_LaunchIDEXT.y))) + hash(int(last_acc))) % 3);
-		if (ndif >= 0.05)
-			w_f = 0.0;
-
-		const ivec2 off[8] = {
-			ivec2(-1, 0),
-			ivec2(1, 0),
-			ivec2(0, -1),
-			ivec2(0, 1),
-			ivec2(-1, -1),
-			ivec2(-1, 1),
-			ivec2(-1, 1),
-			ivec2(1, 1)
-		};
-
-		vec3 base_norm = texelFetch(last_normal_geom, ilast_view_pos, 0).xyz;
-		vec3 base_view = rt_pos_view(last_view_pos, texelFetch(last_cdepth, ilast_view_pos, 0).x);
-		float w = 1.0;
-		for (uint i = 0; i < 8; i++) {
-			ivec2 p = ilast_view_pos + off[i] * mul;
-			p = clamp(p, ivec2(0), textureSize(last_cdepth, 0) - 1);
-			if (length(texelFetch(last_normal_geom, p, 0).xyz - base_norm) < 0.05 && length(rt_pos_view(vec2(p) + .5, texelFetch(last_cdepth, p, 0).x) - base_view) < 0.5) {
-				diffuse += texelFetch(last_diffuse, p, 0).xyz * w_f;
-				w += w_f;
-			}
-		}
-		diffuse /= w;
-
-		if (last_acc > 0.0 && ndif < 0.05) {
-			vec3 last_diffuse_v;
-			if (length(textureLod(last_normal_geom, last_view_pos, 0.0).xyz - texelFetch(last_normal_geom, ilast_view_pos, 0).xyz) < 0.05) {
-				last_diffuse_v = textureLod(last_diffuse, last_view_pos, 0).xyz;
-				float last_acc = textureLod(last_diffuse_acc, ilast_view_pos, 0).x;
-			} else {
-				last_diffuse_v = texelFetch(last_diffuse, ilast_view_pos, 0).xyz;
-			}
-			acc_diffuse = last_acc + 1.0;
-			diffuse = (last_diffuse_v * last_acc + diffuse) / acc_diffuse;
-			used_diffuse = last_diffuse_v;
-		}/* else {
-			for (uint i = 0; i < 8; i++) {
-				ivec2 p = ilast_view_pos + off[i];
-				if (length((il.view_last_to_cur_normal * vec4(texelFetch(last_normal_geom, p, 0).xyz, 1.0)).xyz - norm) < 0.5) {
-					diffuse = texelFetch(last_diffuse, p, 0).xyz;
-					acc_diffuse = texelFetch(last_diffuse_acc, p, 0).x;
-					break;
-				}
-			}
-		}*/
-	}
-
-	{
-		float div = center_divergence(last_view_pos);
-		if (div > 0.01)
-			acc_diffuse *= mix(1.0 - div, 1.0, 0.9);
-	}
-
-	vec3 out_output = alb * used_diffuse;
-
-	if (texelFetch(cdepth, pos, 0).x == 0.0) {
-		out_output = vec3(1.0);
-	}
-
-	acc_diffuse = min(acc_diffuse, 24.0);
-	imageStore(s_diffuse, pos, vec4(diffuse, 0.0));
-	imageStore(s_diffuse_acc, pos, vec4(acc_diffuse, vec3(0.0)));
-	//imageStore(s_direct_light, pos, vec4(direct_light, vec3(0.0)));
-	//imageStore(s_direct_light_acc, pos, vec4(acc_direct_light, vec3(0.0)));
 	imageStore(s_output, pos, vec4(out_output, 0.0));
 }
