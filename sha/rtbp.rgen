@@ -1,6 +1,7 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_EXT_control_flow_attributes : enable
 
 #include "illum.glsl"
 #include "ray_tracing.glsl"
@@ -82,7 +83,7 @@ struct vec_tri {
 };
 
 #define vec_tri_push(vec, to_push) (vec).ts[(vec).count++ & (vec_tri_max - 1)] = (to_push)
-#define vec_tri_push_over(vec, to_push) (vec).ts[(vec).count++] = (to_push)	// no overflow safety variant
+#define vec_push(vec, to_push) (vec).ts[(vec).count++] = (to_push)	// no overflow safety variant
 
 struct vec_tri_occ {	// should contain maximum triangles a triangle occluding a triangle can take
 	uint count;
@@ -94,9 +95,84 @@ struct vec_tri_split {	// up to 2 triangles
 	tri ts[2];
 };
 
+float vec3_det(vec3 a, vec3 b)
+{
+	return a.x * b.y + a.y * b.z + a.z * b.x - a.z * b.y - a.y * b.x - a.x * b.z;
+}
+
+bool seg_inter_line(vec3 sa, vec3 sb, vec3 l0, vec3 l, out vec3 inter)
+{
+	vec3 s = sb - sa;
+	vec3 amb = s - l0;
+	float crs = vec3_det(l, s);
+	float u = vec3_det(amb, s / crs);
+	inter = sa + s * u;
+	return u > 0 && u < 1;
+}
+
+bool is_same_side(vec3 a, vec3 b, vec3 l0, vec3 l)
+{
+	vec3 i;
+	seg_inter_line(a, b, l0, l, i);
+	return dot(a - i, b - i) > 0;
+}
+
+const uint split_table[4] = {
+	-1,	// undefined
+	1,
+	0,
+	2
+};
+
+void push_split(in tri s, in vec3 inter[2], uint lit, inout vec_tri_occ lit_out, inout vec_tri_occ other_out)
+{
+	vec_push(lit_out, tri(vec3[3](
+		s.ps[lit],
+		inter[0],
+		inter[1]
+	)));
+
+	vec_push(other_out, tri(vec3[3](
+		s.ps[(lit + 1) % 3],
+		inter[0],
+		inter[1]
+	)));
+	vec_push(other_out, tri(vec3[3](
+		s.ps[(lit + 1) % 3],
+		s.ps[(lit + 2) % 3],
+		inter[1]
+	)));
+}
+
 void tri_split(in tri s, vec3 sla, vec3 slb, vec3 slo, inout vec_tri_occ nocc, inout vec_tri_occ uknocc)
 {
-	vec_tri_push_over(nocc, s);
+	vec3 sl = slb - sla;
+	uint count;
+	vec3 inter[2];
+	uint inter_ndx[2];
+	for (uint i = 0; i < 3; i++) {
+		vec3 sa = s.ps[i];
+		vec3 sb = s.ps[(i + 1) % 3];
+		if (seg_inter_line(sa, sb, sla, sl, inter[count])) {
+			inter_ndx[count] = i;
+			count++;
+		}
+	}
+
+	if (count != 2) {
+		bool isocc = is_same_side(slo, s.ps[0], sla, sl);
+		if (isocc)
+			vec_push(uknocc, s);
+		else
+			vec_push(nocc, s);
+	} else {
+		uint lit = split_table[inter_ndx[0] + inter_ndx[1]];
+		bool litocc = is_same_side(slo, s.ps[lit], sla, sl);
+		if (litocc)
+			push_split(s, inter, lit, uknocc, nocc);
+		else
+			push_split(s, inter, lit, nocc, uknocc);
+	}
 }
 
 void occ_ind(in tri src, in plane src_pl, in tri occ, vec3 p, out vec_tri_occ res)
@@ -124,7 +200,7 @@ void occ_ind(in tri src, in plane src_pl, in tri occ, vec3 p, out vec_tri_occ re
 	for (uint s = 0; s < 3; s++) {	// segment counter
 		ukns_it.count = 0;
 		for (uint i = 0; i < ukns.count; i++)
-			tri_split(ukns.ts[i], occ.ps[s], occ.ps[(s + 1) % 3], occ.ps[(s + 2) % 3], res, ukns_it);
+			tri_split(ukns.ts[i], proj.ps[s], proj.ps[(s + 1) % 3], proj.ps[(s + 2) % 3], res, ukns_it);
 		ukns = ukns_it;
 	}
 }
