@@ -81,14 +81,8 @@ struct vec_tri {
 	tri ts[vec_tri_max];
 };
 
-#define vec_tri_push(vec, to_push) (vec).ts[(vec).count++ & 0xFF] = (to_push)
+#define vec_tri_push(vec, to_push) (vec).ts[(vec).count++ & (vec_tri_max - 1)] = (to_push)
 #define vec_tri_push_over(vec, to_push) (vec).ts[(vec).count++] = (to_push)	// no overflow safety variant
-
-// why is that broken??
-/*void vec_tri_push(out vec_tri vec, in tri to_push)
-{
-	vec_tri_push_mac(vec, to_push);
-}*/
 
 struct vec_tri_occ {	// should contain maximum triangles a triangle occluding a triangle can take
 	uint count;
@@ -100,10 +94,8 @@ struct vec_tri_split {	// up to 2 triangles
 	tri ts[2];
 };
 
-void tri_split(in tri s, vec3 sla, vec3 slb, vec3 slo, out vec_tri_split nocc, out vec_tri_split uknocc)
+void tri_split(in tri s, vec3 sla, vec3 slb, vec3 slo, inout vec_tri_occ nocc, inout vec_tri_occ uknocc)
 {
-	nocc.count = 0;
-	uknocc.count = 0;
 	vec_tri_push_over(nocc, s);
 }
 
@@ -111,12 +103,11 @@ void occ_ind(in tri src, in plane src_pl, in tri occ, vec3 p, out vec_tri_occ re
 {
 	res.count = 0;
 	vec_tri_occ ukns;	// triangles that might be in res and might also be occluded
-	ukns.count = 0;
+	ukns.count = 1;
+	ukns.ts[0] = src;
 
 	// project occluder on light source
 	tri proj = tri_proj(occ, src_pl);
-
-	vec_tri_push_over(ukns, src);
 
 	// intersect 3 occluder lines with 3 light source segments
 	// at each interation intersection splits each ukn into two sets: nocc and uknocc
@@ -132,14 +123,8 @@ void occ_ind(in tri src, in plane src_pl, in tri occ, vec3 p, out vec_tri_occ re
 	vec_tri_split nocc, uknocc;
 	for (uint s = 0; s < 3; s++) {	// segment counter
 		ukns_it.count = 0;
-		for (uint i = 0; i < ukns.count; i++) {
-			tri ukn = ukns.ts[i];
-			tri_split(ukn, occ.ps[s], occ.ps[(s + 1) % 3], occ.ps[(s + 2) % 3], nocc, uknocc);
-			for (uint j = 0; j < nocc.count; j++)
-				vec_tri_push_over(res, nocc.ts[j]);
-			for (uint j = 0; j < uknocc.count; j++)
-				vec_tri_push_over(ukns_it, uknocc.ts[j]);
-		}
+		for (uint i = 0; i < ukns.count; i++)
+			tri_split(ukns.ts[i], occ.ps[s], occ.ps[(s + 1) % 3], occ.ps[(s + 2) % 3], res, ukns_it);
 		ukns = ukns_it;
 	}
 }
