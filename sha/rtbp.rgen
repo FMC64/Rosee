@@ -49,9 +49,30 @@ float acos_fast(float s)
 	return mix(0, pi, 1 - (s + 1) * .5);
 }
 
+struct plane {
+	vec3 p;
+	vec3 n;
+};
+
+vec3 plane_proj(in plane pl, vec3 la, vec3 lb)
+{
+	vec3 v = lb - la;
+	float d = dot(pl.p - la, pl.n) / dot(v, pl.n);
+	return la + v * d;
+}
+
+
 struct tri {
 	vec3 ps[3];
 };
+
+tri tri_proj(in tri t, in plane pl)
+{
+	tri res;
+	for (uint i = 0; i < 3; i++)
+		res.ps[i] = plane_proj(pl, t.ps[i], t.ps[(i + 1) % 3]);
+	return res;
+}
 
 const uint vec_tri_max = 128;
 
@@ -61,6 +82,7 @@ struct vec_tri {
 };
 
 #define vec_tri_push(vec, to_push) (vec).ts[(vec).count++ & 0xFF] = (to_push)
+#define vec_tri_push_over(vec, to_push) (vec).ts[(vec).count++] = (to_push)	// no overflow safety variant
 
 // why is that broken??
 /*void vec_tri_push(out vec_tri vec, in tri to_push)
@@ -68,20 +90,68 @@ struct vec_tri {
 	vec_tri_push_mac(vec, to_push);
 }*/
 
-void occ_ind(in tri src, in tri occ, vec3 p, out vec_tri res)
+struct vec_tri_occ {	// should contain maximum triangles a triangle occluding a triangle can take
+	uint count;
+	tri ts[16];
+};
+
+struct vec_tri_split {	// up to 2 triangles
+	uint count;
+	tri ts[2];
+};
+
+void tri_split(in tri s, vec3 sla, vec3 slb, vec3 slo, out vec_tri_split nocc, out vec_tri_split uknocc)
 {
-	res.count = 0;
-	vec_tri ukn;	// triangles that might be in res and might also be occluded
-	ukn.count = 0;
-	vec_tri_push(res, src);
+	nocc.count = 0;
+	uknocc.count = 0;
+	vec_tri_push_over(nocc, s);
 }
 
-void occlude(in vec_tri src, in tri occ, vec3 p, out vec_tri res)
+void occ_ind(in tri src, in plane src_pl, in tri occ, vec3 p, out vec_tri_occ res)
 {
 	res.count = 0;
-	vec_tri ind;
-	for (uint i = 0; i < src.count; i++) {
-		occ_ind(src.ts[i], occ, p, ind);
+	vec_tri_occ ukns;	// triangles that might be in res and might also be occluded
+	ukns.count = 0;
+
+	// project occluder on light source
+	tri proj = tri_proj(occ, src_pl);
+
+	vec_tri_push_over(ukns, src);
+
+	// intersect 3 occluder lines with 3 light source segments
+	// at each interation intersection splits each ukn into two sets: nocc and uknocc
+	// nocc is definitely not occluded, while uknocc should be added back to ukn for splitting at next iteration
+	// each of these sets contains 0 to 2 triangles
+	// 0 - split outside of src, other set should contain one element which is the ukn triangle
+	// 1 - split divides the ukn triangle in two parts
+	//	this part contains one of the three points of such ukn and then can be represented by [this_ukn_point, splitA, splitB]
+	//	the other set should contain 2 triangles which form the quad [other_ukn_pointA, other_ukn_pointB, splitA, splitB]
+	// 2 - slit inside of src, other set should contain 0 element
+	// after last iteration, ukn is discarded and res contains src & !occ
+	vec_tri_occ ukns_it;
+	vec_tri_split nocc, uknocc;
+	for (uint s = 0; s < 3; s++) {	// segment counter
+		ukns_it.count = 0;
+		for (uint i = 0; i < ukns.count; i++) {
+			tri ukn = ukns.ts[i];
+			tri_split(ukn, occ.ps[s], occ.ps[(s + 1) % 3], occ.ps[(s + 2) % 3], nocc, uknocc);
+			for (uint j = 0; j < nocc.count; j++)
+				vec_tri_push_over(res, nocc.ts[j]);
+			for (uint j = 0; j < uknocc.count; j++)
+				vec_tri_push_over(ukns_it, uknocc.ts[j]);
+		}
+		ukns = ukns_it;
+	}
+}
+
+void occlude(in vec_tri srcs, in tri occ, vec3 p, out vec_tri res)
+{
+	res.count = 0;
+	vec_tri_occ ind;
+	for (uint i = 0; i < srcs.count; i++) {
+		tri src = srcs.ts[i];
+		plane src_pl = plane(src.ps[0], cross(src.ps[1] - src.ps[0], src.ps[2] - src.ps[0]));
+		occ_ind(src, src_pl, occ, p, ind);
 		for (uint j = 0; j < ind.count; j++)
 			vec_tri_push(res, ind.ts[j]);
 	}
