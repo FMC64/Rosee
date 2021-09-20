@@ -41,26 +41,27 @@ OBJ_DEP = $(ROSEED)/Vma.o $(ROSEED)/tinyobjloader.o $(ROSEED)/stb_image.o
 SRC = $(SRCD)/main.cpp $(ROSEE_SRC)
 OBJ = $(SRC:.cpp=.o)
 
+GLSL_FLAGS = -V
 GLSL_RT_FLAGS = --target-env spirv1.4
 
 %.vert.spv: %.vert
-	glslangValidator $< -V -o $@
+	glslangValidator $< $(GLSL_FLAGS) -o $@
 %.frag.spv: %.frag
-	glslangValidator $< -V -o $@
+	glslangValidator $< $(GLSL_FLAGS) -o $@
 %.comp.spv: %.comp
-	glslangValidator $< -V -o $@
+	glslangValidator $< $(GLSL_FLAGS) -o $@
 %.rgen.spv: %.rgen
-	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+	glslangValidator $< $(GLSL_FLAGS) $(GLSL_RT_FLAGS) -o $@
 %.rint.spv: %.rint
-	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+	glslangValidator $< $(GLSL_FLAGS) $(GLSL_RT_FLAGS) -o $@
 %.rahit.spv: %.rahit
-	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+	glslangValidator $< $(GLSL_FLAGS) $(GLSL_RT_FLAGS) -o $@
 %.rchit.spv: %.rchit
-	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+	glslangValidator $< $(GLSL_FLAGS) $(GLSL_RT_FLAGS) -o $@
 %.rmiss.spv: %.rmiss
-	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+	glslangValidator $< $(GLSL_FLAGS) $(GLSL_RT_FLAGS) -o $@
 %.rcall.spv: %.rcall
-	glslangValidator $< -V $(GLSL_RT_FLAGS) -o $@
+	glslangValidator $< $(GLSL_FLAGS) $(GLSL_RT_FLAGS) -o $@
 
 SHAD = sha
 SHA = $(SHAD)/opaque.vert $(SHAD)/opaque.frag $(SHAD)/opaque_uvgen.vert $(SHAD)/opaque_uvgen.frag $(SHAD)/opaque_tb.vert $(SHAD)/opaque_tb.frag \
@@ -99,6 +100,8 @@ $(ROSEED)/stb_image.o:
 RELEASE_DIR = ../Rosee_releases
 RELEASE_LATEST_DIR = $(RELEASE_DIR)/latest
 
+#RELEASE_INCLUDE_SHA_SRC = true
+
 release: $(TARGET) $(SHAS)
 	rm -rf $(RELEASE_DIR)/latest
 	cp -r $(RELEASE_DIR)/template $(RELEASE_LATEST_DIR)
@@ -106,6 +109,7 @@ release: $(TARGET) $(SHAS)
 	cp -r res $(RELEASE_LATEST_DIR)
 	mkdir -p $(RELEASE_LATEST_DIR)/sha
 	cp $(SHAS) $(RELEASE_LATEST_DIR)/sha
+	if [ "$(RELEASE_INCLUDE_SHA_SRC)" = "true" ]; then cp $(SHA) $(RELEASE_LATEST_DIR)/sha; fi
 
 clean:
 	rm -f $(OBJ) $(TARGET)

@@ -251,6 +251,10 @@ void occlude(in vec_tri srcs, in tri occ, out vec_tri res)
 	vec_tri_occ ind;
 	for (uint i = 0; i < srcs.count; i++) {
 		tri src = srcs.ts[i];
+		if (occ.ps[0].y < 0.0) {
+			vec_tri_push(res, src);
+			continue;
+		}
 		plane src_pl = plane(src.ps[0], cross(src.ps[1] - src.ps[0], src.ps[2] - src.ps[0]));
 		occ_ind(src, src_pl, occ, ind);
 		for (uint j = 0; j < ind.count; j++)
