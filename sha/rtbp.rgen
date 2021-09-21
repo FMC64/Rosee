@@ -222,8 +222,14 @@ float length2(vec3 vec)
 		is_same_side(slo, s.ps[0], sla, slb, isocc);			\
 		if (isocc)							\
 			uknocc.ts[ukni] = s;					\
-		else								\
+		else {								\
 			vec_push(nocc, s);					\
+			uknocc.count--;						\
+			if ((ukni + 1) < uknocc.count) {			\
+				uknocc.ts[ukni] = uknocc.ts[ukni + 1];		\
+				ukni--;						\
+			}							\
+		}								\
 	} else {								\
 		uint lit = split_table[inter_ndx[0] + inter_ndx[1]];		\
 		bool litocc;							\
