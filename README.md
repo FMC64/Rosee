@@ -1,4 +1,6 @@
-# Rosee (31th of August, 2023 release notes)
+# Rosee
+
+## Initial public release notes (31st of August, 2023)
 
 See https://adrien-lenglet.fr/project/rosee for screenshots and commentary over this awesome project!  
 
